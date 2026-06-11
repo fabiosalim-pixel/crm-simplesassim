@@ -40,7 +40,7 @@ const isApoliceAlerta = (card) => {
   if (card.apoliceAnexada) return false;
   if (!card.criadoEm) return false;
   const dias = Math.floor((Date.now() - new Date(card.criadoEm)) / 86400000);
-  return dias >= 7;
+  return dias >= 0;
 };
 
 const fmt = (d) => {
