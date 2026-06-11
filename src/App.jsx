@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
-import { Shield, Plus, X, ChevronRight, ChevronLeft, Bell, Search, Save, Tag, Filter, AlertTriangle } from "lucide-react";
+import { Shield, Plus, X, ChevronRight, ChevronLeft, Bell, Search, Save, Tag, Filter, AlertTriangle, Paperclip, Download, Trash2, Upload } from "lucide-react";
 
 const STAGES = [
   { id: "cotacoes",    label: "Cotações e Leads",        short: "Cotações",    badge: "bg-blue-600",    bg: "bg-blue-50",    border: "border-blue-300" },
@@ -12,6 +12,15 @@ const STAGES = [
 ];
 
 const genId = () => crypto.randomUUID();
+
+const DOC_TIPOS = [
+  { id: "proposta",       label: "Proposta",         required: true  },
+  { id: "apolice",        label: "Apólice",           required: true  },
+  { id: "nota_fiscal",    label: "Nota Fiscal",       required: false },
+  { id: "laudo_vistoria", label: "Laudo de Vistoria", required: false },
+  { id: "cnh",            label: "CNH",               required: false },
+  { id: "crlv",           label: "CRLV-e",            required: false },
+];
 
 const daysUntil = (d) => {
   if (!d) return null;
@@ -26,6 +35,23 @@ const fmt = (d) => {
 
 const fmtBRL = (v) =>
   v ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—";
+
+const maskCpfCnpj = (v) => {
+  const d = v.replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 11)
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, (_, a, b, c, e) =>
+      [a, b, c].filter(Boolean).join(".") + (e ? "-" + e : ""));
+  return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, (_, a, b, c, e, f) =>
+    [a, b, c].filter(Boolean).join(".").replace(/^(\d{2})\./, "$1.") + (e ? "/" + e : "") + (f ? "-" + f : ""))
+    .replace(/^(\d{2})(\d{3})(\d{3})/, "$1.$2.$3");
+};
+
+const maskPhone = (v) => {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 10)
+    return d.replace(/(\d{2})(\d{4})(\d{0,4})/, (_, a, b, c) => `(${a}) ${b}${c ? "-" + c : ""}`);
+  return d.replace(/(\d{2})(\d{5})(\d{0,4})/, (_, a, b, c) => `(${a}) ${b}${c ? "-" + c : ""}`);
+};
 
 // ── Supabase helpers ──────────────────────────────────────────
 async function loadCards() {
@@ -89,7 +115,105 @@ async function deleteCard(id) {
   if (error) console.error("Erro ao deletar:", error);
 }
 
+// ── Helpers de documentos ──────────────────────────────────────
+async function loadDocs(renovacaoId) {
+  const { data, error } = await supabase
+    .from("documentos")
+    .select("*")
+    .eq("renovacao_id", renovacaoId)
+    .order("criado_em", { ascending: false });
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+
+async function uploadDoc(renovacaoId, tipo, file) {
+  const ext = file.name.split(".").pop();
+  const path = `${renovacaoId}/${tipo}_${Date.now()}.${ext}`;
+  const { error: upErr } = await supabase.storage.from("documentos").upload(path, file);
+  if (upErr) { console.error("Erro no upload:", upErr); return null; }
+  const { data: { publicUrl } } = supabase.storage.from("documentos").getPublicUrl(path);
+  const { data, error: dbErr } = await supabase.from("documentos").insert({
+    renovacao_id: renovacaoId, tipo, nome_arquivo: file.name, storage_path: path,
+  }).select().single();
+  if (dbErr) { console.error("Erro ao salvar doc:", dbErr); return null; }
+  return { ...data, publicUrl };
+}
+
+async function deleteDoc(doc) {
+  await supabase.storage.from("documentos").remove([doc.storage_path]);
+  await supabase.from("documentos").delete().eq("id", doc.id);
+}
+
+function docPublicUrl(storagePath) {
+  const { data: { publicUrl } } = supabase.storage.from("documentos").getPublicUrl(storagePath);
+  return publicUrl;
+}
+
 // ── Componentes ───────────────────────────────────────────────
+function DocsSection({ cardId }) {
+  const [docs, setDocs] = useState([]);
+  const [tipoSel, setTipoSel] = useState("proposta");
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => { loadDocs(cardId).then(setDocs); }, [cardId]);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    const doc = await uploadDoc(cardId, tipoSel, file);
+    if (doc) setDocs(prev => [doc, ...prev]);
+    setUploading(false);
+    e.target.value = "";
+  };
+
+  const handleDelete = async (doc) => {
+    if (!window.confirm(`Excluir "${doc.nome_arquivo}"?`)) return;
+    await deleteDoc(doc);
+    setDocs(prev => prev.filter(d => d.id !== doc.id));
+  };
+
+  const tipoLabel = (id) => DOC_TIPOS.find(t => t.id === id)?.label || id;
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Documentos</p>
+      <div className="flex gap-2 mb-3">
+        <select value={tipoSel} onChange={e => setTipoSel(e.target.value)}
+          className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300">
+          {DOC_TIPOS.map(t => (
+            <option key={t.id} value={t.id}>{t.label}{t.required ? " *" : ""}</option>
+          ))}
+        </select>
+        <label className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${uploading ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-slate-800 hover:bg-slate-700 text-white"}`}>
+          <Upload size={13} /> {uploading ? "Enviando…" : "Anexar"}
+          <input type="file" accept=".pdf,.PDF,.jpg,.jpeg,.png" className="hidden" onChange={handleUpload} disabled={uploading} />
+        </label>
+      </div>
+      {docs.length === 0 ? (
+        <p className="text-xs text-slate-400">Nenhum documento anexado.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {docs.map(doc => (
+            <div key={doc.id} className="flex items-center gap-2 px-2.5 py-2 bg-slate-50 rounded-lg border border-slate-100">
+              <Paperclip size={12} className="text-slate-400 flex-shrink-0" />
+              <span className="text-xs font-semibold text-blue-600 flex-shrink-0 w-24 truncate">{tipoLabel(doc.tipo)}</span>
+              <span className="text-xs text-slate-500 flex-1 truncate">{doc.nome_arquivo}</span>
+              <a href={docPublicUrl(doc.storage_path)} target="_blank" rel="noreferrer"
+                className="text-slate-400 hover:text-blue-600 flex-shrink-0" title="Abrir">
+                <Download size={13} />
+              </a>
+              <button onClick={() => handleDelete(doc)}
+                className="text-slate-300 hover:text-red-500 flex-shrink-0" title="Excluir">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 function Chip({ days, status }) {
   if (status === "emitida" || days === null) return null;
   if (days < 0)   return <span className="text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Vencida</span>;
@@ -207,11 +331,11 @@ function Modal({ card, onClose, onSave, onDelete }) {
             </div>
             <div>
               <label className={lbl}>CPF / CNPJ</label>
-              <input className={inp} value={d.cpfCnpj || ""} onChange={e => set("cpfCnpj", e.target.value)} />
+              <input className={inp} value={d.cpfCnpj || ""} onChange={e => set("cpfCnpj", maskCpfCnpj(e.target.value))} placeholder="000.000.000-00" />
             </div>
             <div>
               <label className={lbl}>Telefone / WhatsApp</label>
-              <input className={inp} value={d.telefone || ""} onChange={e => set("telefone", e.target.value)} />
+              <input className={inp} value={d.telefone || ""} onChange={e => set("telefone", maskPhone(e.target.value))} placeholder="(00) 00000-0000" />
             </div>
             <div>
               <label className={lbl}>E-mail</label>
@@ -302,6 +426,8 @@ function Modal({ card, onClose, onSave, onDelete }) {
               <button onClick={addFu} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg"><Plus size={16} /></button>
             </div>
           </div>
+
+          <DocsSection cardId={card.id} />
         </div>
 
         <div className="flex justify-between items-center px-6 py-4 border-t flex-shrink-0">
@@ -358,11 +484,11 @@ function AddModal({ initialStage, onClose, onAdd }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={lbl}>CPF / CNPJ</label>
-              <input className={inp} value={d.cpfCnpj || ""} onChange={e => set("cpfCnpj", e.target.value)} />
+              <input className={inp} value={d.cpfCnpj || ""} onChange={e => set("cpfCnpj", maskCpfCnpj(e.target.value))} placeholder="000.000.000-00" />
             </div>
             <div>
               <label className={lbl}>Telefone</label>
-              <input className={inp} value={d.telefone || ""} onChange={e => set("telefone", e.target.value)} />
+              <input className={inp} value={d.telefone || ""} onChange={e => set("telefone", maskPhone(e.target.value))} placeholder="(00) 00000-0000" />
             </div>
             <div>
               <label className={lbl}>Tipo de Seguro</label>
