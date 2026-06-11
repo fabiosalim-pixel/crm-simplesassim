@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase";
-import { Shield, Plus, X, ChevronRight, ChevronLeft, Bell, Search, Save, Tag, Filter, AlertTriangle, Paperclip, Download, Trash2, Upload } from "lucide-react";
+import { Shield, Plus, X, ChevronRight, ChevronLeft, Bell, Search, Save, Tag, Filter, AlertTriangle, Paperclip, Download, Trash2, Upload, Archive, Clock } from "lucide-react";
 
 const STAGES = [
   { id: "cotacoes",    label: "Cotações e Leads",        short: "Cotações",    badge: "bg-blue-600",    bg: "bg-blue-50",    border: "border-blue-300" },
@@ -89,13 +89,8 @@ function TagChip({ label, corMap }) {
 }
 
 // ── Supabase helpers ──────────────────────────────────────────
-async function loadCards() {
-  const { data, error } = await supabase
-    .from("renovacoes")
-    .select("*")
-    .order("criado_em", { ascending: false });
-  if (error) { console.error("Erro ao carregar:", error); return []; }
-  return (data || []).map(r => ({
+function mapRow(r) {
+  return {
     id:            r.id,
     clienteNome:   r.cliente_nome,
     cpfCnpj:       r.cpf_cnpj,
@@ -127,10 +122,36 @@ async function loadCards() {
     autoAnoFab:         r.auto_ano_fab,
     autoAnoMod:         r.auto_ano_mod,
     autoChassi:         r.auto_chassi,
+    arquivado:        r.arquivado || false,
+    arquivadoEm:      r.arquivado_em,
+    historicoCiclos:  r.historico_ciclos || [],
     anotacoes:        r.observacoes,
     followUps:        r.cotacoes || [],
     mesReferencia:    r.mes_referencia,
-  }));
+  };
+}
+
+async function loadCards(arquivados = false) {
+  let query = supabase.from("renovacoes").select("*");
+  if (arquivados) {
+    query = query.eq("arquivado", true);
+  } else {
+    query = query.neq("arquivado", true);
+  }
+  const { data, error } = await query.order("criado_em", { ascending: false });
+  if (error) { console.error("Erro ao carregar:", error); return []; }
+  return (data || []).map(mapRow);
+}
+
+async function searchAllCards(q) {
+  if (!q || q.length < 2) return [];
+  const { data } = await supabase
+    .from("renovacoes")
+    .select("*")
+    .or(`cliente_nome.ilike.%${q}%,cpf_cnpj.ilike.%${q}%,auto_placa.ilike.%${q}%`)
+    .order("arquivado", { ascending: true })
+    .limit(10);
+  return (data || []).map(mapRow);
 }
 
 async function upsertCard(card) {
@@ -168,10 +189,13 @@ async function upsertCard(card) {
     auto_ano_fab:          card.autoAnoFab ? Number(card.autoAnoFab) : null,
     auto_ano_mod:          card.autoAnoMod ? Number(card.autoAnoMod) : null,
     auto_chassi:           card.autoChassi || null,
-    observacoes:        card.anotacoes,
-    cotacoes:        card.followUps || [],
-    mes_referencia:  card.mesReferencia || new Date().toISOString().slice(0, 7),
-    atualizado_em:   new Date().toISOString(),
+    arquivado:        card.arquivado || false,
+    arquivado_em:     card.arquivadoEm || null,
+    historico_ciclos: card.historicoCiclos || [],
+    observacoes:      card.anotacoes,
+    cotacoes:         card.followUps || [],
+    mes_referencia:   card.mesReferencia || new Date().toISOString().slice(0, 7),
+    atualizado_em:    new Date().toISOString(),
   };
   const { error } = await supabase.from("renovacoes").upsert(row);
   if (error) console.error("Erro ao salvar:", error);
@@ -343,8 +367,8 @@ function Column({ stage, cards, onCard, onAdd }) {
   );
 }
 
-function Modal({ card, onClose, onSave, onDelete }) {
-  const [d, setD] = useState({ followUps: [], ...card });
+function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar }) {
+  const [d, setD] = useState({ followUps: [], historicoCiclos: [], ...card });
   const [fuText, setFuText] = useState("");
   const [fuDate, setFuDate] = useState("");
   const [del, setDel] = useState(false);
@@ -366,6 +390,30 @@ function Modal({ card, onClose, onSave, onDelete }) {
     setSaving(false);
   };
 
+  const handleDesarquivarModal = async () => {
+    if (!window.confirm("Desarquivar este card?\n\nEle voltará para Cotações e Leads.")) return;
+    setSaving(true);
+    await onDesarquivar({ ...d, arquivado: false, arquivadoEm: null, status: "cotacoes" });
+    setSaving(false);
+  };
+
+  const handleArquivar = async () => {
+    if (!window.confirm("Confirmar envio ao cliente e arquivar este card?\n\nEle sairá do pipeline e será reativado automaticamente 30 dias antes do próximo vencimento.")) return;
+    const ciclo = {
+      data_renovacao: d.dataRenovacao,
+      seguradora:     d.seguradora,
+      valor:          d.valor,
+      proposta:       d.proposta,
+      apolice:        d.apolice,
+      situacao:       d.etiquetaSituacao,
+      arquivado_em:   new Date().toISOString(),
+    };
+    const historico = [...(d.historicoCiclos || []), ciclo];
+    setSaving(true);
+    await onArquivar({ ...d, historicoCiclos: historico, arquivado: true, arquivadoEm: new Date().toISOString() });
+    setSaving(false);
+  };
+
   const inp = "mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300";
   const lbl = "text-xs font-semibold text-slate-500 uppercase tracking-wide";
 
@@ -375,9 +423,15 @@ function Modal({ card, onClose, onSave, onDelete }) {
         <div className="flex justify-between items-start px-6 pt-5 pb-4 border-b flex-shrink-0">
           <div>
             <h2 className="text-xl font-bold text-slate-900">{d.clienteNome || "Novo Cliente"}</h2>
-            <span className={`text-xs font-semibold ${STAGES[stageIdx]?.badge || "bg-slate-500"} text-white px-2.5 py-0.5 rounded-full mt-1 inline-block`}>
-              {STAGES[stageIdx]?.label}
-            </span>
+            {d.arquivado ? (
+              <span className="text-xs font-semibold bg-amber-500 text-white px-2.5 py-0.5 rounded-full mt-1 inline-flex items-center gap-1">
+                <Archive size={10} /> Arquivado
+              </span>
+            ) : (
+              <span className={`text-xs font-semibold ${STAGES[stageIdx]?.badge || "bg-slate-500"} text-white px-2.5 py-0.5 rounded-full mt-1 inline-block`}>
+                {STAGES[stageIdx]?.label}
+              </span>
+            )}
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 mt-1"><X size={20} /></button>
         </div>
@@ -607,11 +661,46 @@ function Modal({ card, onClose, onSave, onDelete }) {
           </div>
 
           <DocsSection cardId={card.id} />
+
+          {(d.historicoCiclos || []).length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Clock size={12} /> Histórico de Renovações
+              </p>
+              <div className="space-y-2">
+                {[...(d.historicoCiclos || [])].reverse().map((c, i) => (
+                  <div key={i} className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-sm">
+                    <div className="flex justify-between items-start">
+                      <span className="font-semibold text-slate-700">{c.seguradora || "—"}</span>
+                      <span className="text-emerald-600 font-semibold">{fmtBRL(c.valor)}</span>
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1 space-y-0.5">
+                      <div>Vencimento: {fmt(c.data_renovacao)} · Situação: {c.situacao || "—"}</div>
+                      <div>Proposta: {c.proposta || "—"} · Apólice: {c.apolice || "—"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between items-center px-6 py-4 border-t flex-shrink-0">
           {!del ? (
-            <button onClick={() => setDel(true)} className="text-sm text-red-400 hover:text-red-600">Excluir card</button>
+            <div className="flex items-center gap-3">
+              {d.arquivado ? (
+                <button onClick={handleDesarquivarModal} disabled={saving}
+                  className="flex items-center gap-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-60">
+                  <Archive size={13} /> Desarquivar
+                </button>
+              ) : d.status === "emitida" ? (
+                <button onClick={handleArquivar} disabled={saving}
+                  className="flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-60">
+                  <Archive size={13} /> Arquivar
+                </button>
+              ) : null}
+              <button onClick={() => setDel(true)} className="text-sm text-red-400 hover:text-red-600">Excluir card</button>
+            </div>
           ) : (
             <div className="flex items-center gap-3">
               <AlertTriangle size={14} className="text-red-500" />
@@ -750,10 +839,38 @@ export default function App() {
   const [addStage, setAddStage] = useState(null);
   const [search, setSearch] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
+  const [mostrarArquivados, setMostrarArquivados] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef(null);
 
   useEffect(() => {
-    loadCards().then(c => { setCards(c); setLoading(false); });
+    setLoading(true);
+    loadCards(mostrarArquivados).then(c => { setCards(c); setLoading(false); });
+  }, [mostrarArquivados]);
+
+  // Busca global com debounce
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 2) { setSearchResults([]); setSearchOpen(false); return; }
+    const t = setTimeout(() => {
+      searchAllCards(searchQuery).then(res => { setSearchResults(res); setSearchOpen(res.length > 0); });
+    }, 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Fechar dropdown ao clicar fora
+  useEffect(() => {
+    const handler = (e) => { if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const handleSelectResult = (card) => {
+    setSelected(card);
+    setSearchQuery("");
+    setSearchOpen(false);
+  };
 
   const handleAdd = async (card) => {
     await upsertCard(card);
@@ -769,6 +886,18 @@ export default function App() {
   const handleDelete = async (id) => {
     await deleteCard(id);
     setCards(prev => prev.filter(c => c.id !== id));
+    setSelected(null);
+  };
+
+  const handleArquivar = async (card) => {
+    await upsertCard(card);
+    setCards(prev => prev.filter(c => c.id !== card.id));
+    setSelected(null);
+  };
+
+  const handleDesarquivar = async (card) => {
+    await upsertCard(card);
+    setCards(prev => prev.filter(c => c.id !== card.id));
     setSelected(null);
   };
 
@@ -813,10 +942,57 @@ export default function App() {
       </header>
 
       <div className="bg-white border-b px-5 py-2.5 flex items-center gap-3 flex-shrink-0">
-        <div className="relative">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 w-52"
-            placeholder="Cliente ou CPF/CNPJ..." value={search} onChange={e => setSearch(e.target.value)} />
+        <div className="relative" ref={searchRef}>
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+          <input
+            className="pl-8 pr-8 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 w-72"
+            placeholder="Buscar cliente, CPF, placa..."
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setSearch(e.target.value); }}
+            onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
+            onKeyDown={e => e.key === "Escape" && (setSearchOpen(false), setSearchQuery(""), setSearch(""))}
+          />
+          {searchQuery && (
+            <button onClick={() => { setSearchQuery(""); setSearch(""); setSearchOpen(false); }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
+              <X size={13} />
+            </button>
+          )}
+          {searchOpen && (
+            <div className="absolute top-full left-0 mt-1 w-96 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden">
+              <div className="px-3 py-2 border-b bg-slate-50">
+                <span className="text-xs text-slate-400 font-medium">{searchResults.length} resultado{searchResults.length !== 1 ? "s" : ""}</span>
+              </div>
+              {searchResults.map(card => {
+                const stage = STAGES.find(s => s.id === card.status);
+                return (
+                  <button key={card.id} onClick={() => handleSelectResult(card)}
+                    className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 transition-colors flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-800 text-sm truncate">{card.clienteNome}</span>
+                        {card.arquivado && (
+                          <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0 flex items-center gap-0.5">
+                            <Archive size={9} /> Arquivado
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5 truncate">
+                        {card.tipoSeguro} · {card.seguradora}
+                        {card.autoPlaca && ` · ${card.autoPlaca}`}
+                        {card.cpfCnpj && ` · ${card.cpfCnpj}`}
+                      </div>
+                    </div>
+                    {!card.arquivado && stage && (
+                      <span className={`text-xs text-white px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${stage.badge}`}>
+                        {stage.short}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         <Filter size={13} className="text-slate-400" />
         <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-600"
@@ -824,6 +1000,10 @@ export default function App() {
           <option value="">Todos os meses</option>
           {months.map(m => <option key={m.val} value={m.val}>{m.label}</option>)}
         </select>
+        <button onClick={() => setMostrarArquivados(prev => !prev)}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${mostrarArquivados ? "bg-amber-100 border-amber-400 text-amber-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+          <Archive size={13} /> {mostrarArquivados ? "Ver Pipeline" : "Arquivados"}
+        </button>
         <button onClick={() => setAddStage("cotacoes")}
           className="ml-auto flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
           <Plus size={15} /> Novo Card
@@ -840,7 +1020,7 @@ export default function App() {
         </div>
       </div>
 
-      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} />}
+      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} />}
       {addStage && <AddModal initialStage={addStage} onClose={() => setAddStage(null)} onAdd={handleAdd} />}
     </div>
   );
