@@ -53,6 +53,41 @@ const maskPhone = (v) => {
   return d.replace(/(\d{2})(\d{5})(\d{0,4})/, (_, a, b, c) => `(${a}) ${b}${c ? "-" + c : ""}`);
 };
 
+// ── Etiquetas em camadas ──────────────────────────────────────
+const SITUACOES = ["Renovação","Seguro Novo","Renov. Congênere","Endosso","Não Renovada","Recusada","Sem Negócio","Protocolado"];
+const PAGAMENTOS = ["Boleto","Débito em Conta","Link"];
+const CANAIS = ["Indicação","Site","LojaCorr","Parceiro","Google","Crosselling"];
+
+const SITUACAO_COR = {
+  "Renovação":         "bg-blue-100 text-blue-700",
+  "Seguro Novo":       "bg-emerald-100 text-emerald-700",
+  "Renov. Congênere":  "bg-violet-100 text-violet-700",
+  "Endosso":           "bg-orange-100 text-orange-700",
+  "Não Renovada":      "bg-red-100 text-red-700",
+  "Recusada":          "bg-red-100 text-red-700",
+  "Sem Negócio":       "bg-slate-100 text-slate-500",
+  "Protocolado":       "bg-yellow-100 text-yellow-700",
+};
+const PAGAMENTO_COR = {
+  "Boleto":           "bg-amber-100 text-amber-700",
+  "Débito em Conta":  "bg-teal-100 text-teal-700",
+  "Link":             "bg-indigo-100 text-indigo-700",
+};
+const CANAL_COR = {
+  "Indicação":   "bg-emerald-100 text-emerald-700",
+  "Site":        "bg-sky-100 text-sky-700",
+  "LojaCorr":    "bg-violet-100 text-violet-700",
+  "Parceiro":    "bg-orange-100 text-orange-700",
+  "Google":      "bg-red-100 text-red-700",
+  "Crosselling": "bg-pink-100 text-pink-700",
+};
+
+function TagChip({ label, corMap }) {
+  if (!label) return null;
+  const cor = corMap[label] || "bg-slate-100 text-slate-500";
+  return <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${cor}`}>{label}</span>;
+}
+
 // ── Supabase helpers ──────────────────────────────────────────
 async function loadCards() {
   const { data, error } = await supabase
@@ -75,10 +110,13 @@ async function loadCards() {
     responsavel:   r.responsavel,
     proposta:      r.proposta,
     apolice:       r.apolice_nova,
-    etiquetaSegfy: r.etiqueta_segfy,
-    anotacoes:     r.observacoes,
-    followUps:     r.cotacoes || [],
-    mesReferencia: r.mes_referencia,
+    etiquetaSegfy:    r.etiqueta_segfy,
+    etiquetaSituacao: r.etiqueta_situacao,
+    etiquetaPagamento:r.etiqueta_pagamento,
+    etiquetaCanal:    r.etiqueta_canal,
+    anotacoes:        r.observacoes,
+    followUps:        r.cotacoes || [],
+    mesReferencia:    r.mes_referencia,
   }));
 }
 
@@ -100,8 +138,11 @@ async function upsertCard(card) {
     responsavel:     card.responsavel,
     proposta:        card.proposta,
     apolice_nova:    card.apolice,
-    etiqueta_segfy:  card.etiquetaSegfy || false,
-    observacoes:     card.anotacoes,
+    etiqueta_segfy:     card.etiquetaSegfy || false,
+    etiqueta_situacao:  card.etiquetaSituacao || null,
+    etiqueta_pagamento: card.etiquetaPagamento || null,
+    etiqueta_canal:     card.etiquetaCanal || null,
+    observacoes:        card.anotacoes,
     cotacoes:        card.followUps || [],
     mes_referencia:  card.mesReferencia || new Date().toISOString().slice(0, 7),
     atualizado_em:   new Date().toISOString(),
@@ -236,6 +277,13 @@ function CardTile({ card, onClick }) {
       </div>
       <div className="text-xs text-slate-500 mt-1">{card.tipoSeguro} · {card.seguradora}</div>
       {card.veiculo && card.veiculo !== "—" && <div className="text-xs text-slate-400 mt-0.5 truncate">{card.veiculo}</div>}
+      {(card.etiquetaSituacao || card.etiquetaPagamento || card.etiquetaCanal) && (
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          <TagChip label={card.etiquetaSituacao}  corMap={SITUACAO_COR} />
+          <TagChip label={card.etiquetaPagamento} corMap={PAGAMENTO_COR} />
+          <TagChip label={card.etiquetaCanal}     corMap={CANAL_COR} />
+        </div>
+      )}
       <div className="flex justify-between items-center mt-2">
         <span className="text-xs font-semibold text-emerald-700">{fmtBRL(card.valor)}</span>
         <Chip days={days} status={card.status} />
@@ -346,7 +394,7 @@ function Modal({ card, onClose, onSave, onDelete }) {
               <input className={inp} value={d.responsavel || ""} onChange={e => set("responsavel", e.target.value)} />
             </div>
             <div>
-              <label className={lbl}>Tipo de Seguro</label>
+              <label className={lbl}>Produto</label>
               <select className={inp} value={d.tipoSeguro || ""} onChange={e => set("tipoSeguro", e.target.value)}>
                 <option value="">Selecione</option>
                 {["AUTOMÓVEL","BIKE","CONDOMÍNIO","CONSÓRCIO","EMPRESARIAL","EQUIPAMENTOS PORTÁTEIS",
@@ -369,6 +417,27 @@ function Modal({ card, onClose, onSave, onDelete }) {
                   "QUALLITY SAÚDE","BB CONSORCIOS","ITAU CONSORCIOS","SUHAI SEGUROS",
                   "SUL AMÉRICA","SURA","TOKIO MARINE","UNIMED NACIONAL","UNIMED SEGUROS SAUDE",
                   "YELUM SEGUROS","ZURICH"].map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Situação</label>
+              <select className={inp} value={d.etiquetaSituacao || ""} onChange={e => set("etiquetaSituacao", e.target.value)}>
+                <option value="">Selecione</option>
+                {SITUACOES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Pagamento</label>
+              <select className={inp} value={d.etiquetaPagamento || ""} onChange={e => set("etiquetaPagamento", e.target.value)}>
+                <option value="">Selecione</option>
+                {PAGAMENTOS.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className={lbl}>Canal / Origem</label>
+              <select className={inp} value={d.etiquetaCanal || ""} onChange={e => set("etiquetaCanal", e.target.value)}>
+                <option value="">Selecione</option>
+                {CANAIS.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div className="col-span-2">
@@ -491,13 +560,20 @@ function AddModal({ initialStage, onClose, onAdd }) {
               <input className={inp} value={d.telefone || ""} onChange={e => set("telefone", maskPhone(e.target.value))} placeholder="(00) 00000-0000" />
             </div>
             <div>
-              <label className={lbl}>Tipo de Seguro</label>
+              <label className={lbl}>Produto</label>
               <select className={inp} value={d.tipoSeguro} onChange={e => set("tipoSeguro", e.target.value)}>
                 {["AUTOMÓVEL","BIKE","CONDOMÍNIO","CONSÓRCIO","EMPRESARIAL","EQUIPAMENTOS PORTÁTEIS",
                   "FIANÇA LOCATÍCIA","DENTAL","RESIDENCIAL","PET","PREVIDÊNCIA","CAPITALIZAÇÃO",
                   "RC PROFISSIONAL","RISCO DE ENGENHARIA","RURAL","SAÚDE","SEGURO EVENTO",
                   "SEGURO VIAGEM","TRANSPORTES","VIDA INDIVIDUAL","VIDA EM GRUPO",
                   "ACIDENTES PESSOAIS","AUXÍLIO FUNERAL","RC OBRAS"].map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Situação</label>
+              <select className={inp} value={d.etiquetaSituacao || ""} onChange={e => set("etiquetaSituacao", e.target.value)}>
+                <option value="">Selecione</option>
+                {SITUACOES.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div>
@@ -528,11 +604,20 @@ function AddModal({ initialStage, onClose, onAdd }) {
             <label className={lbl}>Veículo / Bem Segurado</label>
             <input className={inp} placeholder="Placa / Modelo / Endereço" value={d.veiculo || ""} onChange={e => set("veiculo", e.target.value)} />
           </div>
-          <div>
-            <label className={lbl}>Etapa Inicial</label>
-            <select className={inp} value={d.status} onChange={e => set("status", e.target.value)}>
-              {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={lbl}>Canal / Origem</label>
+              <select className={inp} value={d.etiquetaCanal || ""} onChange={e => set("etiquetaCanal", e.target.value)}>
+                <option value="">Selecione</option>
+                {CANAIS.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Etapa Inicial</label>
+              <select className={inp} value={d.status} onChange={e => set("status", e.target.value)}>
+                {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+            </div>
           </div>
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 border-t">
