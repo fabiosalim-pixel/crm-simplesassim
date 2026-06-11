@@ -34,6 +34,15 @@ const daysUntil = (d) => {
   return Math.ceil((new Date(d + "T12:00:00") - new Date()) / 86400000);
 };
 
+const isApoliceAlerta = (card) => {
+  if (card.status !== "transmitida") return false;
+  if (card.etiquetaSituacao === "Seguro Novo") return false;
+  if (card.apoliceAnexada) return false;
+  if (!card.criadoEm) return false;
+  const dias = Math.floor((Date.now() - new Date(card.criadoEm)) / 86400000);
+  return dias >= 7;
+};
+
 const fmt = (d) => {
   if (!d) return "—";
   const [y, m, day] = d.split("-");
@@ -139,6 +148,8 @@ function mapRow(r) {
     sinistros:        r.sinistros || [],
     mesReferencia:    r.mes_referencia,
     clienteId:        r.cliente_id,
+    criadoEm:         r.criado_em,
+    apoliceAnexada:   r.apolice_anexada || false,
   };
 }
 
@@ -208,6 +219,7 @@ async function upsertCard(card) {
     sinistros:        card.sinistros || [],
     mes_referencia:   card.mesReferencia || new Date().toISOString().slice(0, 7),
     atualizado_em:    new Date().toISOString(),
+    apolice_anexada:  card.apoliceAnexada || false,
   };
   const { error } = await supabase.from("renovacoes").upsert(row);
   if (error) console.error("Erro ao salvar:", error);
@@ -239,6 +251,9 @@ async function uploadDoc(renovacaoId, tipo, file) {
     renovacao_id: renovacaoId, tipo, nome_arquivo: file.name, storage_path: path,
   }).select().single();
   if (dbErr) { console.error("Erro ao salvar doc:", dbErr); return null; }
+  if (tipo === "apolice") {
+    await supabase.from("renovacoes").update({ apolice_anexada: true }).eq("id", renovacaoId);
+  }
   return { ...data, publicUrl };
 }
 
@@ -480,7 +495,7 @@ function ProspeccoesView({ prospeccoes, onUpdate, onRecuperar }) {
 }
 
 // ── Componentes ───────────────────────────────────────────────
-function DocsSection({ cardId }) {
+function DocsSection({ cardId, onApoliceAnexada }) {
   const [docs, setDocs] = useState([]);
   const [tipoSel, setTipoSel] = useState("proposta");
   const [uploading, setUploading] = useState(false);
@@ -492,7 +507,10 @@ function DocsSection({ cardId }) {
     if (!file) return;
     setUploading(true);
     const doc = await uploadDoc(cardId, tipoSel, file);
-    if (doc) setDocs(prev => [doc, ...prev]);
+    if (doc) {
+      setDocs(prev => [doc, ...prev]);
+      if (tipoSel === "apolice" && onApoliceAnexada) onApoliceAnexada();
+    }
     setUploading(false);
     e.target.value = "";
   };
@@ -556,13 +574,14 @@ function CardTile({ card, onClick, onDragStart }) {
   const days = daysUntil(card.dataRenovacao);
   const urgent = days !== null && days <= 5 && card.status !== "emitida";
   const warn   = days !== null && days > 5 && days <= 15 && card.status !== "emitida";
+  const apoliceAlert = isApoliceAlerta(card);
   const pending = (card.followUps || []).filter(f => !f.feito).length;
   return (
     <div
       draggable
       onDragStart={e => { e.dataTransfer.setData("cardId", card.id); e.dataTransfer.effectAllowed = "move"; if (onDragStart) onDragStart(card.id); }}
       onClick={() => onClick(card)}
-      className={`bg-white rounded-xl p-2.5 mb-1.5 cursor-grab active:cursor-grabbing hover:bg-slate-50 transition-colors border border-slate-200 ${urgent ? "border-l-4 border-l-red-500" : warn ? "border-l-4 border-l-yellow-400" : ""}`}
+      className={`bg-white rounded-xl p-2.5 mb-1.5 cursor-grab active:cursor-grabbing hover:bg-slate-50 transition-colors border ${apoliceAlert ? "border-red-400 border-2" : urgent ? "border-l-4 border-l-red-500 border-slate-200" : warn ? "border-l-4 border-l-yellow-400 border-slate-200" : "border-slate-200"}`}
       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
       <div className="flex justify-between items-start gap-1">
         <span className="font-semibold text-slate-800 text-sm leading-snug flex-1">{card.clienteNome}</span>
@@ -584,6 +603,11 @@ function CardTile({ card, onClick, onDragStart }) {
       {pending > 0 && (
         <div className="mt-1 flex items-center gap-1 text-xs text-amber-500">
           <Bell size={9} /> {pending} pendente{pending > 1 ? "s" : ""}
+        </div>
+      )}
+      {apoliceAlert && (
+        <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-semibold">
+          <Paperclip size={9} /> Apólice pendente
         </div>
       )}
       {(card.sinistros || []).filter(s => s.status !== "Encerrado").length > 0 && (
@@ -626,7 +650,7 @@ function Column({ stage, cards, onCard, onAdd, onDrop }) {
   );
 }
 
-function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onNaoRenovada, onVerCliente }) {
+function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onNaoRenovada, onVerCliente, onApoliceAnexada }) {
   const [d, setD] = useState({ followUps: [], historicoCiclos: [], ...card });
   const [fuText, setFuText] = useState("");
   const [fuDate, setFuDate] = useState("");
@@ -1030,7 +1054,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
             )}
           </div>
 
-          <DocsSection cardId={card.id} />
+          <DocsSection cardId={card.id} onApoliceAnexada={onApoliceAnexada} />
 
           {(d.historicoCiclos || []).length > 0 && (
             <div>
@@ -1915,6 +1939,11 @@ export default function App() {
   });
 
   const urgentes = cards.filter(c => { const d = daysUntil(c.dataRenovacao); return d !== null && d <= 7 && c.status !== "emitida"; }).length;
+  const apolicesPendentes = cards.filter(isApoliceAlerta).length;
+
+  const handleApoliceAnexada = (cardId) => {
+    setCards(prev => prev.map(c => c.id === cardId ? { ...c, apoliceAnexada: true } : c));
+  };
 
   const months = Array.from({ length: 8 }, (_, i) => {
     const dt = new Date(); dt.setDate(1); dt.setMonth(dt.getMonth() + i - 1);
@@ -1952,6 +1981,11 @@ export default function App() {
           {urgentes > 0 && (
             <div className="flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
               <Bell size={11} /> {urgentes} urgente{urgentes !== 1 ? "s" : ""}
+            </div>
+          )}
+          {apolicesPendentes > 0 && (
+            <div className="flex items-center gap-1.5 bg-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+              <Paperclip size={11} /> {apolicesPendentes} apólice{apolicesPendentes !== 1 ? "s" : ""} pendente{apolicesPendentes !== 1 ? "s" : ""}
             </div>
           )}
           <div className="text-slate-400 text-xs">{cards.length} cards · {cards.filter(c => c.status === "emitida").length} emitidas</div>
@@ -2047,7 +2081,7 @@ export default function App() {
         <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
       )}
 
-      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} />}
+      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} onApoliceAnexada={() => handleApoliceAnexada(selected.id)} />}
       {addStage && <AddModal initialStage={addStage} onClose={() => setAddStage(null)} onAdd={handleAdd} />}
       {clienteModal && <ClienteModal clienteId={clienteModal} onClose={() => setClienteModal(null)} onAbrirCard={(c) => { setClienteModal(null); setSelected(c); }} />}
       {importModal && <ImportModal onClose={() => setImportModal(false)} onAdd={handleAdd} />}
