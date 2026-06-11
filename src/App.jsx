@@ -43,6 +43,13 @@ const isApoliceAlerta = (card) => {
   return dias >= 7;
 };
 
+const isVistoriaAlerta = (card) => {
+  if (card.status !== "vistoria") return false;
+  if (!card.criadoEm) return false;
+  const dias = Math.floor((Date.now() - new Date(card.criadoEm)) / 86400000);
+  return dias >= 5;
+};
+
 const fmt = (d) => {
   if (!d) return "—";
   const [y, m, day] = d.split("-");
@@ -575,13 +582,14 @@ function CardTile({ card, onClick, onDragStart }) {
   const urgent = days !== null && days <= 5 && card.status !== "emitida";
   const warn   = days !== null && days > 5 && days <= 15 && card.status !== "emitida";
   const apoliceAlert = isApoliceAlerta(card);
+  const vistoriaAlert = isVistoriaAlerta(card);
   const pending = (card.followUps || []).filter(f => !f.feito).length;
   return (
     <div
       draggable
       onDragStart={e => { e.dataTransfer.setData("cardId", card.id); e.dataTransfer.effectAllowed = "move"; if (onDragStart) onDragStart(card.id); }}
       onClick={() => onClick(card)}
-      className={`bg-white rounded-xl p-2.5 mb-1.5 cursor-grab active:cursor-grabbing hover:bg-slate-50 transition-colors border ${apoliceAlert ? "border-red-400 border-2" : urgent ? "border-l-4 border-l-red-500 border-slate-200" : warn ? "border-l-4 border-l-yellow-400 border-slate-200" : "border-slate-200"}`}
+      className={`bg-white rounded-xl p-2.5 mb-1.5 cursor-grab active:cursor-grabbing hover:bg-slate-50 transition-colors border ${apoliceAlert ? "border-red-400 border-2" : vistoriaAlert ? "border-orange-400 border-2" : urgent ? "border-l-4 border-l-red-500 border-slate-200" : warn ? "border-l-4 border-l-yellow-400 border-slate-200" : "border-slate-200"}`}
       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
       <div className="flex justify-between items-start gap-1">
         <span className="font-semibold text-slate-800 text-sm leading-snug flex-1">{card.clienteNome}</span>
@@ -608,6 +616,11 @@ function CardTile({ card, onClick, onDragStart }) {
       {apoliceAlert && (
         <div className="mt-1 flex items-center gap-1 text-xs text-red-600 font-semibold">
           <Paperclip size={9} /> Apólice pendente
+        </div>
+      )}
+      {vistoriaAlert && (
+        <div className="mt-1 flex items-center gap-1 text-xs text-orange-600 font-semibold">
+          <AlertTriangle size={9} /> Vistoria pendente
         </div>
       )}
       {(card.sinistros || []).filter(s => s.status !== "Encerrado").length > 0 && (
@@ -1940,6 +1953,7 @@ export default function App() {
 
   const urgentes = cards.filter(c => { const d = daysUntil(c.dataRenovacao); return d !== null && d <= 7 && c.status !== "emitida"; }).length;
   const apolicesPendentes = cards.filter(isApoliceAlerta).length;
+  const vistoriasPendentes = cards.filter(isVistoriaAlerta).length;
 
   const handleApoliceAnexada = (cardId) => {
     setCards(prev => prev.map(c => c.id === cardId ? { ...c, apoliceAnexada: true } : c));
@@ -1986,6 +2000,11 @@ export default function App() {
           {apolicesPendentes > 0 && (
             <div className="flex items-center gap-1.5 bg-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
               <Paperclip size={11} /> {apolicesPendentes} apólice{apolicesPendentes !== 1 ? "s" : ""} pendente{apolicesPendentes !== 1 ? "s" : ""}
+            </div>
+          )}
+          {vistoriasPendentes > 0 && (
+            <div className="flex items-center gap-1.5 bg-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+              <AlertTriangle size={11} /> {vistoriasPendentes} vistoria{vistoriasPendentes !== 1 ? "s" : ""} pendente{vistoriasPendentes !== 1 ? "s" : ""}
             </div>
           )}
           <div className="text-slate-400 text-xs">{cards.length} cards · {cards.filter(c => c.status === "emitida").length} emitidas</div>
