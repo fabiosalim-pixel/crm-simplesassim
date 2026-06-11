@@ -114,6 +114,19 @@ async function loadCards() {
     etiquetaSituacao: r.etiqueta_situacao,
     etiquetaPagamento:r.etiqueta_pagamento,
     etiquetaCanal:    r.etiqueta_canal,
+    autoClasseBonus:    r.auto_classe_bonus,
+    autoNomeSegurado:   r.auto_nome_segurado,
+    autoCondutor:       r.auto_condutor,
+    autoDataNasc:       r.auto_data_nascimento,
+    autoSexo:           r.auto_sexo,
+    autoEstadoCivil:    r.auto_estado_civil,
+    autoMenorResidente: r.auto_menor_residente || false,
+    autoCepPernoite:    r.auto_cep_pernoite,
+    autoPlaca:          r.auto_placa,
+    autoModelo:         r.auto_modelo,
+    autoAnoFab:         r.auto_ano_fab,
+    autoAnoMod:         r.auto_ano_mod,
+    autoChassi:         r.auto_chassi,
     anotacoes:        r.observacoes,
     followUps:        r.cotacoes || [],
     mesReferencia:    r.mes_referencia,
@@ -142,6 +155,19 @@ async function upsertCard(card) {
     etiqueta_situacao:  card.etiquetaSituacao || null,
     etiqueta_pagamento: card.etiquetaPagamento || null,
     etiqueta_canal:     card.etiquetaCanal || null,
+    auto_classe_bonus:     card.autoClasseBonus ? Number(card.autoClasseBonus) : null,
+    auto_nome_segurado:    card.autoNomeSegurado || null,
+    auto_condutor:         card.autoCondutor || null,
+    auto_data_nascimento:  card.autoDataNasc || null,
+    auto_sexo:             card.autoSexo || null,
+    auto_estado_civil:     card.autoEstadoCivil || null,
+    auto_menor_residente:  card.autoMenorResidente || false,
+    auto_cep_pernoite:     card.autoCepPernoite || null,
+    auto_placa:            card.autoPlaca ? card.autoPlaca.toUpperCase() : null,
+    auto_modelo:           card.autoModelo || null,
+    auto_ano_fab:          card.autoAnoFab ? Number(card.autoAnoFab) : null,
+    auto_ano_mod:          card.autoAnoMod ? Number(card.autoAnoMod) : null,
+    auto_chassi:           card.autoChassi || null,
     observacoes:        card.anotacoes,
     cotacoes:        card.followUps || [],
     mes_referencia:  card.mesReferencia || new Date().toISOString().slice(0, 7),
@@ -461,6 +487,90 @@ function Modal({ card, onClose, onSave, onDelete }) {
               <input className={inp} value={d.apolice || ""} onChange={e => set("apolice", e.target.value)} />
             </div>
           </div>
+
+          {d.tipoSeguro === "AUTOMÓVEL" && (
+            <div className="border border-blue-200 rounded-xl p-4 bg-blue-50 space-y-4">
+              <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">🚗 Dados do Automóvel</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={lbl}>Nome do Segurado</label>
+                  <input className={inp} placeholder="Titular do contrato" value={d.autoNomeSegurado || ""} onChange={e => set("autoNomeSegurado", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Classe de Bônus</label>
+                  <input type="number" min="0" max="10" className={inp} placeholder="0 a 10" value={d.autoClasseBonus ?? ""} onChange={e => set("autoClasseBonus", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Condutor Principal</label>
+                  <input className={inp} placeholder="Nome do condutor" value={d.autoCondutor || ""} onChange={e => set("autoCondutor", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>
+                    Data de Nascimento
+                    {d.autoDataNasc && (() => {
+                      const anos = Math.floor((new Date() - new Date(d.autoDataNasc + "T12:00:00")) / (365.25 * 86400000));
+                      return <span className="ml-2 text-blue-600 font-bold normal-case">{anos} anos</span>;
+                    })()}
+                  </label>
+                  <input type="date" className={inp} value={d.autoDataNasc || ""} onChange={e => set("autoDataNasc", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Sexo</label>
+                  <select className={inp} value={d.autoSexo || ""} onChange={e => set("autoSexo", e.target.value)}>
+                    <option value="">Selecione</option>
+                    <option>Masculino</option>
+                    <option>Feminino</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={lbl}>Estado Civil</label>
+                  <select className={inp} value={d.autoEstadoCivil || ""} onChange={e => set("autoEstadoCivil", e.target.value)}>
+                    <option value="">Selecione</option>
+                    <option>Solteiro(a)</option>
+                    <option>Casado(a)</option>
+                    <option>Divorciado(a)</option>
+                    <option>Viúvo(a)</option>
+                    <option>União Estável</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={lbl}>Placa</label>
+                  <input className={inp} placeholder="AAA-0000" value={d.autoPlaca || ""} onChange={e => set("autoPlaca", e.target.value.toUpperCase())} />
+                </div>
+                <div>
+                  <label className={lbl}>CEP de Pernoite</label>
+                  <input className={inp} placeholder="00000-000" value={d.autoCepPernoite || ""}
+                    onChange={e => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 8);
+                      set("autoCepPernoite", v.length > 5 ? v.replace(/(\d{5})(\d{1,3})/, "$1-$2") : v);
+                    }} />
+                </div>
+                <div className="col-span-2">
+                  <label className={lbl}>Modelo do Veículo</label>
+                  <input className={inp} placeholder="Ex: Honda HR-V EX" value={d.autoModelo || ""} onChange={e => set("autoModelo", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Ano Fabricação</label>
+                  <input type="number" className={inp} placeholder="2022" value={d.autoAnoFab || ""} onChange={e => set("autoAnoFab", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Ano Modelo</label>
+                  <input type="number" className={inp} placeholder="2023" value={d.autoAnoMod || ""} onChange={e => set("autoAnoMod", e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <label className={lbl}>Chassi <span className="font-normal normal-case text-slate-400">(opcional)</span></label>
+                  <input className={inp} placeholder="9BWZZZ377VT004251" value={d.autoChassi || ""} onChange={e => set("autoChassi", e.target.value.toUpperCase())} />
+                </div>
+                <div className="col-span-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+                    <input type="checkbox" className="w-4 h-4 rounded accent-blue-600"
+                      checked={!!d.autoMenorResidente} onChange={e => set("autoMenorResidente", e.target.checked)} />
+                    Menor residente no domicílio
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
 
           <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
             <input type="checkbox" className="w-4 h-4 rounded accent-blue-600" checked={!!d.etiquetaSegfy} onChange={e => set("etiquetaSegfy", e.target.checked)} />
