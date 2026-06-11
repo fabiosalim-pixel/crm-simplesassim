@@ -50,6 +50,12 @@ const isVistoriaAlerta = (card) => {
   return dias >= 5;
 };
 
+const isBoletoAlerta = (card) => {
+  if (card.status !== "boleto") return false;
+  if (!card.dataAlerta) return false;
+  return new Date(card.dataAlerta + "T23:59:59") <= new Date();
+};
+
 const fmt = (d) => {
   if (!d) return "—";
   const [y, m, day] = d.split("-");
@@ -157,6 +163,7 @@ function mapRow(r) {
     clienteId:        r.cliente_id,
     criadoEm:         r.criado_em,
     apoliceAnexada:   r.apolice_anexada || false,
+    dataAlerta:       r.data_alerta || null,
   };
 }
 
@@ -227,6 +234,7 @@ async function upsertCard(card) {
     mes_referencia:   card.mesReferencia || new Date().toISOString().slice(0, 7),
     atualizado_em:    new Date().toISOString(),
     apolice_anexada:  card.apoliceAnexada || false,
+    data_alerta:      card.dataAlerta || null,
   };
   const { error } = await supabase.from("renovacoes").upsert(row);
   if (error) console.error("Erro ao salvar:", error);
@@ -583,13 +591,14 @@ function CardTile({ card, onClick, onDragStart }) {
   const warn   = days !== null && days > 5 && days <= 15 && card.status !== "emitida";
   const apoliceAlert = isApoliceAlerta(card);
   const vistoriaAlert = isVistoriaAlerta(card);
+  const boletoAlert = isBoletoAlerta(card);
   const pending = (card.followUps || []).filter(f => !f.feito).length;
   return (
     <div
       draggable
       onDragStart={e => { e.dataTransfer.setData("cardId", card.id); e.dataTransfer.effectAllowed = "move"; if (onDragStart) onDragStart(card.id); }}
       onClick={() => onClick(card)}
-      className={`bg-white rounded-xl p-2.5 mb-1.5 cursor-grab active:cursor-grabbing hover:bg-slate-50 transition-colors border ${apoliceAlert ? "border-red-400 border-2" : vistoriaAlert ? "border-orange-400 border-2" : urgent ? "border-l-4 border-l-red-500 border-slate-200" : warn ? "border-l-4 border-l-yellow-400 border-slate-200" : "border-slate-200"}`}
+      className={`bg-white rounded-xl p-2.5 mb-1.5 cursor-grab active:cursor-grabbing hover:bg-slate-50 transition-colors border ${apoliceAlert ? "border-red-400 border-2" : vistoriaAlert ? "border-orange-400 border-2" : boletoAlert ? "border-yellow-500 border-2" : urgent ? "border-l-4 border-l-red-500 border-slate-200" : warn ? "border-l-4 border-l-yellow-400 border-slate-200" : "border-slate-200"}`}
       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
       <div className="flex justify-between items-start gap-1">
         <span className="font-semibold text-slate-800 text-sm leading-snug flex-1">{card.clienteNome}</span>
@@ -621,6 +630,11 @@ function CardTile({ card, onClick, onDragStart }) {
       {vistoriaAlert && (
         <div className="mt-1 flex items-center gap-1 text-xs text-orange-600 font-semibold">
           <AlertTriangle size={9} /> Vistoria pendente
+        </div>
+      )}
+      {boletoAlert && (
+        <div className="mt-1 flex items-center gap-1 text-xs text-yellow-700 font-semibold">
+          <Bell size={9} /> Boleto vencendo
         </div>
       )}
       {(card.sinistros || []).filter(s => s.status !== "Encerrado").length > 0 && (
@@ -832,6 +846,12 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
                 {PAGAMENTOS.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
+            {d.status === "boleto" && (
+              <div>
+                <label className={lbl}>📅 Vencimento do boleto</label>
+                <input type="date" className={inp} value={d.dataAlerta || ""} onChange={e => set("dataAlerta", e.target.value)} />
+              </div>
+            )}
             <div className="col-span-2">
               <label className={lbl}>Canal de origem</label>
               <select className={inp} value={d.etiquetaCanal || ""} onChange={e => set("etiquetaCanal", e.target.value)}>
@@ -1323,6 +1343,12 @@ function AddModal({ initialStage, onClose, onAdd }) {
               </select>
             </div>
           </div>
+          {d.status === "boleto" && (
+            <div>
+              <label className={lbl}>📅 Vencimento do boleto</label>
+              <input type="date" className={inp} value={d.dataAlerta || ""} onChange={e => set("dataAlerta", e.target.value)} />
+            </div>
+          )}
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 border-t">
           <button onClick={onClose} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
@@ -1954,6 +1980,7 @@ export default function App() {
   const urgentes = cards.filter(c => { const d = daysUntil(c.dataRenovacao); return d !== null && d <= 7 && c.status !== "emitida"; }).length;
   const apolicesPendentes = cards.filter(isApoliceAlerta).length;
   const vistoriasPendentes = cards.filter(isVistoriaAlerta).length;
+  const boletosPendentes = cards.filter(isBoletoAlerta).length;
 
   const handleApoliceAnexada = (cardId) => {
     setCards(prev => prev.map(c => c.id === cardId ? { ...c, apoliceAnexada: true } : c));
@@ -2005,6 +2032,11 @@ export default function App() {
           {vistoriasPendentes > 0 && (
             <div className="flex items-center gap-1.5 bg-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
               <AlertTriangle size={11} /> {vistoriasPendentes} vistoria{vistoriasPendentes !== 1 ? "s" : ""} pendente{vistoriasPendentes !== 1 ? "s" : ""}
+            </div>
+          )}
+          {boletosPendentes > 0 && (
+            <div className="flex items-center gap-1.5 bg-yellow-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+              <Bell size={11} /> {boletosPendentes} boleto{boletosPendentes !== 1 ? "s" : ""} vencendo
             </div>
           )}
           <div className="text-slate-400 text-xs">{cards.length} cards · {cards.filter(c => c.status === "emitida").length} emitidas</div>
