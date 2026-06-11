@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase";
-import { Shield, Plus, X, ChevronRight, ChevronLeft, Bell, Search, Save, Tag, Filter, AlertTriangle, Paperclip, Download, Trash2, Upload, Archive, Clock } from "lucide-react";
+import { Shield, Plus, X, ChevronRight, ChevronLeft, Bell, Search, Save, Tag, Filter, AlertTriangle, Paperclip, Download, Trash2, Upload, Archive, Clock, Ban, Users, RotateCcw } from "lucide-react";
 
 const STAGES = [
   { id: "cotacoes",    label: "Cotações e Leads",        short: "Cotações",    badge: "bg-blue-600",    bg: "bg-blue-50",    border: "border-blue-300" },
@@ -12,6 +12,13 @@ const STAGES = [
 ];
 
 const genId = () => crypto.randomUUID();
+
+const PROSP_STAGES = [
+  { id: "FRIA",               label: "Fria",               short: "Fria",      badge: "bg-sky-500",     bg: "bg-sky-50",     border: "border-sky-200" },
+  { id: "EM ANDAMENTO",       label: "Em Andamento",       short: "Andamento", badge: "bg-orange-500",  bg: "bg-orange-50",  border: "border-orange-200" },
+  { id: "RECUPERADA",         label: "Recuperada",         short: "Recuperada",badge: "bg-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" },
+  { id: "PERDIDA DEFINITIVA", label: "Perdida Definitiva", short: "Perdida",   badge: "bg-slate-400",   bg: "bg-slate-50",   border: "border-slate-200" },
+];
 
 const DOC_TIPOS = [
   { id: "proposta",       label: "Proposta",         required: true  },
@@ -240,6 +247,195 @@ function docPublicUrl(storagePath) {
   return publicUrl;
 }
 
+// ── Helpers de prospecção ─────────────────────────────────────
+async function criarProspeccao(card) {
+  const { data: ex } = await supabase.from("prospeccoes").select("id").eq("renovacao_id", card.id).limit(1);
+  if (ex && ex.length > 0) return;
+  const dataVenc = card.dataRenovacao ? new Date(card.dataRenovacao + "T12:00:00") : null;
+  const dataContato = dataVenc ? new Date(dataVenc.getTime() + (365 - 30) * 86400000) : null;
+  const { error } = await supabase.from("prospeccoes").insert({
+    id: genId(),
+    renovacao_id:          card.id,
+    cliente_nome:          card.clienteNome,
+    cpf_cnpj:              card.cpfCnpj,
+    telefone:              card.telefone,
+    email:                 card.email,
+    produto:               card.tipoSeguro,
+    seguradora_anterior:   card.seguradora,
+    valor_anterior:        card.valor ? Number(card.valor) : null,
+    data_vencimento_anterior: card.dataRenovacao || null,
+    data_prevista_contato: dataContato ? dataContato.toISOString().slice(0, 10) : null,
+    status_prospeccao:     "FRIA",
+  });
+  if (error) console.error("Erro ao criar prospecção:", error);
+}
+
+async function loadProspeccoes() {
+  const { data, error } = await supabase
+    .from("prospeccoes").select("*")
+    .order("criado_em", { ascending: false });
+  if (error) { console.error(error); return []; }
+  return (data || []).map(r => ({
+    id:                r.id,
+    renovacaoId:       r.renovacao_id,
+    clienteNome:       r.cliente_nome,
+    cpfCnpj:           r.cpf_cnpj,
+    telefone:          r.telefone,
+    email:             r.email,
+    produto:           r.produto,
+    seguradoraAnterior:r.seguradora_anterior,
+    valorAnterior:     r.valor_anterior,
+    dataVencAnterior:  r.data_vencimento_anterior,
+    dataPrevistaContato: r.data_prevista_contato,
+    status:            r.status_prospeccao || "FRIA",
+    observacoes:       r.observacoes,
+    criadoEm:          r.criado_em,
+  }));
+}
+
+async function upsertProspeccao(p) {
+  const { error } = await supabase.from("prospeccoes").upsert({
+    id:                    p.id,
+    renovacao_id:          p.renovacaoId,
+    cliente_nome:          p.clienteNome,
+    cpf_cnpj:              p.cpfCnpj,
+    telefone:              p.telefone,
+    email:                 p.email,
+    produto:               p.produto,
+    seguradora_anterior:   p.seguradoraAnterior,
+    valor_anterior:        p.valorAnterior ? Number(p.valorAnterior) : null,
+    data_vencimento_anterior: p.dataVencAnterior || null,
+    data_prevista_contato: p.dataPrevistaContato || null,
+    status_prospeccao:     p.status,
+    observacoes:           p.observacoes || null,
+    atualizado_em:         new Date().toISOString(),
+  });
+  if (error) console.error("Erro ao salvar prospecção:", error);
+}
+
+// ── Componentes de Prospecção ─────────────────────────────────
+function ProspeccaoTile({ p, onClick }) {
+  const dias = p.dataPrevistaContato
+    ? Math.ceil((new Date(p.dataPrevistaContato + "T12:00:00") - new Date()) / 86400000)
+    : null;
+  const urgente = dias !== null && dias <= 7;
+  const aviso   = dias !== null && dias > 7 && dias <= 30;
+  return (
+    <div onClick={() => onClick(p)}
+      className={`bg-white rounded-lg p-3 mb-2 shadow-sm cursor-pointer hover:shadow-md transition-all border-l-4 ${urgente ? "border-red-500" : aviso ? "border-yellow-400" : "border-transparent"}`}>
+      <div className="font-semibold text-slate-800 text-sm leading-snug">{p.clienteNome}</div>
+      <div className="text-xs text-slate-500 mt-1">{p.produto} · {p.seguradoraAnterior}</div>
+      {p.valorAnterior && <div className="text-xs font-semibold text-emerald-700 mt-1">{fmtBRL(p.valorAnterior)}</div>}
+      {dias !== null && (
+        <div className={`text-xs mt-1.5 font-medium ${urgente ? "text-red-600" : aviso ? "text-yellow-600" : "text-slate-400"}`}>
+          Contato: {fmt(p.dataPrevistaContato)} {urgente ? "⚠" : ""}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProspeccaoModal({ p, onClose, onSave, onRecuperar }) {
+  const [d, setD] = useState({ ...p });
+  const [saving, setSaving] = useState(false);
+  const set = (k, v) => setD(prev => ({ ...prev, [k]: v }));
+  const inp = "mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300";
+  const lbl = "text-xs font-semibold text-slate-500 uppercase tracking-wide";
+  const stage = PROSP_STAGES.find(s => s.id === d.status) || PROSP_STAGES[0];
+
+  const handleRecuperar = async () => {
+    if (!window.confirm("Recuperar este cliente?\n\nA prospecção será marcada como Recuperada e um novo card será criado em Cotações e Leads.")) return;
+    setSaving(true);
+    await onRecuperar(d);
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style={{ maxHeight: "85vh" }}>
+        <div className="flex justify-between items-start px-6 pt-5 pb-4 border-b flex-shrink-0">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">{d.clienteNome}</h2>
+            <span className={`text-xs font-semibold ${stage.badge} text-white px-2.5 py-0.5 rounded-full mt-1 inline-block`}>{stage.label}</span>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 mt-1"><X size={20} /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl text-sm">
+            <div><span className="text-xs text-slate-400">Produto</span><div className="font-semibold text-slate-700">{d.produto || "—"}</div></div>
+            <div><span className="text-xs text-slate-400">Seguradora anterior</span><div className="font-semibold text-slate-700">{d.seguradoraAnterior || "—"}</div></div>
+            <div><span className="text-xs text-slate-400">Valor anterior</span><div className="font-semibold text-emerald-700">{fmtBRL(d.valorAnterior)}</div></div>
+            <div><span className="text-xs text-slate-400">Vencimento anterior</span><div className="font-semibold text-slate-700">{fmt(d.dataVencAnterior)}</div></div>
+            {d.telefone && <div><span className="text-xs text-slate-400">Telefone</span><div className="font-semibold text-slate-700">{d.telefone}</div></div>}
+            {d.email && <div className="col-span-2"><span className="text-xs text-slate-400">E-mail</span><div className="font-semibold text-slate-700">{d.email}</div></div>}
+          </div>
+          <div>
+            <label className={lbl}>Status</label>
+            <select className={inp} value={d.status} onChange={e => set("status", e.target.value)}>
+              {PROSP_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={lbl}>Data prevista de contato</label>
+            <input type="date" className={inp} value={d.dataPrevistaContato || ""} onChange={e => set("dataPrevistaContato", e.target.value)} />
+          </div>
+          <div>
+            <label className={lbl}>Observações</label>
+            <textarea className={`${inp} resize-none`} rows={3} value={d.observacoes || ""} onChange={e => set("observacoes", e.target.value)} placeholder="Motivo da não renovação, próximos passos..." />
+          </div>
+        </div>
+        <div className="flex justify-between items-center px-6 py-4 border-t flex-shrink-0">
+          {d.status !== "RECUPERADA" && d.status !== "PERDIDA DEFINITIVA" && (
+            <button onClick={handleRecuperar} disabled={saving}
+              className="flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-60">
+              <RotateCcw size={13} /> Recuperar cliente
+            </button>
+          )}
+          <div className="flex gap-2 ml-auto">
+            <button onClick={onClose} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
+            <button onClick={async () => { setSaving(true); await onSave(d); setSaving(false); }} disabled={saving}
+              className="px-4 py-2 text-sm bg-slate-900 hover:bg-slate-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-60">
+              <Save size={14} /> {saving ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProspeccoesView({ prospeccoes, onUpdate, onRecuperar }) {
+  const [sel, setSel] = useState(null);
+  return (
+    <div className="flex-1 overflow-x-auto">
+      <div className="flex gap-3 p-4 h-full" style={{ minWidth: "fit-content" }}>
+        {PROSP_STAGES.map(stage => {
+          const items = prospeccoes.filter(p => p.status === stage.id);
+          return (
+            <div key={stage.id} className="flex-shrink-0 flex flex-col" style={{ width: 220 }}>
+              <div className={`rounded-t-lg px-3 py-2.5 ${stage.badge} text-white`}>
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-xs uppercase tracking-wider">{stage.label}</span>
+                  <span className="text-xs font-bold bg-white bg-opacity-25 rounded-full w-5 h-5 flex items-center justify-center">{items.length}</span>
+                </div>
+              </div>
+              <div className={`${stage.bg} flex-1 rounded-b-lg p-2 border ${stage.border} border-t-0 min-h-40 overflow-y-auto`} style={{ maxHeight: "calc(100vh - 200px)" }}>
+                {items.map(p => <ProspeccaoTile key={p.id} p={p} onClick={setSel} />)}
+                {items.length === 0 && <p className="text-xs text-slate-300 text-center mt-4">Nenhuma</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {sel && (
+        <ProspeccaoModal p={sel} onClose={() => setSel(null)}
+          onSave={async (updated) => { await upsertProspeccao(updated); onUpdate(updated); setSel(null); }}
+          onRecuperar={async (p) => { await onRecuperar(p); setSel(null); }} />
+      )}
+    </div>
+  );
+}
+
 // ── Componentes ───────────────────────────────────────────────
 function DocsSection({ cardId }) {
   const [docs, setDocs] = useState([]);
@@ -367,7 +563,7 @@ function Column({ stage, cards, onCard, onAdd }) {
   );
 }
 
-function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar }) {
+function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onNaoRenovada }) {
   const [d, setD] = useState({ followUps: [], historicoCiclos: [], ...card });
   const [fuText, setFuText] = useState("");
   const [fuDate, setFuDate] = useState("");
@@ -394,6 +590,13 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar }) {
     if (!window.confirm("Desarquivar este card?\n\nEle voltará para Cotações e Leads.")) return;
     setSaving(true);
     await onDesarquivar({ ...d, arquivado: false, arquivadoEm: null, status: "cotacoes" });
+    setSaving(false);
+  };
+
+  const handleNaoRenovadaModal = async () => {
+    if (!window.confirm("Marcar como Não Renovada?\n\nO card será arquivado e uma prospecção será criada automaticamente para acompanhamento futuro.")) return;
+    setSaving(true);
+    await onNaoRenovada({ ...d, etiquetaSituacao: "Não Renovada" });
     setSaving(false);
   };
 
@@ -693,12 +896,20 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar }) {
                   className="flex items-center gap-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-60">
                   <Archive size={13} /> Desarquivar
                 </button>
-              ) : d.status === "emitida" ? (
-                <button onClick={handleArquivar} disabled={saving}
-                  className="flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-60">
-                  <Archive size={13} /> Arquivar
-                </button>
-              ) : null}
+              ) : (
+                <>
+                  {d.status === "emitida" && (
+                    <button onClick={handleArquivar} disabled={saving}
+                      className="flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-60">
+                      <Archive size={13} /> Arquivar
+                    </button>
+                  )}
+                  <button onClick={handleNaoRenovadaModal} disabled={saving}
+                    className="flex items-center gap-1.5 text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg disabled:opacity-60">
+                    <Ban size={13} /> {d.etiquetaSituacao === "Não Renovada" ? "Confirmar Não Renovada" : "Não Renovada"}
+                  </button>
+                </>
+              )}
               <button onClick={() => setDel(true)} className="text-sm text-red-400 hover:text-red-600">Excluir card</button>
             </div>
           ) : (
@@ -840,6 +1051,8 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
+  const [view, setView] = useState("pipeline");
+  const [prospeccoes, setProspeccoes] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -849,6 +1062,12 @@ export default function App() {
     setLoading(true);
     loadCards(mostrarArquivados).then(c => { setCards(c); setLoading(false); });
   }, [mostrarArquivados]);
+
+  useEffect(() => {
+    if (view === "prospeccoes") {
+      loadProspeccoes().then(setProspeccoes);
+    }
+  }, [view]);
 
   // Busca global com debounce
   useEffect(() => {
@@ -901,6 +1120,51 @@ export default function App() {
     setSelected(null);
   };
 
+  const handleNaoRenovada = async (card) => {
+    const updated = { ...card, etiquetaSituacao: "Não Renovada", arquivado: true, arquivadoEm: new Date().toISOString() };
+    await upsertCard(updated);
+    await criarProspeccao(updated);
+    setCards(prev => prev.filter(c => c.id !== card.id));
+    setSelected(null);
+  };
+
+  const handleProspeccaoUpdate = (updated) => {
+    setProspeccoes(prev => prev.map(p => p.id === updated.id ? updated : p));
+  };
+
+  const handleRecuperar = async (prosp) => {
+    // Marca prospecção como recuperada
+    const updatedProsp = { ...prosp, status: "RECUPERADA" };
+    await upsertProspeccao(updatedProsp);
+    setProspeccoes(prev => prev.map(p => p.id === updatedProsp.id ? updatedProsp : p));
+    // Cria novo card no pipeline com dados do cliente
+    const dataVenc = prosp.dataVencAnterior
+      ? new Date(prosp.dataVencAnterior + "T12:00:00")
+      : null;
+    const novaData = dataVenc
+      ? new Date(dataVenc.setFullYear(dataVenc.getFullYear() + 1)).toISOString().slice(0, 10)
+      : null;
+    const novoCard = {
+      id: genId(),
+      clienteNome:      prosp.clienteNome,
+      cpfCnpj:          prosp.cpfCnpj,
+      telefone:         prosp.telefone,
+      email:            prosp.email,
+      tipoSeguro:       prosp.produto,
+      seguradora:       prosp.seguradoraAnterior,
+      dataRenovacao:    novaData,
+      valor:            prosp.valorAnterior,
+      status:           "cotacoes",
+      etiquetaSituacao: "Renovação",
+      historicoCiclos:  [],
+      followUps:        [],
+      arquivado:        false,
+    };
+    await upsertCard(novoCard);
+    setCards(prev => [novoCard, ...prev]);
+    setView("pipeline");
+  };
+
   const visible = cards.filter(c => {
     const ms = !search || c.clienteNome?.toLowerCase().includes(search.toLowerCase()) || (c.cpfCnpj || "").includes(search);
     const mm = !filterMonth || (c.dataRenovacao || "").startsWith(filterMonth);
@@ -932,6 +1196,16 @@ export default function App() {
           <span className="text-slate-500 text-xs ml-1">Simples Assim</span>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5">
+            <button onClick={() => setView("pipeline")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === "pipeline" ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
+              <Shield size={12} /> Renovações
+            </button>
+            <button onClick={() => setView("prospeccoes")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === "prospeccoes" ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
+              <Users size={12} /> Prospecções
+            </button>
+          </div>
           {urgentes > 0 && (
             <div className="flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
               <Bell size={11} /> {urgentes} urgente{urgentes !== 1 ? "s" : ""}
@@ -1010,17 +1284,21 @@ export default function App() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-x-auto">
-        <div className="flex gap-3 p-4 h-full" style={{ minWidth: "fit-content" }}>
-          {STAGES.map(s => (
-            <Column key={s.id} stage={s}
-              cards={visible.filter(c => c.status === s.id)}
-              onCard={setSelected} onAdd={setAddStage} />
-          ))}
+      {view === "pipeline" ? (
+        <div className="flex-1 overflow-x-auto">
+          <div className="flex gap-3 p-4 h-full" style={{ minWidth: "fit-content" }}>
+            {STAGES.map(s => (
+              <Column key={s.id} stage={s}
+                cards={visible.filter(c => c.status === s.id)}
+                onCard={setSelected} onAdd={setAddStage} />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
+      )}
 
-      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} />}
+      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} />}
       {addStage && <AddModal initialStage={addStage} onClose={() => setAddStage(null)} onAdd={handleAdd} />}
     </div>
   );
