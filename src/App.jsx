@@ -1451,6 +1451,7 @@ function ImportModal({ onClose, onAdd }) {
   const [arquivo, setArquivo] = useState(null);
   const [erro, setErro] = useState("");
   const [saving, setSaving] = useState(false);
+  const [tipoDoc, setTipoDoc] = useState("proposta");
   const [form, setForm] = useState({
     clienteNome: "", cpfCnpj: "", telefone: "", email: "",
     seguradora: "", tipoSeguro: "AUTOMÓVEL", proposta: "", apolice: "",
@@ -1508,6 +1509,7 @@ function ImportModal({ onClose, onAdd }) {
         valor:             d.financeiro?.premioTotal || "",
         status:            "transmitida",
       });
+      setTipoDoc(d.tipoDocumento === "apolice" ? "apolice" : "proposta");
       setStep(3);
     } catch (e) {
       setErro(e.message);
@@ -1555,6 +1557,9 @@ function ImportModal({ onClose, onAdd }) {
         arquivado:         false,
       };
       await onAdd(card);
+      if (arquivo) {
+        await uploadDoc(card.id, tipoDoc, arquivo);
+      }
       onClose();
     } catch (e) {
       setErro(e.message);
