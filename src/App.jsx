@@ -61,9 +61,9 @@ const maskPhone = (v) => {
 };
 
 // ── Etiquetas em camadas ──────────────────────────────────────
-const SITUACOES = ["Renovação","Seguro Novo","Renov. Congênere","Endosso","Não Renovada","Recusada","Sem Negócio","Protocolado"];
-const PAGAMENTOS = ["Boleto","Débito em Conta","Link"];
-const CANAIS = ["Indicação","Site","LojaCorr","Parceiro","Google","Crosselling"];
+const SITUACOES = ["Endosso","Não Renovada","Protocolado","Recusada","Renov. Congênere","Renovação","Seguro Novo","Sem Negócio"];
+const PAGAMENTOS = ["Boleto","Cartão de Crédito","Débito em Conta","Link de Pagamento","PIX"];
+const CANAIS = ["Crosselling","Google","Indicação","LojaCorr","Parceiro","Site"];
 
 const SITUACAO_COR = {
   "Renovação":         "bg-blue-100 text-blue-700",
@@ -76,9 +76,11 @@ const SITUACAO_COR = {
   "Protocolado":       "bg-yellow-100 text-yellow-700",
 };
 const PAGAMENTO_COR = {
-  "Boleto":           "bg-amber-100 text-amber-700",
-  "Débito em Conta":  "bg-teal-100 text-teal-700",
-  "Link":             "bg-indigo-100 text-indigo-700",
+  "Boleto":            "bg-amber-100 text-amber-700",
+  "Débito em Conta":   "bg-teal-100 text-teal-700",
+  "Cartão de Crédito": "bg-purple-100 text-purple-700",
+  "PIX":               "bg-emerald-100 text-emerald-700",
+  "Link de Pagamento": "bg-indigo-100 text-indigo-700",
 };
 const CANAL_COR = {
   "Indicação":   "bg-emerald-100 text-emerald-700",
@@ -509,20 +511,24 @@ function Chip({ days, status }) {
   return <span className="text-xs text-slate-400">{days}d</span>;
 }
 
-function CardTile({ card, onClick }) {
+function CardTile({ card, onClick, onDragStart }) {
   const days = daysUntil(card.dataRenovacao);
   const urgent = days !== null && days <= 5 && card.status !== "emitida";
   const warn   = days !== null && days > 5 && days <= 15 && card.status !== "emitida";
   const pending = (card.followUps || []).filter(f => !f.feito).length;
   return (
-    <div onClick={() => onClick(card)}
-      className={`bg-white rounded-lg p-3 mb-2 shadow-sm cursor-pointer hover:shadow-md transition-all border-l-4 ${urgent ? "border-red-500" : warn ? "border-yellow-400" : "border-transparent"}`}>
+    <div
+      draggable
+      onDragStart={e => { e.dataTransfer.setData("cardId", card.id); e.dataTransfer.effectAllowed = "move"; if (onDragStart) onDragStart(card.id); }}
+      onClick={() => onClick(card)}
+      className={`bg-white rounded-xl p-2.5 mb-1.5 cursor-grab active:cursor-grabbing hover:bg-slate-50 transition-colors border border-slate-200 ${urgent ? "border-l-4 border-l-red-500" : warn ? "border-l-4 border-l-yellow-400" : ""}`}
+      style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
       <div className="flex justify-between items-start gap-1">
         <span className="font-semibold text-slate-800 text-sm leading-snug flex-1">{card.clienteNome}</span>
-        {card.etiquetaSegfy && <Tag size={11} className="text-blue-500 mt-0.5 flex-shrink-0" />}
+        {card.etiquetaSegfy && <Tag size={10} className="text-blue-400 mt-0.5 flex-shrink-0" />}
       </div>
-      <div className="text-xs text-slate-500 mt-1">{card.tipoSeguro} · {card.seguradora}</div>
-      {card.veiculo && card.veiculo !== "—" && <div className="text-xs text-slate-400 mt-0.5 truncate">{card.veiculo}</div>}
+      <div className="text-xs text-slate-400 mt-0.5">{card.tipoSeguro}{card.seguradora ? ` · ${card.seguradora}` : ""}</div>
+      {card.veiculo && card.veiculo !== "—" && <div className="text-xs text-slate-400 truncate">{card.veiculo}</div>}
       {(card.etiquetaSituacao || card.etiquetaPagamento || card.etiquetaCanal) && (
         <div className="flex flex-wrap gap-1 mt-1.5">
           <TagChip label={card.etiquetaSituacao}  corMap={SITUACAO_COR} />
@@ -530,33 +536,44 @@ function CardTile({ card, onClick }) {
           <TagChip label={card.etiquetaCanal}     corMap={CANAL_COR} />
         </div>
       )}
-      <div className="flex justify-between items-center mt-2">
-        <span className="text-xs font-semibold text-emerald-700">{fmtBRL(card.valor)}</span>
+      <div className="flex justify-between items-center mt-1.5">
+        <span className="text-xs font-semibold text-emerald-600">{fmtBRL(card.valor)}</span>
         <Chip days={days} status={card.status} />
       </div>
       {pending > 0 && (
-        <div className="mt-1.5 flex items-center gap-1 text-xs text-amber-600">
-          <Bell size={10} /> {pending} follow-up{pending > 1 ? "s" : ""} pendente{pending > 1 ? "s" : ""}
+        <div className="mt-1 flex items-center gap-1 text-xs text-amber-500">
+          <Bell size={9} /> {pending} pendente{pending > 1 ? "s" : ""}
         </div>
       )}
     </div>
   );
 }
 
-function Column({ stage, cards, onCard, onAdd }) {
+function Column({ stage, cards, onCard, onAdd, onDrop }) {
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setIsDragOver(true); };
+  const handleDragLeave = (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragOver(false); };
+  const handleDrop = (e) => { e.preventDefault(); setIsDragOver(false); const cardId = e.dataTransfer.getData("cardId"); if (cardId) onDrop(cardId, stage.id); };
+
   return (
-    <div className="flex-shrink-0 flex flex-col" style={{ width: 210 }}>
-      <div className={`rounded-t-lg px-3 py-2.5 ${stage.badge} text-white`}>
-        <div className="flex justify-between items-center">
-          <span className="font-bold text-xs uppercase tracking-wider">{stage.short}</span>
-          <span className="text-xs font-bold bg-white bg-opacity-25 rounded-full w-5 h-5 flex items-center justify-center">{cards.length}</span>
+    <div className="flex-shrink-0 flex flex-col rounded-xl overflow-hidden" style={{ width: 256, boxShadow: "0 1px 4px rgba(0,0,0,0.10)" }}>
+      <div className={`flex items-center justify-between px-3 py-2.5 ${stage.badge} text-white`}>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-xs uppercase tracking-wide">{stage.label}</span>
+          {stage.optional && <span className="text-xs opacity-70 font-normal normal-case">específicos</span>}
         </div>
-        {stage.optional && <p className="text-xs text-white opacity-70 mt-0.5">casos específicos</p>}
+        <span className="text-xs font-bold bg-white bg-opacity-25 rounded-full px-1.5 py-0.5 min-w-[20px] text-center">{cards.length}</span>
       </div>
-      <div className={`${stage.bg} flex-1 rounded-b-lg p-2 border ${stage.border} border-t-0 min-h-40 overflow-y-auto`} style={{ maxHeight: "calc(100vh - 200px)" }}>
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`flex-1 p-2 min-h-40 overflow-y-auto transition-colors ${isDragOver ? "bg-blue-50 ring-2 ring-blue-300 ring-inset" : "bg-white"}`}
+        style={{ maxHeight: "calc(100vh - 185px)" }}>
         {cards.map(c => <CardTile key={c.id} card={c} onClick={onCard} />)}
-        <button onClick={() => onAdd(stage.id)} className="w-full text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 py-1 px-1 rounded hover:bg-white transition-colors mt-1">
-          <Plus size={12} /> Adicionar
+        <button onClick={() => onAdd(stage.id)} className="w-full text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors mt-0.5">
+          <Plus size={12} /> Adicionar card
         </button>
       </div>
     </div>
@@ -680,11 +697,11 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
               <label className={lbl}>Produto</label>
               <select className={inp} value={d.tipoSeguro || ""} onChange={e => set("tipoSeguro", e.target.value)}>
                 <option value="">Selecione</option>
-                {["AUTOMÓVEL","BIKE","CONDOMÍNIO","CONSÓRCIO","EMPRESARIAL","EQUIPAMENTOS PORTÁTEIS",
-                  "FIANÇA LOCATÍCIA","DENTAL","RESIDENCIAL","PET","PREVIDÊNCIA","CAPITALIZAÇÃO",
-                  "RC PROFISSIONAL","RISCO DE ENGENHARIA","RURAL","SAÚDE","SEGURO EVENTO",
-                  "SEGURO VIAGEM","TRANSPORTES","VIDA INDIVIDUAL","VIDA EM GRUPO",
-                  "ACIDENTES PESSOAIS","AUXÍLIO FUNERAL","RC OBRAS"].map(t => <option key={t}>{t}</option>)}
+                {["ACIDENTES PESSOAIS","AUTOMÓVEL","AUXÍLIO FUNERAL","BIKE","CAPITALIZAÇÃO",
+                  "CONDOMÍNIO","CONSÓRCIO","DENTAL","EMPRESARIAL","EQUIPAMENTOS PORTÁTEIS",
+                  "FIANÇA LOCATÍCIA","PET","PREVIDÊNCIA","RC OBRAS","RC PROFISSIONAL",
+                  "RESIDENCIAL","RISCO DE ENGENHARIA","RURAL","SAÚDE","SEGURO EVENTO",
+                  "SEGURO VIAGEM","TRANSPORTES","VIDA EM GRUPO","VIDA INDIVIDUAL"].map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
             <div>
@@ -692,14 +709,14 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
               <select className={inp} value={d.seguradora || ""} onChange={e => set("seguradora", e.target.value)}>
                 <option value="">Selecione</option>
                 {["AKAD SEGUROS","ALFA SEGURADORA","ALIRO","ALLIANZ","AMERICAN LIFE","AMIL","AXA",
-                  "AZUL SEGUROS","BRADESCO AUTO/RE","BRADESCO SAÚDE","CAPEMISA","CENTAURO",
-                  "CHUBB","DARWIN SEGUROS","ESSOR SEGUROS","EZZE SEGUROS","HDI SEGUROS",
-                  "ICATU SEGUROS","ITAU SEGUROS","JUNTO SEGUROS","MAPFRE","MEDSENIOR",
-                  "METLIFE","MITSUI SUMITOMO","MONGERAL AEGON","OMINT","PLATINUM BENEFICIOS",
-                  "PORTO SEGURO","PORTO SEGURO SAUDE","PORTO CONSORCIO","PRUDENTIAL",
-                  "QUALLITY SAÚDE","BB CONSORCIOS","ITAU CONSORCIOS","SUHAI SEGUROS",
-                  "SUL AMÉRICA","SURA","TOKIO MARINE","UNIMED NACIONAL","UNIMED SEGUROS SAUDE",
-                  "YELUM SEGUROS","ZURICH"].map(s => <option key={s}>{s}</option>)}
+                  "AZUL SEGUROS","BB CONSORCIOS","BRADESCO AUTO/RE","BRADESCO SAÚDE","CAPEMISA",
+                  "CENTAURO","CHUBB","DARWIN SEGUROS","ESSOR SEGUROS","EZZE SEGUROS","HDI SEGUROS",
+                  "ICATU SEGUROS","ITAU CONSORCIOS","ITAU SEGUROS","JUNTO SEGUROS","MAPFRE",
+                  "MEDSENIOR","METLIFE","MITSUI SUMITOMO","MONGERAL AEGON","OMINT",
+                  "PLATINUM BENEFICIOS","PORTO CONSORCIO","PORTO SEGURO","PORTO SEGURO SAUDE",
+                  "PRUDENTIAL","QUALLITY SAÚDE","SUHAI SEGUROS","SUL AMÉRICA","SURA",
+                  "TOKIO MARINE","UNIMED NACIONAL","UNIMED SEGUROS SAUDE","YELUM SEGUROS",
+                  "ZURICH"].map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div>
@@ -747,7 +764,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
 
           {d.tipoSeguro === "AUTOMÓVEL" && (
             <div className="border border-blue-200 rounded-xl p-4 bg-blue-50 space-y-4">
-              <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">🚗 Dados do Automóvel</p>
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">🚗 Dados do Automóvel</p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={lbl}>Nome do Segurado</label>
@@ -972,11 +989,11 @@ function AddModal({ initialStage, onClose, onAdd }) {
             <div>
               <label className={lbl}>Produto</label>
               <select className={inp} value={d.tipoSeguro} onChange={e => set("tipoSeguro", e.target.value)}>
-                {["AUTOMÓVEL","BIKE","CONDOMÍNIO","CONSÓRCIO","EMPRESARIAL","EQUIPAMENTOS PORTÁTEIS",
-                  "FIANÇA LOCATÍCIA","DENTAL","RESIDENCIAL","PET","PREVIDÊNCIA","CAPITALIZAÇÃO",
-                  "RC PROFISSIONAL","RISCO DE ENGENHARIA","RURAL","SAÚDE","SEGURO EVENTO",
-                  "SEGURO VIAGEM","TRANSPORTES","VIDA INDIVIDUAL","VIDA EM GRUPO",
-                  "ACIDENTES PESSOAIS","AUXÍLIO FUNERAL","RC OBRAS"].map(t => <option key={t}>{t}</option>)}
+                {["ACIDENTES PESSOAIS","AUTOMÓVEL","AUXÍLIO FUNERAL","BIKE","CAPITALIZAÇÃO",
+                  "CONDOMÍNIO","CONSÓRCIO","DENTAL","EMPRESARIAL","EQUIPAMENTOS PORTÁTEIS",
+                  "FIANÇA LOCATÍCIA","PET","PREVIDÊNCIA","RC OBRAS","RC PROFISSIONAL",
+                  "RESIDENCIAL","RISCO DE ENGENHARIA","RURAL","SAÚDE","SEGURO EVENTO",
+                  "SEGURO VIAGEM","TRANSPORTES","VIDA EM GRUPO","VIDA INDIVIDUAL"].map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
             <div>
@@ -991,14 +1008,14 @@ function AddModal({ initialStage, onClose, onAdd }) {
               <select className={inp} value={d.seguradora || ""} onChange={e => set("seguradora", e.target.value)}>
                 <option value="">Selecione</option>
                 {["AKAD SEGUROS","ALFA SEGURADORA","ALIRO","ALLIANZ","AMERICAN LIFE","AMIL","AXA",
-                  "AZUL SEGUROS","BRADESCO AUTO/RE","BRADESCO SAÚDE","CAPEMISA","CENTAURO",
-                  "CHUBB","DARWIN SEGUROS","ESSOR SEGUROS","EZZE SEGUROS","HDI SEGUROS",
-                  "ICATU SEGUROS","ITAU SEGUROS","JUNTO SEGUROS","MAPFRE","MEDSENIOR",
-                  "METLIFE","MITSUI SUMITOMO","MONGERAL AEGON","OMINT","PLATINUM BENEFICIOS",
-                  "PORTO SEGURO","PORTO SEGURO SAUDE","PORTO CONSORCIO","PRUDENTIAL",
-                  "QUALLITY SAÚDE","BB CONSORCIOS","ITAU CONSORCIOS","SUHAI SEGUROS",
-                  "SUL AMÉRICA","SURA","TOKIO MARINE","UNIMED NACIONAL","UNIMED SEGUROS SAUDE",
-                  "YELUM SEGUROS","ZURICH"].map(s => <option key={s}>{s}</option>)}
+                  "AZUL SEGUROS","BB CONSORCIOS","BRADESCO AUTO/RE","BRADESCO SAÚDE","CAPEMISA",
+                  "CENTAURO","CHUBB","DARWIN SEGUROS","ESSOR SEGUROS","EZZE SEGUROS","HDI SEGUROS",
+                  "ICATU SEGUROS","ITAU CONSORCIOS","ITAU SEGUROS","JUNTO SEGUROS","MAPFRE",
+                  "MEDSENIOR","METLIFE","MITSUI SUMITOMO","MONGERAL AEGON","OMINT",
+                  "PLATINUM BENEFICIOS","PORTO CONSORCIO","PORTO SEGURO","PORTO SEGURO SAUDE",
+                  "PRUDENTIAL","QUALLITY SAÚDE","SUHAI SEGUROS","SUL AMÉRICA","SURA",
+                  "TOKIO MARINE","UNIMED NACIONAL","UNIMED SEGUROS SAUDE","YELUM SEGUROS",
+                  "ZURICH"].map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div>
@@ -1096,6 +1113,14 @@ export default function App() {
     setCards(prev => [card, ...prev]);
   };
 
+  const handleDrop = async (cardId, newStatus) => {
+    const card = cards.find(c => c.id === cardId);
+    if (!card || card.status === newStatus) return;
+    const updated = { ...card, status: newStatus };
+    setCards(prev => prev.map(c => c.id === cardId ? updated : c));
+    await upsertCard(updated);
+  };
+
   const handleSave = async (updated) => {
     await upsertCard(updated);
     setCards(prev => prev.map(c => c.id === updated.id ? updated : c));
@@ -1188,7 +1213,7 @@ export default function App() {
   );
 
   return (
-    <div className="h-screen flex flex-col bg-slate-100 overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: "#F1F2F4" }}>
       <header className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <Shield size={20} className="text-amber-400" />
@@ -1215,7 +1240,7 @@ export default function App() {
         </div>
       </header>
 
-      <div className="bg-white border-b px-5 py-2.5 flex items-center gap-3 flex-shrink-0">
+      <div className="bg-white border-b border-slate-200 px-5 py-2 flex items-center gap-2.5 flex-shrink-0">
         <div className="relative" ref={searchRef}>
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
           <input
@@ -1286,11 +1311,11 @@ export default function App() {
 
       {view === "pipeline" ? (
         <div className="flex-1 overflow-x-auto">
-          <div className="flex gap-3 p-4 h-full" style={{ minWidth: "fit-content" }}>
+          <div className="flex gap-2.5 p-4 h-full" style={{ minWidth: "fit-content" }}>
             {STAGES.map(s => (
               <Column key={s.id} stage={s}
                 cards={visible.filter(c => c.status === s.id)}
-                onCard={setSelected} onAdd={setAddStage} />
+                onCard={setSelected} onAdd={setAddStage} onDrop={handleDrop} />
             ))}
           </div>
         </div>
