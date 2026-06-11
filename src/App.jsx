@@ -1427,6 +1427,349 @@ function ClienteModal({ clienteId, onClose, onAbrirCard }) {
   );
 }
 
+// ── Importação de PDF ────────────────────────────────────────
+function parseBRL(s) {
+  if (!s) return null;
+  const n = parseFloat(String(s).replace(/\./g, "").replace(",", "."));
+  return isNaN(n) ? null : n;
+}
+
+function mapPagamento(s) {
+  if (!s) return "";
+  const sl = s.toLowerCase();
+  if (sl.includes("boleto")) return "Boleto";
+  if (sl.includes("débito") || sl.includes("debito")) return "Débito em Conta";
+  if (sl.includes("cartão") || sl.includes("cartao") || sl.includes("crédito") || sl.includes("credito")) return "Cartão de Crédito";
+  if (sl.includes("pix")) return "PIX";
+  if (sl.includes("link")) return "Link de Pagamento";
+  return "";
+}
+
+function ImportModal({ onClose, onAdd }) {
+  const [step, setStep] = useState(1);
+  const [lgpdOk, setLgpdOk] = useState(false);
+  const [arquivo, setArquivo] = useState(null);
+  const [erro, setErro] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    clienteNome: "", cpfCnpj: "", telefone: "", email: "",
+    seguradora: "", tipoSeguro: "AUTOMÓVEL", proposta: "", apolice: "",
+    dataRenovacao: "", etiquetaSituacao: "", etiquetaPagamento: "",
+    autoPlaca: "", autoModelo: "", autoAnoFab: "", autoAnoMod: "",
+    autoChassi: "", autoCepPernoite: "", autoNomeSegurado: "", autoCondutor: "",
+    valor: "", status: "transmitida",
+  });
+
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const processarPDF = async () => {
+    if (!arquivo || !lgpdOk) return;
+    setStep(2);
+    setErro("");
+    try {
+      const b64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(arquivo);
+      });
+
+      const resp = await fetch("/api/extract-pdf", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pdfBase64: b64 }),
+      });
+      const result = await resp.json();
+      if (!result.success) throw new Error(result.error || "Falha na extração");
+
+      const d = result.data;
+      const temVeiculo = !!(d.veiculo?.placa || d.veiculo?.modelo);
+
+      setForm({
+        clienteNome:       d.segurado?.nome || "",
+        cpfCnpj:           d.segurado?.cpfCnpj || "",
+        telefone:          d.segurado?.telefone || "",
+        email:             d.segurado?.email || "",
+        seguradora:        d.apolice?.seguradora || "",
+        tipoSeguro:        temVeiculo ? "AUTOMÓVEL" : "AUTOMÓVEL",
+        proposta:          d.apolice?.numeroProposta || "",
+        apolice:           d.apolice?.numeroApolice || "",
+        dataRenovacao:     d.apolice?.vigenciaFim || "",
+        etiquetaSituacao:  d.apolice?.tipoOperacao || "",
+        etiquetaPagamento: mapPagamento(d.financeiro?.formaPagamento),
+        autoPlaca:         d.veiculo?.placa || "",
+        autoModelo:        d.veiculo?.modelo || "",
+        autoAnoFab:        d.veiculo?.anoFab || "",
+        autoAnoMod:        d.veiculo?.anoMod || "",
+        autoChassi:        d.veiculo?.chassi || "",
+        autoCepPernoite:   d.veiculo?.cepPernoite || "",
+        autoNomeSegurado:  d.veiculo?.condutorNome || "",
+        autoCondutor:      d.veiculo?.condutorNome || "",
+        valor:             d.financeiro?.premioTotal || "",
+        status:            "transmitida",
+      });
+      setStep(3);
+    } catch (e) {
+      setErro(e.message);
+      setStep(1);
+    }
+  };
+
+  const criarCard = async () => {
+    if (!form.clienteNome) return;
+    setSaving(true);
+    try {
+      const clienteId = await findOrCreateCliente({
+        nome:     form.clienteNome,
+        cpfCnpj:  form.cpfCnpj,
+        telefone: form.telefone,
+        email:    form.email,
+      });
+      const card = {
+        id:                genId(),
+        clienteId,
+        clienteNome:       form.clienteNome,
+        cpfCnpj:           form.cpfCnpj,
+        telefone:          form.telefone,
+        email:             form.email,
+        seguradora:        form.seguradora,
+        tipoSeguro:        form.tipoSeguro,
+        proposta:          form.proposta,
+        apolice:           form.apolice,
+        dataRenovacao:     form.dataRenovacao || null,
+        etiquetaSituacao:  form.etiquetaSituacao || null,
+        etiquetaPagamento: form.etiquetaPagamento || null,
+        autoPlaca:         form.autoPlaca,
+        autoModelo:        form.autoModelo,
+        autoAnoFab:        form.autoAnoFab,
+        autoAnoMod:        form.autoAnoMod,
+        autoChassi:        form.autoChassi,
+        autoCepPernoite:   form.autoCepPernoite,
+        autoNomeSegurado:  form.autoNomeSegurado,
+        autoCondutor:      form.autoCondutor,
+        valor:             parseBRL(form.valor),
+        status:            form.status || "transmitida",
+        followUps:         [],
+        sinistros:         [],
+        historicoCiclos:   [],
+        arquivado:         false,
+      };
+      await onAdd(card);
+      onClose();
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inp = "mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300";
+  const lbl = "text-xs font-semibold text-slate-500 uppercase tracking-wide";
+  const produtos = ["ACIDENTES PESSOAIS","AUTOMÓVEL","AUXÍLIO FUNERAL","BIKE","CAPITALIZAÇÃO",
+    "CONDOMÍNIO","CONSÓRCIO","DENTAL","EMPRESARIAL","EQUIPAMENTOS PORTÁTEIS","FIANÇA LOCATÍCIA",
+    "PET","PREVIDÊNCIA","RC OBRAS","RC PROFISSIONAL","RESIDENCIAL","RISCO DE ENGENHARIA",
+    "RURAL","SAÚDE","SEGURO EVENTO","SEGURO VIAGEM","TRANSPORTES","VIDA EM GRUPO","VIDA INDIVIDUAL"];
+  const seguradoras = ["AKAD SEGUROS","ALFA SEGURADORA","ALIRO","ALLIANZ","AMERICAN LIFE","AMIL","AXA",
+    "AZUL SEGUROS","BB CONSORCIOS","BRADESCO AUTO/RE","BRADESCO SAÚDE","CAPEMISA","CENTAURO","CHUBB",
+    "DARWIN SEGUROS","ESSOR SEGUROS","EZZE SEGUROS","HDI SEGUROS","ICATU SEGUROS","ITAU CONSORCIOS",
+    "ITAU SEGUROS","JUNTO SEGUROS","MAPFRE","MEDSENIOR","METLIFE","MITSUI SUMITOMO","MONGERAL AEGON",
+    "OMINT","PLATINUM BENEFICIOS","PORTO CONSORCIO","PORTO SEGURO","PORTO SEGURO SAUDE","PRUDENTIAL",
+    "QUALLITY SAÚDE","SUHAI SEGUROS","SUL AMÉRICA","SURA","TOKIO MARINE","UNIMED NACIONAL",
+    "UNIMED SEGUROS SAUDE","YELUM SEGUROS","ZURICH"];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style={{ maxHeight: "92vh" }}>
+
+        <div className="flex justify-between items-center px-6 pt-5 pb-4 border-b flex-shrink-0">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Importar PDF</h2>
+            <p className="text-sm text-slate-400 mt-0.5">
+              {step === 1 && "Proposta ou apólice — a IA extrai os dados automaticamente"}
+              {step === 2 && "Aguarde — a IA está lendo o documento..."}
+              {step === 3 && "Revise os dados extraídos antes de salvar"}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </div>
+
+        {step === 1 && (
+          <div className="px-6 py-6 space-y-5">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" className="mt-0.5 w-4 h-4 rounded accent-blue-600 flex-shrink-0"
+                  checked={lgpdOk} onChange={e => setLgpdOk(e.target.checked)} />
+                <span className="text-sm text-slate-700">
+                  Confirmo que o cliente autorizou a utilização de seus dados pessoais conforme a{" "}
+                  <strong>LGPD (Lei nº 13.709/2018)</strong>.
+                </span>
+              </label>
+            </div>
+            <div>
+              <label className={lbl}>Arquivo PDF</label>
+              <label className={`mt-2 flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl transition-colors ${lgpdOk ? "cursor-pointer border-slate-300 hover:border-blue-400 hover:bg-blue-50" : "border-slate-200 opacity-40 cursor-not-allowed"}`}>
+                <Upload size={24} className="text-slate-400 mb-2" />
+                <span className="text-sm text-slate-500 text-center px-4">
+                  {arquivo ? arquivo.name : "Clique para selecionar a proposta ou apólice em PDF"}
+                </span>
+                {arquivo && <span className="text-xs text-slate-400 mt-1">{(arquivo.size / 1024).toFixed(0)} KB</span>}
+                <input type="file" accept=".pdf,application/pdf" className="hidden" disabled={!lgpdOk}
+                  onChange={e => setArquivo(e.target.files[0] || null)} />
+              </label>
+            </div>
+            {erro && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{erro}</p>}
+            <div className="flex justify-end gap-3">
+              <button onClick={onClose} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
+              <button onClick={processarPDF} disabled={!lgpdOk || !arquivo}
+                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                <Upload size={14} /> Processar PDF
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="px-6 py-16 flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <p className="text-slate-700 font-semibold">A IA está lendo o documento...</p>
+            <p className="text-sm text-slate-400">Isso leva alguns segundos</p>
+          </div>
+        )}
+
+        {step === 3 && (
+          <>
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-emerald-700 font-semibold">
+                <Shield size={14} /> Cliente novo — revise e corrija se necessário antes de salvar
+              </div>
+
+              <div>
+                <p className={`${lbl} mb-3`}>Dados do segurado</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className={lbl}>Nome completo *</label>
+                    <input className={inp} value={form.clienteNome} onChange={e => setF("clienteNome", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={lbl}>CPF / CNPJ</label>
+                    <input className={inp} value={form.cpfCnpj} onChange={e => setF("cpfCnpj", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Telefone</label>
+                    <input className={inp} value={form.telefone} onChange={e => setF("telefone", e.target.value)} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className={lbl}>E-mail</label>
+                    <input className={inp} value={form.email} onChange={e => setF("email", e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className={`${lbl} mb-3`}>Dados da apólice</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={lbl}>Seguradora</label>
+                    <select className={inp} value={form.seguradora} onChange={e => setF("seguradora", e.target.value)}>
+                      <option value="">Selecione</option>
+                      {seguradoras.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={lbl}>Produto</label>
+                    <select className={inp} value={form.tipoSeguro} onChange={e => setF("tipoSeguro", e.target.value)}>
+                      {produtos.map(p => <option key={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={lbl}>Nº da proposta</label>
+                    <input className={inp} value={form.proposta} onChange={e => setF("proposta", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Nº da apólice</label>
+                    <input className={inp} value={form.apolice} onChange={e => setF("apolice", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Vigência fim (data renovação)</label>
+                    <input type="date" className={inp} value={form.dataRenovacao} onChange={e => setF("dataRenovacao", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Situação</label>
+                    <select className={inp} value={form.etiquetaSituacao} onChange={e => setF("etiquetaSituacao", e.target.value)}>
+                      <option value="">Selecione</option>
+                      {SITUACOES.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {(form.autoPlaca || form.autoModelo) && (
+                <div>
+                  <p className={`${lbl} mb-3`}>Veículo</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={lbl}>Placa</label>
+                      <input className={inp} value={form.autoPlaca} onChange={e => setF("autoPlaca", e.target.value.toUpperCase())} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Modelo</label>
+                      <input className={inp} value={form.autoModelo} onChange={e => setF("autoModelo", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Ano fabricação</label>
+                      <input className={inp} value={form.autoAnoFab} onChange={e => setF("autoAnoFab", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Ano modelo</label>
+                      <input className={inp} value={form.autoAnoMod} onChange={e => setF("autoAnoMod", e.target.value)} />
+                    </div>
+                    {form.autoChassi && (
+                      <div className="col-span-2">
+                        <label className={lbl}>Chassi</label>
+                        <input className={inp} value={form.autoChassi} onChange={e => setF("autoChassi", e.target.value.toUpperCase())} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className={`${lbl} mb-3`}>Financeiro</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={lbl}>Prêmio total (R$)</label>
+                    <input className={inp} placeholder="Ex: 1.481,68" value={form.valor} onChange={e => setF("valor", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Forma de pagamento</label>
+                    <select className={inp} value={form.etiquetaPagamento} onChange={e => setF("etiquetaPagamento", e.target.value)}>
+                      <option value="">Selecione</option>
+                      {PAGAMENTOS.map(p => <option key={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {erro && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{erro}</p>}
+            </div>
+
+            <div className="flex justify-between items-center px-6 py-4 border-t flex-shrink-0">
+              <button onClick={() => { setStep(1); setErro(""); }} className="text-sm text-slate-500 hover:text-slate-700">← Voltar</button>
+              <div className="flex gap-3">
+                <button onClick={onClose} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
+                <button onClick={criarCard} disabled={saving || !form.clienteNome}
+                  className="px-4 py-2 text-sm bg-slate-900 hover:bg-slate-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-60">
+                  <Save size={14} /> {saving ? "Salvando..." : "Criar card"}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── App principal ─────────────────────────────────────────────
 export default function App() {
   const [cards, setCards] = useState([]);
@@ -1442,6 +1785,7 @@ export default function App() {
   const [searchResults, setSearchResults] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [clienteModal, setClienteModal] = useState(null);
+  const [importModal, setImportModal] = useState(false);
   const searchRef = useRef(null);
 
   useEffect(() => {
@@ -1672,10 +2016,16 @@ export default function App() {
           className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${mostrarArquivados ? "bg-amber-100 border-amber-400 text-amber-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
           <Archive size={13} /> {mostrarArquivados ? "Ver pipeline" : "Arquivados"}
         </button>
-        <button onClick={() => setAddStage("cotacoes")}
-          className="ml-auto flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-          <Plus size={15} /> Novo card
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setImportModal(true)}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+            <Upload size={15} /> Importar PDF
+          </button>
+          <button onClick={() => setAddStage("cotacoes")}
+            className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+            <Plus size={15} /> Novo card
+          </button>
+        </div>
       </div>
 
       {view === "pipeline" ? (
@@ -1695,6 +2045,7 @@ export default function App() {
       {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} />}
       {addStage && <AddModal initialStage={addStage} onClose={() => setAddStage(null)} onAdd={handleAdd} />}
       {clienteModal && <ClienteModal clienteId={clienteModal} onClose={() => setClienteModal(null)} onAbrirCard={(c) => { setClienteModal(null); setSelected(c); }} />}
+      {importModal && <ImportModal onClose={() => setImportModal(false)} onAdd={handleAdd} />}
     </div>
   );
 }
