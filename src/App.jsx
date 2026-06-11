@@ -137,6 +137,7 @@ function mapRow(r) {
     anotacoes:        r.observacoes,
     followUps:        r.cotacoes || [],
     mesReferencia:    r.mes_referencia,
+    clienteId:        r.cliente_id,
   };
 }
 
@@ -313,6 +314,44 @@ async function upsertProspeccao(p) {
     atualizado_em:         new Date().toISOString(),
   });
   if (error) console.error("Erro ao salvar prospecção:", error);
+}
+
+// ── Helpers de cliente ───────────────────────────────────────
+async function searchClientes(q) {
+  if (!q || q.length < 2) return [];
+  const normQ = q.replace(/\D/g, "");
+  const filter = normQ.length >= 3
+    ? `cpf_cnpj_norm.ilike.${normQ}%,nome.ilike.%${q}%`
+    : `nome.ilike.%${q}%`;
+  const { data } = await supabase
+    .from("clientes")
+    .select("id, nome, cpf_cnpj, cpf_cnpj_norm, telefone, email, tipo_pessoa")
+    .or(filter)
+    .limit(8);
+  return data || [];
+}
+
+async function findOrCreateCliente({ nome, cpfCnpj, telefone, email }) {
+  const normCpf = (cpfCnpj || "").replace(/\D/g, "");
+  if (normCpf) {
+    const { data: existing } = await supabase
+      .from("clientes").select("id")
+      .eq("cpf_cnpj_norm", normCpf).maybeSingle();
+    if (existing) return existing.id;
+  }
+  const id = genId();
+  const tipoPessoa = normCpf.length === 11 ? "PF" : normCpf.length === 14 ? "PJ" : "?";
+  const { error } = await supabase.from("clientes").insert({
+    id,
+    cpf_cnpj_norm: normCpf || null,
+    cpf_cnpj:      cpfCnpj || null,
+    nome:          nome || "(sem nome)",
+    telefone:      telefone || null,
+    email:         email || null,
+    tipo_pessoa:   normCpf ? tipoPessoa : "?",
+  });
+  if (error) { console.error("Erro ao criar cliente:", error); return null; }
+  return id;
 }
 
 // ── Componentes de Prospecção ─────────────────────────────────
@@ -580,7 +619,7 @@ function Column({ stage, cards, onCard, onAdd, onDrop }) {
   );
 }
 
-function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onNaoRenovada }) {
+function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onNaoRenovada, onVerCliente }) {
   const [d, setD] = useState({ followUps: [], historicoCiclos: [], ...card });
   const [fuText, setFuText] = useState("");
   const [fuDate, setFuDate] = useState("");
@@ -643,6 +682,12 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
         <div className="flex justify-between items-start px-6 pt-5 pb-4 border-b flex-shrink-0">
           <div>
             <h2 className="text-xl font-bold text-slate-900">{d.clienteNome || "Novo cliente"}</h2>
+            {d.clienteId && onVerCliente && (
+              <button onClick={() => onVerCliente(d.clienteId)}
+                className="inline-flex items-center gap-1.5 mt-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm">
+                <Users size={12} /> Ver histórico do cliente
+              </button>
+            )}
             {d.arquivado ? (
               <span className="text-xs font-semibold bg-amber-500 text-white px-2.5 py-0.5 rounded-full mt-1 inline-flex items-center gap-1">
                 <Archive size={10} /> Arquivado
@@ -953,14 +998,52 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
 function AddModal({ initialStage, onClose, onAdd }) {
   const [d, setD] = useState({ status: initialStage, tipoSeguro: "AUTOMÓVEL", followUps: [] });
   const [saving, setSaving] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [sugestoes, setSugestoes] = useState([]);
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const [clienteVinculado, setClienteVinculado] = useState(null);
+  const buscaRef = useRef(null);
+
   const set = (k, v) => setD(p => ({ ...p, [k]: v }));
   const inp = "mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300";
   const lbl = "text-xs font-semibold text-slate-500 uppercase tracking-wide";
 
+  // Debounce busca de clientes
+  useEffect(() => {
+    if (busca.length < 2) { setSugestoes([]); setBuscaAberta(false); return; }
+    const t = setTimeout(() => {
+      searchClientes(busca).then(res => { setSugestoes(res); setBuscaAberta(res.length > 0); });
+    }, 250);
+    return () => clearTimeout(t);
+  }, [busca]);
+
+  // Fechar dropdown ao clicar fora
+  useEffect(() => {
+    const h = e => { if (buscaRef.current && !buscaRef.current.contains(e.target)) setBuscaAberta(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const selecionarCliente = (c) => {
+    setD(p => ({ ...p, clienteId: c.id, clienteNome: c.nome, cpfCnpj: c.cpf_cnpj || p.cpfCnpj, telefone: c.telefone || p.telefone, email: c.email || p.email }));
+    setClienteVinculado(c);
+    setBusca("");
+    setBuscaAberta(false);
+  };
+
+  const limparCliente = () => {
+    setD(p => ({ ...p, clienteId: null, clienteNome: "", cpfCnpj: "", telefone: "", email: "" }));
+    setClienteVinculado(null);
+    setBusca("");
+  };
+
   const handleCreate = async () => {
     if (!d.clienteNome?.trim()) return;
     setSaving(true);
-    await onAdd({ ...d, id: genId(), criadoEm: new Date().toISOString() });
+    const clienteId = d.clienteId || await findOrCreateCliente({
+      nome: d.clienteNome, cpfCnpj: d.cpfCnpj, telefone: d.telefone, email: d.email,
+    });
+    await onAdd({ ...d, id: genId(), clienteId, criadoEm: new Date().toISOString() });
     setSaving(false);
     onClose();
   };
@@ -973,18 +1056,70 @@ function AddModal({ initialStage, onClose, onAdd }) {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
         </div>
         <div className="px-6 py-5 space-y-4">
-          <div>
-            <label className={lbl}>Nome do Cliente *</label>
-            <input autoFocus className={inp} value={d.clienteNome || ""} onChange={e => set("clienteNome", e.target.value)} onKeyDown={e => e.key === "Enter" && handleCreate()} />
+
+          {/* ── Busca de cliente existente ─────────────────── */}
+          <div ref={buscaRef} className="relative">
+            <label className={lbl}>Buscar cliente existente</label>
+            {clienteVinculado ? (
+              <div className="mt-1 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-300 rounded-lg">
+                <Users size={14} className="text-emerald-600 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold text-emerald-800 truncate">{clienteVinculado.nome}</span>
+                  {clienteVinculado.cpf_cnpj && <span className="text-xs text-emerald-600 ml-2">{clienteVinculado.cpf_cnpj}</span>}
+                </div>
+                <button onClick={limparCliente} className="text-emerald-400 hover:text-emerald-700 flex-shrink-0" title="Desvincular"><X size={14} /></button>
+              </div>
+            ) : (
+              <>
+                <div className="relative mt-1">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="pl-8 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    placeholder="Digite nome ou CPF/CNPJ..."
+                    value={busca}
+                    onChange={e => setBusca(e.target.value)}
+                    onFocus={() => sugestoes.length > 0 && setBuscaAberta(true)}
+                  />
+                </div>
+                {buscaAberta && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden">
+                    {sugestoes.map(c => (
+                      <button key={c.id} onClick={() => selecionarCliente(c)}
+                        className="w-full text-left px-4 py-2.5 hover:bg-slate-50 border-b border-slate-50 transition-colors flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-slate-800 text-sm truncate">{c.nome}</div>
+                          <div className="text-xs text-slate-400">{c.cpf_cnpj} · {c.tipo_pessoa}</div>
+                        </div>
+                      </button>
+                    ))}
+                    <div className="px-4 py-2 bg-slate-50 text-xs text-slate-400">
+                      Não encontrou? Preencha os campos abaixo para criar novo cliente.
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="border-t border-slate-100 pt-3">
+            <label className={lbl}>Nome do cliente *</label>
+            <input autoFocus className={`${inp} ${clienteVinculado ? "bg-slate-50 text-slate-500" : ""}`}
+              value={d.clienteNome || ""} onChange={e => set("clienteNome", e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleCreate()}
+              readOnly={!!clienteVinculado} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={lbl}>CPF / CNPJ</label>
-              <input className={inp} value={d.cpfCnpj || ""} onChange={e => set("cpfCnpj", maskCpfCnpj(e.target.value))} placeholder="000.000.000-00" />
+              <input className={`${inp} ${clienteVinculado ? "bg-slate-50 text-slate-500" : ""}`}
+                value={d.cpfCnpj || ""} onChange={e => set("cpfCnpj", maskCpfCnpj(e.target.value))}
+                placeholder="000.000.000-00" readOnly={!!clienteVinculado} />
             </div>
             <div>
               <label className={lbl}>Telefone</label>
-              <input className={inp} value={d.telefone || ""} onChange={e => set("telefone", maskPhone(e.target.value))} placeholder="(00) 00000-0000" />
+              <input className={`${inp} ${clienteVinculado ? "bg-slate-50 text-slate-500" : ""}`}
+                value={d.telefone || ""} onChange={e => set("telefone", maskPhone(e.target.value))}
+                placeholder="(00) 00000-0000" readOnly={!!clienteVinculado} />
             </div>
             <div>
               <label className={lbl}>Produto</label>
@@ -1059,6 +1194,134 @@ function AddModal({ initialStage, onClose, onAdd }) {
   );
 }
 
+// ── Perfil do cliente ─────────────────────────────────────────
+function ApoliceRow({ card, onClick }) {
+  const stage = STAGES.find(s => s.id === card.status);
+  return (
+    <button onClick={() => onClick(card)}
+      className="w-full text-left bg-slate-50 hover:bg-slate-100 rounded-xl px-4 py-3 transition-colors flex items-center gap-3 border border-slate-200">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-semibold text-slate-700 text-sm">{card.tipoSeguro}</span>
+          {card.seguradora && <span className="text-xs text-slate-400">{card.seguradora}</span>}
+          {card.autoPlaca && <span className="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">{card.autoPlaca}</span>}
+        </div>
+        <div className="text-xs text-slate-400 mt-0.5">
+          {card.dataRenovacao && `Renov. ${card.dataRenovacao}`}
+          {card.valor ? ` · ${fmtBRL(card.valor)}` : ""}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {card.arquivado ? (
+          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Archive size={9} /> Arquivado
+          </span>
+        ) : stage ? (
+          <span className={`text-xs text-white px-2 py-0.5 rounded-full ${stage.badge}`}>{stage.short}</span>
+        ) : null}
+        <ChevronRight size={14} className="text-slate-300" />
+      </div>
+    </button>
+  );
+}
+
+function ClienteModal({ clienteId, onClose, onAbrirCard }) {
+  const [cliente, setCliente] = useState(null);
+  const [apolices, setApolices] = useState([]);
+  const [loadingC, setLoadingC] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoadingC(true);
+      const [{ data: c }, { data: rows }] = await Promise.all([
+        supabase.from("clientes").select("*").eq("id", clienteId).single(),
+        supabase.from("renovacoes").select("*").eq("cliente_id", clienteId).order("data_renovacao", { ascending: false }),
+      ]);
+      setCliente(c);
+      setApolices((rows || []).map(mapRow));
+      setLoadingC(false);
+    }
+    load();
+  }, [clienteId]);
+
+  if (loadingC) return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl p-8 text-slate-500 text-sm">Carregando...</div>
+    </div>
+  );
+
+  const ativas = apolices.filter(a => !a.arquivado);
+  const arquivadas = apolices.filter(a => a.arquivado);
+  const emitidas = ativas.filter(a => a.status === "emitida");
+  const totalPremio = ativas.reduce((sum, a) => sum + (Number(a.valor) || 0), 0);
+  const taxaRenov = ativas.length > 0 ? Math.round(emitidas.length / ativas.length * 100) : null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style={{ maxHeight: "92vh" }}>
+
+        <div className="flex justify-between items-start px-6 pt-5 pb-4 border-b flex-shrink-0">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold text-slate-900">{cliente?.nome}</h2>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cliente?.tipo_pessoa === "PJ" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
+                {cliente?.tipo_pessoa === "PF" ? "Pessoa Física" : cliente?.tipo_pessoa === "PJ" ? "Pessoa Jurídica" : "—"}
+              </span>
+            </div>
+            <div className="text-sm text-slate-400 mt-1 flex flex-wrap gap-3">
+              {cliente?.cpf_cnpj && <span>{cliente.cpf_cnpj}</span>}
+              {cliente?.telefone && <span>{cliente.telefone}</span>}
+              {cliente?.email && <span>{cliente.email}</span>}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 mt-1"><X size={20} /></button>
+        </div>
+
+        <div className="grid grid-cols-4 gap-3 px-6 py-4 border-b flex-shrink-0">
+          <div className="bg-slate-50 rounded-xl p-3 text-center">
+            <div className="text-xl font-bold text-slate-800">{ativas.length}</div>
+            <div className="text-xs text-slate-400 mt-0.5">Apólices ativas</div>
+          </div>
+          <div className="bg-emerald-50 rounded-xl p-3 text-center">
+            <div className="text-base font-bold text-emerald-700 leading-tight mt-0.5">{fmtBRL(totalPremio)}</div>
+            <div className="text-xs text-slate-400 mt-0.5">Prêmio total</div>
+          </div>
+          <div className="bg-blue-50 rounded-xl p-3 text-center">
+            <div className="text-xl font-bold text-blue-700">{emitidas.length}</div>
+            <div className="text-xs text-slate-400 mt-0.5">Emitidas</div>
+          </div>
+          <div className="bg-amber-50 rounded-xl p-3 text-center">
+            <div className="text-xl font-bold text-amber-700">{taxaRenov !== null ? `${taxaRenov}%` : "—"}</div>
+            <div className="text-xs text-slate-400 mt-0.5">Taxa renovação</div>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-6 py-4">
+          {apolices.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-8">Nenhuma apólice encontrada.</p>
+          )}
+          {ativas.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Ativas ({ativas.length})</p>
+              <div className="space-y-2">
+                {ativas.map(a => <ApoliceRow key={a.id} card={a} onClick={onAbrirCard} />)}
+              </div>
+            </div>
+          )}
+          {arquivadas.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Histórico ({arquivadas.length})</p>
+              <div className="space-y-2">
+                {arquivadas.map(a => <ApoliceRow key={a.id} card={a} onClick={onAbrirCard} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── App principal ─────────────────────────────────────────────
 export default function App() {
   const [cards, setCards] = useState([]);
@@ -1073,6 +1336,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [clienteModal, setClienteModal] = useState(null);
   const searchRef = useRef(null);
 
   useEffect(() => {
@@ -1220,8 +1484,8 @@ export default function App() {
           <span className="font-bold text-base tracking-tight">CRM Renovações</span>
           <span className="text-slate-500 text-xs ml-1">Simples Assim</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5">
+        <div className="flex items-center gap-2">
+          <div className="bg-slate-800 rounded-lg flex items-center p-0.5 gap-0.5">
             <button onClick={() => setView("pipeline")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === "pipeline" ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
               <Shield size={12} /> Renovações
@@ -1323,8 +1587,9 @@ export default function App() {
         <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
       )}
 
-      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} />}
+      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} />}
       {addStage && <AddModal initialStage={addStage} onClose={() => setAddStage(null)} onAdd={handleAdd} />}
+      {clienteModal && <ClienteModal clienteId={clienteModal} onClose={() => setClienteModal(null)} onAbrirCard={(c) => { setClienteModal(null); setSelected(c); }} />}
     </div>
   );
 }

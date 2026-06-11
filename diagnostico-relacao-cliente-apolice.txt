@@ -1,0 +1,139 @@
+DIAGNÓSTICO — RELAÇÃO "UM CLIENTE / VÁRIAS APÓLICES"
+CRM Simples Assim — React + Supabase
+Data: 11/06/2026
+════════════════════════════════════════════════════════════
+
+CONTEXTO DO SISTEMA
+───────────────────
+Stack: React + Vite, single-file (App.jsx ~1400 linhas), Supabase (PostgreSQL),
+TailwindCSS v3, lucide-react.
+Tabelas principais: renovacoes, prospeccoes, documentos.
+O sistema é um Kanban de renovações de seguros com pipeline:
+Cotações → Enviada → Transmitida → Vistoria → Pagamento → Emitida.
+
+
+PERGUNTA 1 — A apólice referencia um cliente (FK)?
+───────────────────────────────────────────────────
+SITUAÇÃO ATUAL: cliente_id UUID existe na tabela renovacoes e no upsertCard,
+mas está SEMPRE NULO na prática.
+
+  // upsertCard
+  cliente_id: card.clienteId || null,   // clienteId nunca é populado
+  apolice_id: card.apoliceId || null,   // idem
+
+Os dados do cliente (cliente_nome, cpf_cnpj, telefone, email) são copiados
+diretamente para cada registro de renovação. Não existe tabela "clientes"
+separada. O campo cliente_id é uma FK morta herdada do schema original.
+
+
+PERGUNTA 2 — Existe identificador único de cliente (CPF/CNPJ)?
+───────────────────────────────────────────────────────────────
+SITUAÇÃO ATUAL: cpf_cnpj existe em cada card, mas SEM constraint de unicidade.
+É apenas um campo de texto livre, não vinculado a nenhuma entidade cliente.
+O mesmo CPF pode aparecer escrito de formas diferentes em cards distintos.
+A função maskCpfCnpj() formata a entrada, mas não impede duplicação.
+
+
+PERGUNTA 3 — A tela de detalhe do cliente lista as apólices?
+─────────────────────────────────────────────────────────────
+SITUAÇÃO ATUAL: Não existe tela de cliente. O sistema é organizado em torno
+de renovacoes (cards no Kanban). Não há entidade cliente com vista própria.
+
+
+PERGUNTA 4 — Ao criar apólice, é possível vincular cliente existente?
+──────────────────────────────────────────────────────────────────────
+SITUAÇÃO ATUAL: Não. O AddModal é um formulário em branco — o usuário redigita
+nome, CPF, telefone e e-mail a cada novo card. Não há busca nem autocomplete
+de cliente existente. Isso gera duplicação silenciosa de dados.
+
+
+PERGUNTA 5 — Há navegação cruzada apólice ↔ cliente?
+─────────────────────────────────────────────────────
+SITUAÇÃO ATUAL: Não. Como não existe entidade cliente, não há nenhuma
+navegação cruzada entre apólices e clientes.
+
+
+ESTADO ATUAL — RESUMO
+─────────────────────
+O sistema é um CRM centrado em renovações, não em clientes. Cada card é
+autossuficiente e carrega uma cópia dos dados do cliente. A relação 1:N
+(cliente → muitas apólices) existe implicitamente via CPF, mas não é
+modelada nem explorada.
+
+
+GAPS IDENTIFICADOS
+──────────────────
+
+G1 — Não existe tabela "clientes"
+      Impacto: ALTO
+      Dados do cliente duplicados em cada renovação. Impossibilita visão
+      consolidada por cliente (todas as apólices, prêmio total, histórico).
+
+G2 — cliente_id em renovacoes sempre nulo (FK morta)
+      Impacto: ALTO
+      O campo existe no schema mas nunca é populado. O vínculo entre
+      apólice e cliente precisa ser ativado.
+
+G3 — Sem unicidade de CPF/CNPJ
+      Impacto: ALTO
+      Mesmo cliente pode existir N vezes com dados divergentes (nome digitado
+      diferente, telefone desatualizado etc.). Não há deduplicação.
+
+G4 — AddModal sem busca de cliente existente
+      Impacto: ALTO
+      Principal causa de duplicação. A cada nova apólice, o corretor
+      redigita todos os dados do cliente do zero.
+
+G5 — Sem tela de detalhe do cliente
+      Impacto: MÉDIO
+      Feature completamente ausente. Não é possível ver todas as apólices
+      de um cliente em um só lugar, nem seu prêmio total ou próxima renovação.
+
+G6 — Sem navegação cruzada card → cliente e cliente → cards
+      Impacto: MÉDIO
+      UX fragmentado. Não há como ir de uma apólice para o perfil do cliente
+      nem do cliente para suas apólices.
+
+G7 — prospeccoes também duplica dados do cliente em vez de FK
+      Impacto: BAIXO
+      A tabela prospeccoes armazena cliente_nome, cpf_cnpj, telefone, email
+      de forma redundante. Pode ser normalizada em etapa futura.
+
+G8 — Sem distinção visual PF (CPF) x PJ (CNPJ)
+      Impacto: BAIXO
+      maskCpfCnpj() já lida com ambos os formatos, mas não há label visual
+      indicando o tipo de pessoa para fins de deduplicação precisa.
+
+
+TABELA DE DADOS DO CLIENTE (situação atual na renovacoes)
+──────────────────────────────────────────────────────────
+Campo no banco       Campo no estado React   Observação
+─────────────────    ───────────────────     ──────────────────────────────
+cliente_id           clienteId               Sempre null — FK morta
+cliente_nome         clienteNome             Texto livre, sem validação
+cpf_cnpj             cpfCnpj                 Formatado por maskCpfCnpj()
+telefone             telefone                Formatado por maskPhone()
+email                email                   Texto livre
+responsavel          responsavel             Corretor responsável (interno)
+
+
+CAMPOS DA APÓLICE (na mesma tabela renovacoes)
+───────────────────────────────────────────────
+tipo_seguro, seguradora, data_renovacao, valor, proposta, apolice_nova,
+status_pipeline, etiqueta_situacao, etiqueta_pagamento, etiqueta_canal,
+arquivado, arquivado_em, historico_ciclos (JSONB), cotacoes/follow-ups (JSONB),
+auto_* (dados específicos de automóvel: placa, modelo, condutor, etc.)
+
+
+PRÓXIMO PASSO SUGERIDO
+──────────────────────
+Com base nos gaps acima, propor plano de implementação cobrindo:
+- Tabela clientes (id, cpf_cnpj UNIQUE, nome, telefone, email, tipo_pessoa)
+- Ativar FK cliente_id em renovacoes
+- AddModal com busca/autocomplete de cliente por CPF ou nome
+- Tela de detalhe do cliente com lista de apólices + resumo financeiro
+- Navegação cruzada (apólice → cliente, cliente → apólices)
+- Migração não destrutiva dos dados existentes
+
+════════════════════════════════════════════════════════════
+Fim do diagnóstico
