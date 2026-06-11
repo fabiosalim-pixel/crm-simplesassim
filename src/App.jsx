@@ -423,7 +423,7 @@ function ProspeccoesView({ prospeccoes, onUpdate, onRecuperar }) {
               </div>
               <div className={`${stage.bg} flex-1 rounded-b-lg p-2 border ${stage.border} border-t-0 min-h-40 overflow-y-auto`} style={{ maxHeight: "calc(100vh - 200px)" }}>
                 {items.map(p => <ProspeccaoTile key={p.id} p={p} onClick={setSel} />)}
-                {items.length === 0 && <p className="text-xs text-slate-300 text-center mt-4">Nenhuma</p>}
+                {items.length === 0 && <p className="text-xs text-slate-300 text-center mt-4">Nenhuma prospecção.</p>}
               </div>
             </div>
           );
@@ -611,7 +611,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
   };
 
   const handleNaoRenovadaModal = async () => {
-    if (!window.confirm("Marcar como Não Renovada?\n\nO card será arquivado e uma prospecção será criada automaticamente para acompanhamento futuro.")) return;
+    if (!window.confirm("Marcar como não renovada?\n\nO card será arquivado e uma prospecção será criada automaticamente para acompanhamento futuro.")) return;
     setSaving(true);
     await onNaoRenovada({ ...d, etiquetaSituacao: "Não Renovada" });
     setSaving(false);
@@ -642,7 +642,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style={{ maxHeight: "92vh" }}>
         <div className="flex justify-between items-start px-6 pt-5 pb-4 border-b flex-shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">{d.clienteNome || "Novo Cliente"}</h2>
+            <h2 className="text-xl font-bold text-slate-900">{d.clienteNome || "Novo cliente"}</h2>
             {d.arquivado ? (
               <span className="text-xs font-semibold bg-amber-500 text-white px-2.5 py-0.5 rounded-full mt-1 inline-flex items-center gap-1">
                 <Archive size={10} /> Arquivado
@@ -674,7 +674,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
 
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className={lbl}>Nome do Cliente *</label>
+              <label className={lbl}>Nome do cliente *</label>
               <input className={inp} value={d.clienteNome || ""} onChange={e => set("clienteNome", e.target.value)} />
             </div>
             <div>
@@ -727,25 +727,25 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
               </select>
             </div>
             <div>
-              <label className={lbl}>Pagamento</label>
+              <label className={lbl}>Forma de pagamento</label>
               <select className={inp} value={d.etiquetaPagamento || ""} onChange={e => set("etiquetaPagamento", e.target.value)}>
                 <option value="">Selecione</option>
                 {PAGAMENTOS.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div className="col-span-2">
-              <label className={lbl}>Canal / Origem</label>
+              <label className={lbl}>Canal de origem</label>
               <select className={inp} value={d.etiquetaCanal || ""} onChange={e => set("etiquetaCanal", e.target.value)}>
                 <option value="">Selecione</option>
                 {CANAIS.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div className="col-span-2">
-              <label className={lbl}>Veículo / Bem Segurado</label>
+              <label className={lbl}>Veículo / bem segurado</label>
               <input className={inp} placeholder="Placa / Modelo / Endereço / Descrição" value={d.veiculo || ""} onChange={e => set("veiculo", e.target.value)} />
             </div>
             <div>
-              <label className={lbl}>Data de Renovação</label>
+              <label className={lbl}>Data de renovação</label>
               <input type="date" className={inp} value={d.dataRenovacao || ""} onChange={e => set("dataRenovacao", e.target.value)} />
             </div>
             <div>
@@ -753,34 +753,34 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
               <input type="number" className={inp} value={d.valor || ""} onChange={e => set("valor", e.target.value)} />
             </div>
             <div>
-              <label className={lbl}>Nº Proposta</label>
+              <label className={lbl}>Nº da proposta</label>
               <input className={inp} value={d.proposta || ""} onChange={e => set("proposta", e.target.value)} />
             </div>
             <div>
-              <label className={lbl}>Nº Apólice</label>
+              <label className={lbl}>Nº da apólice</label>
               <input className={inp} value={d.apolice || ""} onChange={e => set("apolice", e.target.value)} />
             </div>
           </div>
 
           {d.tipoSeguro === "AUTOMÓVEL" && (
             <div className="border border-blue-200 rounded-xl p-4 bg-blue-50 space-y-4">
-              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">🚗 Dados do Automóvel</p>
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">🚗 Dados do automóvel</p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className={lbl}>Nome do Segurado</label>
+                  <label className={lbl}>Nome do segurado</label>
                   <input className={inp} placeholder="Titular do contrato" value={d.autoNomeSegurado || ""} onChange={e => set("autoNomeSegurado", e.target.value)} />
                 </div>
                 <div>
-                  <label className={lbl}>Classe de Bônus</label>
+                  <label className={lbl}>Classe de bônus</label>
                   <input type="number" min="0" max="10" className={inp} placeholder="0 a 10" value={d.autoClasseBonus ?? ""} onChange={e => set("autoClasseBonus", e.target.value)} />
                 </div>
                 <div>
-                  <label className={lbl}>Condutor Principal</label>
+                  <label className={lbl}>Condutor principal</label>
                   <input className={inp} placeholder="Nome do condutor" value={d.autoCondutor || ""} onChange={e => set("autoCondutor", e.target.value)} />
                 </div>
                 <div>
                   <label className={lbl}>
-                    Data de Nascimento
+                    Data de nascimento
                     {d.autoDataNasc && (() => {
                       const anos = Math.floor((new Date() - new Date(d.autoDataNasc + "T12:00:00")) / (365.25 * 86400000));
                       return <span className="ml-2 text-blue-600 font-bold normal-case">{anos} anos</span>;
@@ -797,7 +797,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
                   </select>
                 </div>
                 <div>
-                  <label className={lbl}>Estado Civil</label>
+                  <label className={lbl}>Estado civil</label>
                   <select className={inp} value={d.autoEstadoCivil || ""} onChange={e => set("autoEstadoCivil", e.target.value)}>
                     <option value="">Selecione</option>
                     <option>Solteiro(a)</option>
@@ -812,7 +812,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
                   <input className={inp} placeholder="AAA-0000" value={d.autoPlaca || ""} onChange={e => set("autoPlaca", e.target.value.toUpperCase())} />
                 </div>
                 <div>
-                  <label className={lbl}>CEP de Pernoite</label>
+                  <label className={lbl}>CEP de pernoite</label>
                   <input className={inp} placeholder="00000-000" value={d.autoCepPernoite || ""}
                     onChange={e => {
                       const v = e.target.value.replace(/\D/g, "").slice(0, 8);
@@ -820,15 +820,15 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
                     }} />
                 </div>
                 <div className="col-span-2">
-                  <label className={lbl}>Modelo do Veículo</label>
+                  <label className={lbl}>Modelo do veículo</label>
                   <input className={inp} placeholder="Ex: Honda HR-V EX" value={d.autoModelo || ""} onChange={e => set("autoModelo", e.target.value)} />
                 </div>
                 <div>
-                  <label className={lbl}>Ano Fabricação</label>
+                  <label className={lbl}>Ano de fabricação</label>
                   <input type="number" className={inp} placeholder="2022" value={d.autoAnoFab || ""} onChange={e => set("autoAnoFab", e.target.value)} />
                 </div>
                 <div>
-                  <label className={lbl}>Ano Modelo</label>
+                  <label className={lbl}>Ano do modelo</label>
                   <input type="number" className={inp} placeholder="2023" value={d.autoAnoMod || ""} onChange={e => set("autoAnoMod", e.target.value)} />
                 </div>
                 <div className="col-span-2">
@@ -852,7 +852,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
           </label>
 
           <div>
-            <label className={lbl}>Anotações / Histórico</label>
+            <label className={lbl}>Anotações / histórico</label>
             <textarea className={`${inp} resize-none`} rows={3} value={d.anotacoes || ""} onChange={e => set("anotacoes", e.target.value)}
               placeholder="Alterações de perfil, histórico de contato, observações..." />
           </div>
@@ -885,7 +885,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
           {(d.historicoCiclos || []).length > 0 && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Clock size={12} /> Histórico de Renovações
+                <Clock size={12} /> Histórico de renovações
               </p>
               <div className="space-y-2">
                 {[...(d.historicoCiclos || [])].reverse().map((c, i) => (
@@ -969,7 +969,7 @@ function AddModal({ initialStage, onClose, onAdd }) {
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex justify-between items-center px-6 py-5 border-b">
-          <h2 className="text-lg font-bold text-slate-900">Novo Card de Renovação</h2>
+          <h2 className="text-lg font-bold text-slate-900">Novo card de renovação</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
         </div>
         <div className="px-6 py-5 space-y-4">
@@ -1019,7 +1019,7 @@ function AddModal({ initialStage, onClose, onAdd }) {
               </select>
             </div>
             <div>
-              <label className={lbl}>Data de Renovação</label>
+              <label className={lbl}>Data de renovação</label>
               <input type="date" className={inp} value={d.dataRenovacao || ""} onChange={e => set("dataRenovacao", e.target.value)} />
             </div>
             <div>
@@ -1033,14 +1033,14 @@ function AddModal({ initialStage, onClose, onAdd }) {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>Canal / Origem</label>
+              <label className={lbl}>Canal de origem</label>
               <select className={inp} value={d.etiquetaCanal || ""} onChange={e => set("etiquetaCanal", e.target.value)}>
                 <option value="">Selecione</option>
                 {CANAIS.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label className={lbl}>Etapa Inicial</label>
+              <label className={lbl}>Etapa inicial</label>
               <select className={inp} value={d.status} onChange={e => set("status", e.target.value)}>
                 {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
@@ -1051,7 +1051,7 @@ function AddModal({ initialStage, onClose, onAdd }) {
           <button onClick={onClose} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
           <button onClick={handleCreate} disabled={saving}
             className="px-4 py-2 text-sm bg-slate-900 hover:bg-slate-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-60">
-            <Plus size={14} /> {saving ? "Salvando..." : "Criar Card"}
+            <Plus size={14} /> {saving ? "Salvando..." : "Criar card"}
           </button>
         </div>
       </div>
@@ -1207,7 +1207,7 @@ export default function App() {
     <div className="h-screen flex items-center justify-center bg-slate-100">
       <div className="text-center">
         <Shield size={40} className="text-slate-300 mx-auto mb-3 animate-pulse" />
-        <p className="text-slate-400 text-sm">Carregando dados...</p>
+        <p className="text-slate-400 text-sm">Carregando...</p>
       </div>
     </div>
   );
@@ -1301,11 +1301,11 @@ export default function App() {
         </select>
         <button onClick={() => setMostrarArquivados(prev => !prev)}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${mostrarArquivados ? "bg-amber-100 border-amber-400 text-amber-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
-          <Archive size={13} /> {mostrarArquivados ? "Ver Pipeline" : "Arquivados"}
+          <Archive size={13} /> {mostrarArquivados ? "Ver pipeline" : "Arquivados"}
         </button>
         <button onClick={() => setAddStage("cotacoes")}
           className="ml-auto flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-          <Plus size={15} /> Novo Card
+          <Plus size={15} /> Novo card
         </button>
       </div>
 
