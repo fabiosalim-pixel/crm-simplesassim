@@ -136,6 +136,7 @@ function mapRow(r) {
     historicoCiclos:  r.historico_ciclos || [],
     anotacoes:        r.observacoes,
     followUps:        r.cotacoes || [],
+    sinistros:        r.sinistros || [],
     mesReferencia:    r.mes_referencia,
     clienteId:        r.cliente_id,
   };
@@ -204,6 +205,7 @@ async function upsertCard(card) {
     historico_ciclos: card.historicoCiclos || [],
     observacoes:      card.anotacoes,
     cotacoes:         card.followUps || [],
+    sinistros:        card.sinistros || [],
     mes_referencia:   card.mesReferencia || new Date().toISOString().slice(0, 7),
     atualizado_em:    new Date().toISOString(),
   };
@@ -584,6 +586,11 @@ function CardTile({ card, onClick, onDragStart }) {
           <Bell size={9} /> {pending} pendente{pending > 1 ? "s" : ""}
         </div>
       )}
+      {(card.sinistros || []).filter(s => s.status !== "Encerrado").length > 0 && (
+        <div className="mt-1 flex items-center gap-1 text-xs text-red-500 font-semibold">
+          <AlertTriangle size={9} /> {(card.sinistros || []).filter(s => s.status !== "Encerrado").length} sinistro{(card.sinistros || []).filter(s => s.status !== "Encerrado").length > 1 ? "s" : ""} aberto{(card.sinistros || []).filter(s => s.status !== "Encerrado").length > 1 ? "s" : ""}
+        </div>
+      )}
     </div>
   );
 }
@@ -625,6 +632,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
   const [fuDate, setFuDate] = useState("");
   const [del, setDel] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [snForm, setSnForm] = useState(null);
 
   const set = (k, v) => setD(p => ({ ...p, [k]: v }));
   const stageIdx = STAGES.findIndex(s => s.id === d.status);
@@ -635,6 +643,15 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
     setFuText(""); setFuDate("");
   };
   const toggleFu = (id) => set("followUps", d.followUps.map(f => f.id === id ? { ...f, feito: !f.feito } : f));
+
+  const addSinistro = () => {
+    if (!snForm?.tipo) return;
+    const novo = { id: genId(), tipo: snForm.tipo, protocolo: snForm.protocolo || "", dataOcorrencia: snForm.dataOcorrencia || "", dataEncerramento: snForm.dataEncerramento || "", status: snForm.status || "Aberto" };
+    set("sinistros", [...(d.sinistros || []), novo]);
+    setSnForm(null);
+  };
+  const removeSinistro = (id) => set("sinistros", (d.sinistros || []).filter(s => s.id !== id));
+  const updateSinistroStatus = (id, status) => set("sinistros", (d.sinistros || []).map(s => s.id === id ? { ...s, status, dataEncerramento: status === "Encerrado" ? (s.dataEncerramento || new Date().toISOString().slice(0,10)) : s.dataEncerramento } : s));
 
   const handleSave = async () => {
     setSaving(true);
@@ -923,6 +940,94 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
                 value={fuDate} onChange={e => setFuDate(e.target.value)} />
               <button onClick={addFu} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg"><Plus size={16} /></button>
             </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between px-3 py-2 bg-red-600 rounded-xl mb-2">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-white uppercase tracking-wide cursor-default">
+                <AlertTriangle size={13} /> Sinistros
+                {(d.sinistros || []).filter(s => s.status !== "Encerrado").length > 0 && (
+                  <span className="bg-white text-red-600 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                    {(d.sinistros || []).filter(s => s.status !== "Encerrado").length} aberto{(d.sinistros || []).filter(s => s.status !== "Encerrado").length !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </label>
+              <button onClick={() => setSnForm(snForm ? null : { status: "Aberto" })}
+                className="flex items-center gap-1 text-xs text-white hover:text-red-200 font-semibold transition-colors">
+                <Plus size={13} /> Registrar sinistro
+              </button>
+            </div>
+            {snForm && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-3 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={lbl}>Tipo *</label>
+                    <select className={inp} value={snForm.tipo || ""} onChange={e => setSnForm(p => ({ ...p, tipo: e.target.value }))}>
+                      <option value="">Selecione</option>
+                      {["Colisão","Roubo/Furto","Incêndio","Vida","Danos Elétricos","RC","Outros"].map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={lbl}>Protocolo / N° sinistro</label>
+                    <input className={inp} placeholder="Ex: 2024-001234" value={snForm.protocolo || ""} onChange={e => setSnForm(p => ({ ...p, protocolo: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Data de ocorrência</label>
+                    <input type="date" className={inp} value={snForm.dataOcorrencia || ""} onChange={e => setSnForm(p => ({ ...p, dataOcorrencia: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Status</label>
+                    <select className={inp} value={snForm.status || "Aberto"} onChange={e => setSnForm(p => ({ ...p, status: e.target.value }))}>
+                      {["Aberto","Em análise","Aguardando doc.","Encerrado"].map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  {snForm.status === "Encerrado" && (
+                    <div className="col-span-2">
+                      <label className={lbl}>Data de encerramento</label>
+                      <input type="date" className={inp} value={snForm.dataEncerramento || ""} onChange={e => setSnForm(p => ({ ...p, dataEncerramento: e.target.value }))} />
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setSnForm(null)} className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700">Cancelar</button>
+                  <button onClick={addSinistro} disabled={!snForm.tipo}
+                    className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold disabled:opacity-50">
+                    Registrar
+                  </button>
+                </div>
+              </div>
+            )}
+            {(d.sinistros || []).length > 0 ? (
+              <div className="space-y-2">
+                {(d.sinistros || []).map(s => {
+                  const cor = { "Aberto": "bg-red-100 text-red-700", "Em análise": "bg-blue-100 text-blue-700", "Aguardando doc.": "bg-amber-100 text-amber-700", "Encerrado": "bg-emerald-100 text-emerald-700" }[s.status] || "bg-slate-100 text-slate-600";
+                  return (
+                    <div key={s.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-slate-700 text-sm">{s.tipo}</span>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cor}`}>{s.status}</span>
+                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5 space-y-0.5">
+                          {s.protocolo && <div>Protocolo: {s.protocolo}</div>}
+                          {s.dataOcorrencia && <div>Ocorrência: {fmt(s.dataOcorrencia)}</div>}
+                          {s.dataEncerramento && <div>Encerrado em: {fmt(s.dataEncerramento)}</div>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <select className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none bg-white"
+                          value={s.status} onChange={e => updateSinistroStatus(s.id, e.target.value)}>
+                          {["Aberto","Em análise","Aguardando doc.","Encerrado"].map(st => <option key={st}>{st}</option>)}
+                        </select>
+                        <button onClick={() => removeSinistro(s.id)} className="text-slate-300 hover:text-red-400 ml-1"><X size={14} /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : !snForm && (
+              <p className="text-xs text-slate-400 text-center py-3">Nenhum sinistro registrado.</p>
+            )}
           </div>
 
           <DocsSection cardId={card.id} />
