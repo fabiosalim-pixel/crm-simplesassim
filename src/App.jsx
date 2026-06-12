@@ -1758,6 +1758,30 @@ function ImportModal({ onClose, onAdd }) {
 
   const criarCard = async () => {
     if (!form.clienteNome) return;
+
+    // ── Detecção de duplicata ──────────────────────────────────────────────
+    const dupeInfo = [];
+    if (form.proposta) {
+      const { data } = await supabase.from("renovacoes").select("id,cliente_nome").eq("proposta", form.proposta).eq("arquivado", false).limit(1);
+      if (data?.length) dupeInfo.push(`proposta nº ${form.proposta} já existe para ${data[0].cliente_nome}`);
+    }
+    if (form.autoPlaca) {
+      const { data } = await supabase.from("renovacoes").select("id,cliente_nome").eq("auto_placa", form.autoPlaca).eq("arquivado", false).limit(1);
+      if (data?.length) dupeInfo.push(`placa ${form.autoPlaca} já existe para ${data[0].cliente_nome}`);
+    }
+    if (!form.autoPlaca && form.autoChassi) {
+      const { data } = await supabase.from("renovacoes").select("id,cliente_nome").eq("auto_chassi", form.autoChassi).eq("arquivado", false).limit(1);
+      if (data?.length) dupeInfo.push(`chassi ${form.autoChassi} já existe para ${data[0].cliente_nome}`);
+    }
+    if (dupeInfo.length > 0) {
+      const ok = window.confirm(
+        `⚠️ Card duplicado detectado:
+
+• ${dupeInfo.join("\n• ")}\n\nDeseja criar mesmo assim?`
+      );
+      if (!ok) return;
+    }
+
     setSaving(true);
     try {
       const clienteId = await findOrCreateCliente({
