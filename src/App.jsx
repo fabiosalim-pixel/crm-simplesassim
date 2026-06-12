@@ -86,7 +86,7 @@ const maskPhone = (v) => {
 // ── Etiquetas em camadas ──────────────────────────────────────
 const SITUACOES = ["Cancelada","Endosso","Não Renovada","Protocolado","Recusada","Renov. Congênere","Renovação","Seguro Novo","Sem Negócio"];
 const PAGAMENTOS = ["Boleto","Cartão de Crédito","Débito em Conta","Link de Pagamento","PIX"];
-const CANAIS = ["Crosselling","Google","Indicação","LojaCorr","Parceiro","Site"];
+const CANAIS = ["Google","Indicação","Site"];
 
 const SITUACAO_COR = {
   "Renovação":         "bg-blue-100 text-blue-700",
