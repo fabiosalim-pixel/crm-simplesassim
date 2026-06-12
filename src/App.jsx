@@ -962,7 +962,9 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
               <label className={lbl}>Situação</label>
               <select className={inp} value={d.etiquetaSituacao || ""} onChange={e => set("etiquetaSituacao", e.target.value)}>
                 <option value="">Selecione</option>
-                {SITUACOES.map(s => <option key={s}>{s}</option>)}
+                <option value="Seguro Novo">Seguro Novo</option>
+                <option value="Renovação Congênere">Renovação Congênere</option>
+                <option value="Renovação">Renovação</option>
               </select>
             </div>
             <div>
@@ -994,8 +996,10 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
               <input type="date" className={inp} value={d.dataRenovacao || ""} onChange={e => set("dataRenovacao", e.target.value)} />
             </div>
             <div>
-              <label className={lbl}>Prêmio (R$)</label>
-              <input type="number" className={inp} value={d.valor || ""} onChange={e => set("valor", e.target.value)} />
+              <label className={lbl}>Prêmio (R$){d.etiquetaSituacao === "Renovação Congênere" ? " *" : ""}</label>
+              <input type="number" className={`${inp} ${d.etiquetaSituacao === "Renovação Congênere" ? "border-amber-300" : ""}`}
+                value={d.valor || ""} onChange={e => set("valor", e.target.value)}
+                placeholder={d.etiquetaSituacao === "Renovação Congênere" ? "Valor do ano anterior" : ""} />
             </div>
             <div>
               <label className={lbl}>Nº da proposta</label>
@@ -1292,8 +1296,9 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
 }
 
 function AddModal({ initialStage, onClose, onAdd }) {
-  const [d, setD] = useState({ status: initialStage, tipoSeguro: "AUTOMÓVEL", followUps: [] });
+  const [d, setD] = useState({ status: "cotacoes", tipoSeguro: "AUTOMÓVEL", followUps: [], dataRenovacao: new Date().toISOString().slice(0,10) });
   const [saving, setSaving] = useState(false);
+  const [errs, setErrs] = useState({});
   const [busca, setBusca] = useState("");
   const [sugestoes, setSugestoes] = useState([]);
   const [buscaAberta, setBuscaAberta] = useState(false);
@@ -1334,7 +1339,11 @@ function AddModal({ initialStage, onClose, onAdd }) {
   };
 
   const handleCreate = async () => {
-    if (!d.clienteNome?.trim()) return;
+    const e = {};
+    if (!d.clienteNome?.trim()) e.clienteNome = true;
+    if (!d.cpfCnpj?.trim()) e.cpfCnpj = true;
+    if (!d.telefone?.trim()) e.telefone = true;
+    if (Object.keys(e).length) { setErrs(e); return; }
     setSaving(true);
     const clienteId = d.clienteId || await findOrCreateCliente({
       nome: d.clienteNome, cpfCnpj: d.cpfCnpj, telefone: d.telefone, email: d.email,
@@ -1348,7 +1357,7 @@ function AddModal({ initialStage, onClose, onAdd }) {
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex justify-between items-center px-6 py-5 border-b">
-          <h2 className="text-lg font-bold text-slate-900">Novo card de renovação</h2>
+          <h2 className="text-lg font-bold text-slate-900">Novo Atendimento</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
         </div>
         <div className="px-6 py-5 space-y-4">
@@ -1399,23 +1408,26 @@ function AddModal({ initialStage, onClose, onAdd }) {
 
           <div className="border-t border-slate-100 pt-3">
             <label className={lbl}>Nome do cliente *</label>
-            <input autoFocus className={`${inp} ${clienteVinculado ? "bg-slate-50 text-slate-500" : ""}`}
-              value={d.clienteNome || ""} onChange={e => set("clienteNome", e.target.value)}
+            <input autoFocus className={`${inp} ${clienteVinculado ? "bg-slate-50 text-slate-500" : errs.clienteNome ? "border-red-400 ring-1 ring-red-300" : ""}`}
+              value={d.clienteNome || ""} onChange={e => { set("clienteNome", e.target.value); setErrs(p => ({...p, clienteNome: false})); }}
               onKeyDown={e => e.key === "Enter" && handleCreate()}
               readOnly={!!clienteVinculado} />
+            {errs.clienteNome && <p className="text-xs text-red-500 mt-1">Campo obrigatório</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>CPF / CNPJ</label>
-              <input className={`${inp} ${clienteVinculado ? "bg-slate-50 text-slate-500" : ""}`}
-                value={d.cpfCnpj || ""} onChange={e => set("cpfCnpj", maskCpfCnpj(e.target.value))}
+              <label className={lbl}>CPF / CNPJ *</label>
+              <input className={`${inp} ${clienteVinculado ? "bg-slate-50 text-slate-500" : errs.cpfCnpj ? "border-red-400 ring-1 ring-red-300" : ""}`}
+                value={d.cpfCnpj || ""} onChange={e => { set("cpfCnpj", maskCpfCnpj(e.target.value)); setErrs(p => ({...p, cpfCnpj: false})); }}
                 placeholder="000.000.000-00" readOnly={!!clienteVinculado} />
+              {errs.cpfCnpj && <p className="text-xs text-red-500 mt-1">Obrigatório</p>}
             </div>
             <div>
-              <label className={lbl}>Telefone</label>
-              <input className={`${inp} ${clienteVinculado ? "bg-slate-50 text-slate-500" : ""}`}
-                value={d.telefone || ""} onChange={e => set("telefone", maskPhone(e.target.value))}
+              <label className={lbl}>Telefone *</label>
+              <input className={`${inp} ${clienteVinculado ? "bg-slate-50 text-slate-500" : errs.telefone ? "border-red-400 ring-1 ring-red-300" : ""}`}
+                value={d.telefone || ""} onChange={e => { set("telefone", maskPhone(e.target.value)); setErrs(p => ({...p, telefone: false})); }}
                 placeholder="(00) 00000-0000" readOnly={!!clienteVinculado} />
+              {errs.telefone && <p className="text-xs text-red-500 mt-1">Obrigatório</p>}
             </div>
             <div>
               <label className={lbl}>Produto</label>
@@ -1472,9 +1484,7 @@ function AddModal({ initialStage, onClose, onAdd }) {
             </div>
             <div>
               <label className={lbl}>Etapa inicial</label>
-              <select className={inp} value={d.status} onChange={e => set("status", e.target.value)}>
-                {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </select>
+              <div className="mt-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500">Cotações e Leads</div>
             </div>
           </div>
           {d.status === "boleto" && (
