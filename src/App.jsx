@@ -1720,6 +1720,7 @@ function ImportModal({ onClose, onAdd }) {
 
       const d = result.data;
       const temVeiculo = !!(d.veiculo?.placa || d.veiculo?.modelo);
+      const minhaCorretora = (d.corretor || "").toUpperCase().includes("SIMPLES ASSIM");
 
       setForm({
         clienteNome:             (d.segurado?.nome || "").toUpperCase(),
@@ -1731,7 +1732,7 @@ function ImportModal({ onClose, onAdd }) {
         proposta:                d.apolice?.numeroProposta || "",
         apolice:                 d.apolice?.numeroApolice || "",
         dataRenovacao:           d.apolice?.vigenciaFim || "",
-        etiquetaSituacao:        d.minhaCorretora === false ? "Renovação Congênere" : (d.apolice?.tipoOperacao || ""),
+        etiquetaSituacao:        minhaCorretora ? (d.apolice?.tipoOperacao || "") : "Renovação Congênere",
         etiquetaPagamento:       mapPagamento(d.financeiro?.formaPagamento),
         etiquetaCanal:           "",
         autoPlaca:               d.veiculo?.placa || "",
@@ -1748,7 +1749,7 @@ function ImportModal({ onClose, onAdd }) {
         autoNascimentoCondutor:  d.veiculo?.condutorNascimento || "",
         condutorDiferente:       !!(d.veiculo?.condutorNome && (d.veiculo?.condutorNome||"").toUpperCase() !== (d.segurado?.nome||"").toUpperCase()),
         valor:                   d.financeiro?.premioTotal || "",
-        status:                  d.minhaCorretora === true ? (d.tipoDocumento === "apolice" ? "emitida" : "transmitida") : "cotacoes",
+        status:                  minhaCorretora ? (d.tipoDocumento === "apolice" ? "emitida" : "transmitida") : "cotacoes",
       });
       setTipoDoc(d.tipoDocumento === "apolice" ? "apolice" : "proposta");
       setStep(3);
