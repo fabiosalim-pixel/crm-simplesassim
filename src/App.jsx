@@ -813,6 +813,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
   const [del, setDel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [snForm, setSnForm] = useState(null);
+  const [condutorDif, setCondutorDif] = useState(!!(card.autoCondutor && card.autoCondutor !== card.autoNomeSegurado));
 
   const set = (k, v) => setD(p => ({ ...p, [k]: v }));
   const stageIdx = STAGES.findIndex(s => s.id === d.status);
@@ -1023,21 +1024,34 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
             <div className="border border-blue-200 rounded-xl p-4 bg-blue-50 space-y-4">
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">🚗 Dados do automóvel</p>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={lbl}>Nome do segurado</label>
+                <div className={condutorDif ? "" : "col-span-2"}>
+                  <label className={lbl}>Segurado (titular)</label>
                   <input className={inp} placeholder="Titular do contrato" value={d.autoNomeSegurado || ""} onChange={e => set("autoNomeSegurado", e.target.value)} />
+                </div>
+                {condutorDif && (
+                  <div>
+                    <label className={lbl}>Condutor principal</label>
+                    <input className={inp} placeholder="Nome do condutor" value={d.autoCondutor || ""} onChange={e => set("autoCondutor", e.target.value)} />
+                  </div>
+                )}
+                <div className="col-span-2">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" className="w-4 h-4 rounded accent-blue-600"
+                      checked={condutorDif}
+                      onChange={e => {
+                        setCondutorDif(e.target.checked);
+                        if (!e.target.checked) set("autoCondutor", d.autoNomeSegurado || "");
+                      }} />
+                    <span className="text-sm text-slate-600">Condutor diferente do segurado</span>
+                  </label>
                 </div>
                 <div>
                   <label className={lbl}>Classe de bônus</label>
                   <input type="number" min="0" max="10" className={inp} placeholder="0 a 10" value={d.autoClasseBonus ?? ""} onChange={e => set("autoClasseBonus", e.target.value)} />
                 </div>
                 <div>
-                  <label className={lbl}>Condutor principal</label>
-                  <input className={inp} placeholder="Nome do condutor" value={d.autoCondutor || ""} onChange={e => set("autoCondutor", e.target.value)} />
-                </div>
-                <div>
                   <label className={lbl}>
-                    Data de nascimento
+                    Data de nascimento {condutorDif ? "(condutor)" : ""}
                     {d.autoDataNasc && (() => {
                       const anos = Math.floor((new Date() - new Date(d.autoDataNasc + "T12:00:00")) / (365.25 * 86400000));
                       return <span className="ml-2 text-blue-600 font-bold normal-case">{anos} anos</span>;
