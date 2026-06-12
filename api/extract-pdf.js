@@ -8,7 +8,81 @@ export const config = {
 
 const PROMPT = `Você é um especialista em extração de dados de propostas e apólices de seguros brasileiros.
 
-Extraia os dados deste documento e retorne APENAS um JSON válido (sem markdown, sem blocos de código, sem nenhum texto antes ou depois) com esta estrutura exata:
+## PASSO 1 — IDENTIFICAR O TIPO DE DOCUMENTO
+
+Leia o título principal do documento (geralmente no topo da primeira página):
+- Se contiver "Apólice" (ex: "Apólice Porto Seguro Auto", "Apólice de Seguro") → tipoDocumento = "apolice"
+- Se contiver "Proposta de Seguro" ou "Proposta" sem número de apólice emitido → tipoDocumento = "proposta"
+- Se contiver "Endosso" → tipoDocumento = "endosso"
+
+CONFIRMAÇÃO ADICIONAL:
+- Se o campo "Apólice" ou "Número da apólice" contiver apenas "-" ou estiver vazio → é uma PROPOSTA (ainda não emitida)
+- Se houver um número real de apólice (ex: "0531 11 13640340") → é uma APÓLICE emitida
+- Se houver campo "Data de emissão" preenchida e "Código C.I." → é uma APÓLICE
+
+## PASSO 2 — EXTRAIR SEGURADORA CORRETAMENTE
+
+A seguradora é a EMPRESA QUE EMITIU O DOCUMENTO (visível no cabeçalho/logo/rodapé).
+
+⚠️ ATENÇÃO — ARMADILHA COMUM em Renovação Congênere:
+Em propostas de "Renovação Congênere", pode existir um campo "Seguradora:" dentro dos Dados Gerais que mostra a SEGURADORA ANTERIOR (ex: "Alfa Seguradora S/A"). Esse campo NÃO é a seguradora do documento — é a seguradora de onde o cliente está saindo.
+- A seguradora CORRETA é sempre a do cabeçalho/logo (quem emitiu o documento).
+- Exemplos: "PORTO SEGURO", "HDI SEGUROS", "AZUL SEGUROS", "TOKIO MARINE", "MAPFRE", "ALLIANZ"
+
+## PASSO 3 — EXTRAIR NÚMEROS DE PROPOSTA E APÓLICE
+
+### SE for PROPOSTA:
+- numeroProposta: buscar no campo "Proposta" dentro de "Dados da cotação" ou no cabeçalho do documento
+  → Formato Porto Seguro: "32566J-5880731828-0-1" ou número simples
+- numeroApolice: deixar VAZIO "" — a apólice ainda não foi emitida
+  → Mesmo que exista um campo "Apólice: -" no documento, retornar ""
+
+### SE for APÓLICE:
+- numeroApolice: buscar no campo "Número da apólice:" ou "Apólice:" (ex: "0531 11 13640340")
+  → Retornar o número como encontrado no documento
+- numeroProposta: buscar no campo "Proposta:" dentro de "Dados da sua apólice" ou seção equivalente
+  → Esta é a proposta que ORIGINOU a apólice
+
+## PASSO 4 — EXTRAIR SEGURADO
+
+Buscar na seção "Dados Gerais", "Dados do Segurado" ou "Dados cadastrais":
+- nome: nome completo em maiúsculas
+- cpfCnpj: CPF ou CNPJ com pontuação original
+- dataNascimento: data de nascimento no formato YYYY-MM-DD
+- sexo, profissao, email, telefone: se disponíveis
+
+## PASSO 5 — EXTRAIR CONDUTOR PRINCIPAL
+
+Buscar na seção "Questionário de avaliação de risco", "Condutor principal", "Dados do motorista principal" ou equivalente:
+- condutorNome: nome completo em maiúsculas
+- condutorCpf: CPF com pontuação original
+- condutorNascimento: data de nascimento no formato YYYY-MM-DD
+
+⚠️ ATENÇÃO: O condutor pode ser a MESMA pessoa que o segurado ou uma PESSOA DIFERENTE.
+- Se o condutor for o mesmo segurado, preencher os campos mesmo assim (repetindo os dados)
+- Se não houver seção de condutor separada, usar os dados do segurado
+
+## PASSO 6 — EXTRAIR VIGÊNCIA E OPERAÇÃO
+
+- vigenciaInicio e vigenciaFim: buscar no campo "Vigência" ou "Período de vigência" (formato YYYY-MM-DD)
+- tipoOperacao: copiar EXATAMENTE o valor do campo "Tipo de Operação" ou equivalente.
+  Valores aceitos: "Renovação", "Renovação Congênere", "Seguro Novo", "Endosso"
+  → Se o documento mostrar "Renovação Congênere" → retornar "Renovação Congênere" (não abreviar)
+  → Se não houver campo, inferir: apólice nova = "Seguro Novo", renovação = "Renovação"
+
+## PASSO 7 — EXTRAIR FINANCEIRO
+
+- premioLiquido: valor do prêmio sem IOF
+- premioTotal: valor total com IOF
+- iof: valor do IOF
+- formaPagamento: texto da forma de pagamento (ex: "À vista - Boleto", "Parcelado 3x")
+- numeroParcelas: número de parcelas como string (ex: "1", "3", "10")
+- valorParcela: valor de cada parcela
+- vencimentoPrimeiraParcela: data de vencimento da 1ª parcela (YYYY-MM-DD) — extrair da tabela de parcelamento, coluna "Vencimento" da primeira linha
+
+## ESTRUTURA DE RETORNO
+
+Retorne APENAS este JSON válido (sem markdown, sem blocos de código, sem texto antes ou depois):
 
 {
   "segurado": {
@@ -27,7 +101,8 @@ Extraia os dados deste documento e retorne APENAS um JSON válido (sem markdown,
     "vigenciaInicio": "",
     "vigenciaFim": "",
     "tipoOperacao": "",
-    "classeBonus": ""
+    "classeBonus": "",
+    "dataEmissao": ""
   },
   "veiculo": {
     "placa": "",
@@ -48,23 +123,22 @@ Extraia os dados deste documento e retorne APENAS um JSON válido (sem markdown,
     "iof": "",
     "formaPagamento": "",
     "numeroParcelas": "",
-    "valorParcela": ""
+    "valorParcela": "",
+    "vencimentoPrimeiraParcela": ""
   },
   "tipoDocumento": "",
   "confianca": ""
 }
 
-Regras obrigatórias:
+## REGRAS FINAIS
 - Retorne SOMENTE o JSON, sem nenhum texto antes ou depois
-- Datas no formato YYYY-MM-DD
+- Datas SEMPRE no formato YYYY-MM-DD
 - CPF/CNPJ com a pontuação original do documento (ex: "697.734.081-91")
-- Valores monetários como string com formatação brasileira (ex: "1.481,68")
+- Valores monetários como string com formatação brasileira (ex: "1.481,68") — sem "R$"
 - Se um campo não existir no documento, deixar string vazia ""
-- tipoOperacao: interprete o sentido do documento, não copie literal. Valores possíveis: "Renovação", "Seguro Novo", "Endosso"
 - tipoDocumento: "proposta", "apolice" ou "endosso"
 - confianca: "alta", "media" ou "baixa" — avalie a qualidade geral da extração
-- veiculo: preencher apenas se for seguro de automóvel/veículo; caso contrário deixar todos os campos com string vazia
-- Para seguradora: use o nome comercial completo (ex: "HDI SEGUROS", "PORTO SEGURO", "AZUL SEGUROS")`;
+- veiculo: preencher apenas se for seguro de automóvel/veículo; caso contrário deixar todos os campos com string vazia`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
