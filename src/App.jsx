@@ -2206,7 +2206,62 @@ function ImportModal({ onClose, onAdd }) {
 }
 
 // ── App principal ─────────────────────────────────────────────
+// ── Login Screen ─────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setErro("");
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+    setLoading(false);
+    if (error) setErro("E-mail ou senha incorretos.");
+  }
+
+  return (
+    <div className="h-screen flex items-center justify-center" style={{ background: "#0F172A" }}>
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center mb-8">
+          <Shield size={40} className="text-amber-400 mb-3" />
+          <h1 className="text-white text-2xl font-bold tracking-tight">CRM Renovações</h1>
+          <p className="text-slate-400 text-sm mt-1">Simples Assim Corretora</p>
+        </div>
+        <form onSubmit={handleSubmit} className="bg-slate-800 rounded-2xl p-6 flex flex-col gap-4 shadow-2xl">
+          <div>
+            <label className="text-slate-300 text-xs font-semibold block mb-1.5">E-mail</label>
+            <input
+              type="email" required autoFocus
+              value={email} onChange={e => setEmail(e.target.value)}
+              className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-500"
+              placeholder="seu@email.com.br"
+            />
+          </div>
+          <div>
+            <label className="text-slate-300 text-xs font-semibold block mb-1.5">Senha</label>
+            <input
+              type="password" required
+              value={senha} onChange={e => setSenha(e.target.value)}
+              className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-500"
+              placeholder="••••••••"
+            />
+          </div>
+          {erro && <p className="text-red-400 text-xs text-center">{erro}</p>}
+          <button type="submit" disabled={loading}
+            className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-900 font-bold text-sm rounded-lg py-2.5 transition-colors mt-1">
+            {loading ? "Entrando..." : "Entrar"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  const [session, setSession] = useState(undefined); // undefined=carregando, null=sem sessão
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -2244,6 +2299,13 @@ export default function App() {
   }, [searchQuery]);
 
   // Fechar dropdown ao clicar fora
+  // Auth session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s ?? null));
+    return () => subscription.unsubscribe();
+  }, []);
+
   useEffect(() => {
     const handler = (e) => { if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false); };
     document.addEventListener("mousedown", handler);
@@ -2358,6 +2420,14 @@ export default function App() {
     return { val: `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`, label: dt.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) };
   });
 
+  if (session === undefined) return (
+    <div className="h-screen flex items-center justify-center" style={{ background: "#0F172A" }}>
+      <Shield size={40} className="text-amber-400 animate-pulse" />
+    </div>
+  );
+
+  if (!session) return <LoginScreen />;
+
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-slate-100">
       <div className="text-center">
@@ -2407,6 +2477,10 @@ export default function App() {
             </div>
           )}
           <div className="text-slate-400 text-xs">{cards.length} cards · {cards.filter(c => c.status === "emitida").length} emitidas</div>
+          <button onClick={() => supabase.auth.signOut()}
+            className="text-slate-500 hover:text-slate-300 text-xs px-2 py-1 rounded transition-colors" title="Sair">
+            Sair
+          </button>
         </div>
       </header>
 
