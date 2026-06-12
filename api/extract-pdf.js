@@ -17,79 +17,103 @@ Leia o título principal do documento (geralmente no topo da primeira página):
 
 CONFIRMAÇÃO ADICIONAL:
 - Se o campo "Apólice" ou "Número da apólice" contiver apenas "-" ou estiver vazio → é uma PROPOSTA (ainda não emitida)
-- Se houver um número real de apólice (ex: "0531 11 13640340") → é uma APÓLICE emitida
-- Se houver campo "Data de emissão" preenchida e "Código C.I." → é uma APÓLICE
+- Se houver um número real de apólice → é uma APÓLICE emitida
+- Se houver campo "Data de emissão" preenchida → é uma APÓLICE
 
 ## PASSO 2 — IDENTIFICAR A CORRETORA E VERIFICAR SE É "SIMPLES ASSIM"
 
-Buscar a seção "DADOS DO CORRETOR" ou equivalente e extrair o nome da corretora.
+Buscar a seção "DADOS DO CORRETOR", "SEU CORRETOR", "CORRETOR" ou equivalente e extrair o nome da corretora.
 
-Em seguida, verificar se o nome da corretora é "Simples Assim Corretora de Seguros Inteligentes LTDA" ou variações próximas:
-- Considerar match se o nome contiver "SIMPLES ASSIM" (ignorar maiúsculas/minúsculas)
-- Aceitar pequenas variações de digitação (ex: "SIMPLES ASI", "SIMPL ASSIM", "SIMPLES ASIM")
+Verificar se o nome contém "SIMPLES ASSIM" (ignorar maiúsculas/minúsculas, aceitar variações próximas):
 - Se for a corretora "Simples Assim" → minhaCorretora = true
-- Se for qualquer outra corretora → minhaCorretora = false
-- Se não houver seção de corretor no documento → minhaCorretora = false
+- Qualquer outra corretora → minhaCorretora = false
+- Sem seção de corretor → minhaCorretora = false
 
 ## PASSO 3 — EXTRAIR SEGURADORA CORRETAMENTE
 
-A seguradora é a EMPRESA QUE EMITIU O DOCUMENTO (visível no cabeçalho/logo/rodapé).
+A seguradora é a EMPRESA QUE EMITIU O DOCUMENTO (cabeçalho/logo/rodapé).
 
-⚠️ ATENÇÃO — ARMADILHA COMUM em Renovação Congênere:
-Em propostas de "Renovação Congênere", pode existir um campo "Seguradora:" dentro dos Dados Gerais que mostra a SEGURADORA ANTERIOR (ex: "Alfa Seguradora S/A"). Esse campo NÃO é a seguradora do documento — é a seguradora de onde o cliente está saindo.
-- A seguradora CORRETA é sempre a do cabeçalho/logo (quem emitiu o documento).
+⚠️ ATENÇÃO — ARMADILHA em Renovação Congênere:
+Em propostas de "Renovação Congênere", o campo "Seguradora:" nos Dados Gerais mostra a SEGURADORA ANTERIOR. Ignorar esse campo. Usar sempre o cabeçalho/logo.
 - Exemplos: "PORTO SEGURO", "HDI SEGUROS", "AZUL SEGUROS", "TOKIO MARINE", "MAPFRE", "ALLIANZ", "YELUM"
 
 ## PASSO 4 — EXTRAIR NÚMEROS DE PROPOSTA E APÓLICE
 
 ### SE for PROPOSTA:
-- numeroProposta: buscar no campo "Proposta" dentro de "Dados da cotação" ou no cabeçalho do documento
-  → Formato Porto Seguro: "32566J-5880731828-0-1" ou número simples
-- numeroApolice: deixar VAZIO "" — a apólice ainda não foi emitida
-  → Mesmo que exista um campo "Apólice: -" no documento, retornar ""
+- numeroProposta: campo "Proposta" nos "Dados da cotação" ou cabeçalho
+- numeroApolice: deixar VAZIO "" (mesmo que exista "Apólice: -")
 
 ### SE for APÓLICE:
-- numeroApolice: buscar no campo "Número da apólice:", "Apólice:" ou "Apólice" (ex: "0531 11 13640340", "31.09.2025.0897882")
-  → Retornar o número como encontrado no documento
-- numeroProposta: buscar no campo "Proposta:" dentro de "Dados da sua apólice" ou seção equivalente
-  → Esta é a proposta que ORIGINOU a apólice
+- numeroApolice: campo "Número da apólice:", "Apólice:" ou equivalente
+- numeroProposta: campo "Proposta:" dentro de "Dados da sua apólice" ou equivalente
 
 ## PASSO 5 — EXTRAIR SEGURADO
 
-Buscar na seção "Dados Gerais", "Dados do Segurado", "DADOS DO(A) SEGURADO(A)" ou "Dados cadastrais":
-- nome: nome completo em maiúsculas
-- cpfCnpj: CPF ou CNPJ com pontuação original
+Buscar na seção "Dados Gerais", "Dados do Segurado", "DADOS DO(A) SEGURADO(A)" ou equivalente:
+- nome: nome completo em MAIÚSCULAS
+- cpfCnpj: CPF ou CNPJ com pontuação original (ex: "123.456.789-00")
 - dataNascimento: data de nascimento no formato YYYY-MM-DD
-- sexo, profissao, email, telefone: se disponíveis
+- estadoCivil: estado civil. Mapear para: "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)", "União Estável"
+  → Se o documento disser "casado(a) ou vive em união estável" → usar "Casado(a)"
+  → Se não houver campo → deixar vazio ""
+- sexo: "Masculino" ou "Feminino"
+- email: endereço de e-mail
+- telefone: número de telefone (com DDD)
 
 ## PASSO 6 — EXTRAIR CONDUTOR PRINCIPAL
 
-Buscar na seção "Questionário de avaliação de risco", "Condutor principal", "Dados do motorista principal", "DADOS DO PERFIL" ou equivalente:
-- condutorNome: nome completo em maiúsculas
+Buscar na seção "Questionário de avaliação de risco", "DADOS DO PERFIL", "Condutor principal", "Dados do motorista principal" ou equivalente:
+- condutorNome: nome completo em MAIÚSCULAS
 - condutorCpf: CPF com pontuação original
 - condutorNascimento: data de nascimento no formato YYYY-MM-DD
+- condutorEstadoCivil: estado civil. Mapear para: "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)", "União Estável"
+  → Se o documento disser "casado(a) ou vive em união estável" ou "Casado/Uniao Estavel" → usar "Casado(a)"
+  → Se não houver campo → deixar vazio ""
 
-⚠️ ATENÇÃO: O condutor pode ser a MESMA pessoa que o segurado ou uma PESSOA DIFERENTE.
-- Se o condutor for o mesmo segurado, preencher os campos mesmo assim (repetindo os dados)
-- Se não houver seção de condutor separada, usar os dados do segurado
+⚠️ O condutor pode ser a MESMA pessoa que o segurado ou DIFERENTE. Preencher sempre.
 
-## PASSO 7 — EXTRAIR VIGÊNCIA E OPERAÇÃO
+## PASSO 7 — EXTRAIR DADOS DO VEÍCULO
 
-- vigenciaInicio e vigenciaFim: buscar no campo "Vigência", "Vigência do Seguro" ou "Período de vigência" (formato YYYY-MM-DD)
-- tipoOperacao: copiar EXATAMENTE o valor do campo "Tipo de Operação" ou equivalente.
+- placa: placa do veículo (ex: "ABC1D23")
+- chassi: número do chassi
+- modelo: marca e modelo completo (ex: "FIAT FIORINO FURGAO 1.4 FLEX")
+- anoFab: ano de fabricação (ex: "2021")
+- anoMod: ano do modelo (ex: "2022")
+- zeroKm: true se Zero Km, false caso contrário
+- combustivel: "Flex", "Gasolina", "Etanol", "Diesel", "Elétrico", "Híbrido", "GNV"
+- cepPernoite: CEP onde o veículo pernoita (somente números com hífen, ex: "71745-608")
+  → Pode aparecer como "CEP de pernoite", "Local de risco", "CEP Pernoite"
+- tipoUtilizacao: tipo de uso do veículo. Mapear para um dos valores:
+  "Particular", "Táxi", "Comercial", "Uber/App", "Mototáxi", "Escolar"
+  → Se o documento disser "Particular" → "Particular"
+  → Se disser "Não realiza serviço para transportadora" ou similar → "Particular"
+  → Se mencionar aplicativo de transporte (Uber, 99, iFood) → "Uber/App"
+  → Se não houver campo → "Particular" (padrão)
+- condutor1825anos: boolean — true se o segurado CONTRATOU cobertura para condutores de 18 a 25 anos
+  → Se o documento disser "Sim" para "Deseja contratar cobertura para condutores 18 a 25 anos" → true
+  → Se disser "Não" ou "estou ciente que não haverá cobertura" → false
+  → Se não houver campo → false
+
+## PASSO 8 — EXTRAIR VIGÊNCIA E OPERAÇÃO
+
+- vigenciaInicio: início da vigência (YYYY-MM-DD)
+- vigenciaFim: fim da vigência (YYYY-MM-DD)
+- tipoOperacao: copiar EXATAMENTE o campo "Tipo de Seguro", "Tipo de Operação" ou equivalente.
   Valores aceitos: "Renovação", "Renovação Congênere", "Seguro Novo", "Endosso"
-  → Se o documento mostrar "Renovação Congênere" → retornar "Renovação Congênere" (não abreviar)
-  → Se não houver campo, inferir: apólice nova = "Seguro Novo", renovação = "Renovação"
+  → "Renovação Tokio", "Renovação de outra seguradora sem sinistro" → usar "Renovação"
+  → "Renovação Congênere" → manter exato
+  → Seguro novo/primeiro seguro → "Seguro Novo"
+- classeBonus: número da classe de bônus (ex: "10", "1")
 
-## PASSO 8 — EXTRAIR FINANCEIRO
+## PASSO 9 — EXTRAIR FINANCEIRO
 
-- premioLiquido: valor do prêmio sem IOF
-- premioTotal: valor total com IOF
-- iof: valor do IOF
-- formaPagamento: texto da forma de pagamento (ex: "À vista - Boleto", "Cartão de Crédito 10x")
-- numeroParcelas: número de parcelas como string (ex: "1", "3", "10")
-- valorParcela: valor de cada parcela
-- vencimentoPrimeiraParcela: data de vencimento da 1ª parcela (YYYY-MM-DD) — extrair da tabela de parcelamento, coluna "Vencimento" da primeira linha
+- premioLiquido: valor do prêmio sem IOF (sem "R$")
+- premioTotal: valor total com IOF (sem "R$")
+- iof: valor do IOF (sem "R$")
+- formaPagamento: texto da forma de pagamento (ex: "Cartão de Crédito", "Boleto", "Débito em Conta")
+- numeroParcelas: número de parcelas como string (ex: "1", "4", "10")
+- valorParcela: valor de cada parcela (sem "R$")
+- vencimentoPrimeiraParcela: data de vencimento da 1ª parcela (YYYY-MM-DD)
 
 ## ESTRUTURA DE RETORNO
 
@@ -100,8 +124,8 @@ Retorne APENAS este JSON válido (sem markdown, sem blocos de código, sem texto
     "nome": "",
     "cpfCnpj": "",
     "dataNascimento": "",
+    "estadoCivil": "",
     "sexo": "",
-    "profissao": "",
     "email": "",
     "telefone": ""
   },
@@ -124,9 +148,12 @@ Retorne APENAS este JSON válido (sem markdown, sem blocos de código, sem texto
     "zeroKm": false,
     "combustivel": "",
     "cepPernoite": "",
+    "tipoUtilizacao": "",
+    "condutor1825anos": false,
     "condutorNome": "",
     "condutorCpf": "",
-    "condutorNascimento": ""
+    "condutorNascimento": "",
+    "condutorEstadoCivil": ""
   },
   "financeiro": {
     "premioLiquido": "",
@@ -149,11 +176,10 @@ Retorne APENAS este JSON válido (sem markdown, sem blocos de código, sem texto
 - CPF/CNPJ com a pontuação original do documento (ex: "697.734.081-91")
 - Valores monetários como string com formatação brasileira (ex: "1.481,68") — sem "R$"
 - Se um campo não existir no documento, deixar string vazia ""
+- Booleanos (zeroKm, condutor1825anos, minhaCorretora) como true/false sem aspas
 - tipoDocumento: "proposta", "apolice" ou "endosso"
-- minhaCorretora: boolean true ou false (não string)
-- corretor: nome da corretora como aparece no documento
-- confianca: "alta", "media" ou "baixa" — avalie a qualidade geral da extração
-- veiculo: preencher apenas se for seguro de automóvel/veículo; caso contrário deixar todos os campos com string vazia`;
+- confianca: "alta", "media" ou "baixa"
+- veiculo: preencher apenas se for seguro de automóvel/veículo`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -211,7 +237,6 @@ export default async function handler(req, res) {
     const anthropicData = await anthropicRes.json();
     const rawText = anthropicData.content?.[0]?.text?.trim() || "";
 
-    // Remove possible markdown wrapper
     const cleaned = rawText
       .replace(/^```json\s*/i, "")
       .replace(/^```\s*/i, "")

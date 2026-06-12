@@ -152,6 +152,9 @@ function mapRow(r) {
     autoDataNasc:       r.auto_data_nascimento,
     autoSexo:           r.auto_sexo,
     autoEstadoCivil:    r.auto_estado_civil,
+    autoEstadoCivilCondutor: r.auto_estado_civil_condutor,
+    autoTipoUtilizacao:  r.auto_tipo_utilizacao,
+    autoCondutor1825:    r.auto_condutor_1825 || false,
     autoMenorResidente: r.auto_menor_residente || false,
     autoCepPernoite:    r.auto_cep_pernoite,
     autoPlaca:          r.auto_placa,
@@ -229,6 +232,9 @@ async function upsertCard(card) {
     auto_data_nascimento:  card.autoDataNasc || null,
     auto_sexo:             card.autoSexo || null,
     auto_estado_civil:     card.autoEstadoCivil || null,
+    auto_estado_civil_condutor: card.autoEstadoCivilCondutor || null,
+    auto_tipo_utilizacao:  card.autoTipoUtilizacao || null,
+    auto_condutor_1825:    card.autoCondutor1825 || false,
     auto_menor_residente:  card.autoMenorResidente || false,
     auto_cep_pernoite:     card.autoCepPernoite || null,
     auto_placa:            card.autoPlaca ? card.autoPlaca.toUpperCase() : null,
@@ -1091,6 +1097,33 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
                       set("autoCepPernoite", v.length > 5 ? v.replace(/(\d{5})(\d{1,3})/, "$1-$2") : v);
                     }} />
                 </div>
+                <div>
+                  <label className={lbl}>Tipo de utilização</label>
+                  <select className={inp} value={d.autoTipoUtilizacao || ""} onChange={e => set("autoTipoUtilizacao", e.target.value)}>
+                    <option value="">Selecione</option>
+                    <option>Particular</option>
+                    <option>Táxi</option>
+                    <option>Comercial</option>
+                    <option>Uber/App</option>
+                    <option>Mototáxi</option>
+                    <option>Escolar</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={lbl}>Estado civil (condutor)</label>
+                  <select className={inp} value={d.autoEstadoCivilCondutor || ""} onChange={e => set("autoEstadoCivilCondutor", e.target.value)}>
+                    <option value="">Selecione</option>
+                    <option>Solteiro(a)</option>
+                    <option>Casado(a)</option>
+                    <option>Divorciado(a)</option>
+                    <option>Viúvo(a)</option>
+                    <option>União Estável</option>
+                  </select>
+                </div>
+                <div className="col-span-2 flex items-center gap-2 mt-1">
+                  <input type="checkbox" id="condutor1825" checked={d.autoCondutor1825 || false} onChange={e => set("autoCondutor1825", e.target.checked)} className="w-4 h-4 accent-indigo-600" />
+                  <label htmlFor="condutor1825" className="text-sm text-slate-700 cursor-pointer">Cobertura para condutor de 18 a 25 anos contratada</label>
+                </div>
                 <div className="col-span-2">
                   <label className={lbl}>Modelo do veículo</label>
                   <input className={inp} placeholder="Ex: Honda HR-V EX" value={d.autoModelo || ""} onChange={e => set("autoModelo", e.target.value)} />
@@ -1690,8 +1723,9 @@ function ImportModal({ onClose, onAdd }) {
     dataRenovacao: "", etiquetaSituacao: "", etiquetaPagamento: "", etiquetaCanal: "",
     autoPlaca: "", autoModelo: "", autoAnoFab: "", autoAnoMod: "",
     autoChassi: "", autoCepPernoite: "",
-    autoNomeSegurado: "", autoCpfSegurado: "", autoNascimentoSegurado: "",
-    autoCondutor: "", autoCpfCondutor: "", autoNascimentoCondutor: "",
+    autoNomeSegurado: "", autoCpfSegurado: "", autoNascimentoSegurado: "", autoEstadoCivil: "",
+    autoCondutor: "", autoCpfCondutor: "", autoNascimentoCondutor: "", autoEstadoCivilCondutor: "",
+    autoTipoUtilizacao: "Particular", autoCondutor1825: false,
     condutorDiferente: false,
     valor: "", status: "transmitida",
     arquivado: false, arquivadoEm: null,
@@ -1762,6 +1796,10 @@ function ImportModal({ onClose, onAdd }) {
         autoCondutor:            (d.veiculo?.condutorNome || "").toUpperCase(),
         autoCpfCondutor:         d.veiculo?.condutorCpf || "",
         autoNascimentoCondutor:  d.veiculo?.condutorNascimento || "",
+        autoEstadoCivil:         d.segurado?.estadoCivil || "",
+        autoEstadoCivilCondutor: d.veiculo?.condutorEstadoCivil || "",
+        autoTipoUtilizacao:      d.veiculo?.tipoUtilizacao || "Particular",
+        autoCondutor1825:        d.veiculo?.condutor1825anos || false,
         condutorDiferente:       !!(d.veiculo?.condutorNome && (d.veiculo?.condutorNome||"").toUpperCase() !== (d.segurado?.nome||"").toUpperCase()),
         valor:                   d.financeiro?.premioTotal || "",
         status:                  importStatus,
@@ -1830,12 +1868,16 @@ function ImportModal({ onClose, onAdd }) {
         autoAnoMod:        form.autoAnoMod,
         autoChassi:        form.autoChassi,
         autoCepPernoite:   form.autoCepPernoite,
+        autoTipoUtilizacao: form.autoTipoUtilizacao || "Particular",
+        autoCondutor1825:   form.autoCondutor1825 || false,
         autoNomeSegurado:         form.autoNomeSegurado,
         autoCpfSegurado:          form.autoCpfSegurado,
         autoNascimentoSegurado:   form.autoNascimentoSegurado,
         autoCondutor:             form.condutorDiferente ? form.autoCondutor : form.autoNomeSegurado,
         autoCpfCondutor:          form.condutorDiferente ? form.autoCpfCondutor : form.autoCpfSegurado,
         autoNascimentoCondutor:   form.condutorDiferente ? form.autoNascimentoCondutor : form.autoNascimentoSegurado,
+        autoEstadoCivil:          form.autoEstadoCivil || null,
+        autoEstadoCivilCondutor:  form.condutorDiferente ? (form.autoEstadoCivilCondutor || null) : (form.autoEstadoCivil || null),
         etiquetaCanal:            form.etiquetaCanal || null,
         valor:                    parseBRL(form.valor),
         status:            form.status || "transmitida",
@@ -2084,6 +2126,44 @@ function ImportModal({ onClose, onAdd }) {
                         </div>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {(form.autoPlaca || form.autoModelo) && (
+                <div className="border border-blue-100 rounded-xl p-4 bg-blue-50/30">
+                  <p className={`${lbl} mb-3 font-semibold`}>Perfil de risco do veículo</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={lbl}>Tipo de utilização</label>
+                      <select className={inp} value={form.autoTipoUtilizacao || "Particular"} onChange={e => setF("autoTipoUtilizacao", e.target.value)}>
+                        <option>Particular</option>
+                        <option>Táxi</option>
+                        <option>Comercial</option>
+                        <option>Uber/App</option>
+                        <option>Mototáxi</option>
+                        <option>Escolar</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={lbl}>Estado civil (condutor)</label>
+                      <select className={inp} value={form.autoEstadoCivilCondutor || form.autoEstadoCivil || ""} onChange={e => setF("autoEstadoCivilCondutor", e.target.value)}>
+                        <option value="">Selecione</option>
+                        <option>Solteiro(a)</option>
+                        <option>Casado(a)</option>
+                        <option>Divorciado(a)</option>
+                        <option>Viúvo(a)</option>
+                        <option>União Estável</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2 flex items-center gap-2 mt-1">
+                      <input type="checkbox" id="imp-condutor1825" checked={form.autoCondutor1825 || false}
+                        onChange={e => setF("autoCondutor1825", e.target.checked)}
+                        className="w-4 h-4 accent-indigo-600" />
+                      <label htmlFor="imp-condutor1825" className="text-sm text-slate-700 cursor-pointer">
+                        Cobertura para condutor de 18 a 25 anos contratada
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
