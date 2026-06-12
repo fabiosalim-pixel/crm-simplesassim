@@ -1731,7 +1731,7 @@ function ImportModal({ onClose, onAdd }) {
         proposta:                d.apolice?.numeroProposta || "",
         apolice:                 d.apolice?.numeroApolice || "",
         dataRenovacao:           d.apolice?.vigenciaFim || "",
-        etiquetaSituacao:        d.apolice?.tipoOperacao || "",
+        etiquetaSituacao:        d.minhaCorretora === false ? "Renovação Congênere" : (d.apolice?.tipoOperacao || ""),
         etiquetaPagamento:       mapPagamento(d.financeiro?.formaPagamento),
         etiquetaCanal:           "",
         autoPlaca:               d.veiculo?.placa || "",
@@ -1748,7 +1748,7 @@ function ImportModal({ onClose, onAdd }) {
         autoNascimentoCondutor:  d.veiculo?.condutorNascimento || "",
         condutorDiferente:       !!(d.veiculo?.condutorNome && (d.veiculo?.condutorNome||"").toUpperCase() !== (d.segurado?.nome||"").toUpperCase()),
         valor:                   d.financeiro?.premioTotal || "",
-        status:                  "transmitida",
+        status:                  d.minhaCorretora === true ? (d.tipoDocumento === "apolice" ? "emitida" : "transmitida") : "cotacoes",
       });
       setTipoDoc(d.tipoDocumento === "apolice" ? "apolice" : "proposta");
       setStep(3);
