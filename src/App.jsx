@@ -1432,7 +1432,7 @@ function AddModal({ initialStage, onClose, onAdd }) {
           <div className="border-t border-slate-100 pt-3">
             <label className={lbl}>Nome do cliente *</label>
             <input autoFocus className={`${inp} ${clienteVinculado ? "bg-slate-50 text-slate-500" : errs.clienteNome ? "border-red-400 ring-1 ring-red-300" : ""}`}
-              value={d.clienteNome || ""} onChange={e => { set("clienteNome", e.target.value); setErrs(p => ({...p, clienteNome: false})); }}
+              value={d.clienteNome || ""} onChange={e => { set("clienteNome", e.target.value.toUpperCase()); setErrs(p => ({...p, clienteNome: false})); }}
               onKeyDown={e => e.key === "Enter" && handleCreate()}
               readOnly={!!clienteVinculado} />
             {errs.clienteNome && <p className="text-xs text-red-500 mt-1">Campo obrigatório</p>}
