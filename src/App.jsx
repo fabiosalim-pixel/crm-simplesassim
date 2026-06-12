@@ -142,8 +142,12 @@ function mapRow(r) {
     etiquetaPagamento:r.etiqueta_pagamento,
     etiquetaCanal:    r.etiqueta_canal,
     autoClasseBonus:    r.auto_classe_bonus,
-    autoNomeSegurado:   r.auto_nome_segurado,
-    autoCondutor:       r.auto_condutor,
+    autoNomeSegurado:         r.auto_nome_segurado,
+    autoCpfSegurado:          r.auto_cpf_segurado,
+    autoNascimentoSegurado:   r.auto_nascimento_segurado,
+    autoCondutor:             r.auto_condutor,
+    autoCpfCondutor:          r.auto_cpf_condutor,
+    autoNascimentoCondutor:   r.auto_nascimento_condutor,
     autoDataNasc:       r.auto_data_nascimento,
     autoSexo:           r.auto_sexo,
     autoEstadoCivil:    r.auto_estado_civil,
@@ -215,8 +219,12 @@ async function upsertCard(card) {
     etiqueta_pagamento: card.etiquetaPagamento || null,
     etiqueta_canal:     card.etiquetaCanal || null,
     auto_classe_bonus:     card.autoClasseBonus ? Number(card.autoClasseBonus) : null,
-    auto_nome_segurado:    card.autoNomeSegurado || null,
-    auto_condutor:         card.autoCondutor || null,
+    auto_nome_segurado:          card.autoNomeSegurado || null,
+    auto_cpf_segurado:           card.autoCpfSegurado || null,
+    auto_nascimento_segurado:    card.autoNascimentoSegurado || null,
+    auto_condutor:               card.autoCondutor || null,
+    auto_cpf_condutor:           card.autoCpfCondutor || null,
+    auto_nascimento_condutor:    card.autoNascimentoCondutor || null,
     auto_data_nascimento:  card.autoDataNasc || null,
     auto_sexo:             card.autoSexo || null,
     auto_estado_civil:     card.autoEstadoCivil || null,
@@ -1662,9 +1670,12 @@ function ImportModal({ onClose, onAdd }) {
   const [form, setForm] = useState({
     clienteNome: "", cpfCnpj: "", telefone: "", email: "",
     seguradora: "", tipoSeguro: "AUTOMÓVEL", proposta: "", apolice: "",
-    dataRenovacao: "", etiquetaSituacao: "", etiquetaPagamento: "",
+    dataRenovacao: "", etiquetaSituacao: "", etiquetaPagamento: "", etiquetaCanal: "",
     autoPlaca: "", autoModelo: "", autoAnoFab: "", autoAnoMod: "",
-    autoChassi: "", autoCepPernoite: "", autoNomeSegurado: "", autoCondutor: "",
+    autoChassi: "", autoCepPernoite: "",
+    autoNomeSegurado: "", autoCpfSegurado: "", autoNascimentoSegurado: "",
+    autoCondutor: "", autoCpfCondutor: "", autoNascimentoCondutor: "",
+    condutorDiferente: false,
     valor: "", status: "transmitida",
   });
 
@@ -1694,27 +1705,33 @@ function ImportModal({ onClose, onAdd }) {
       const temVeiculo = !!(d.veiculo?.placa || d.veiculo?.modelo);
 
       setForm({
-        clienteNome:       d.segurado?.nome || "",
-        cpfCnpj:           d.segurado?.cpfCnpj || "",
-        telefone:          d.segurado?.telefone || "",
-        email:             d.segurado?.email || "",
-        seguradora:        d.apolice?.seguradora || "",
-        tipoSeguro:        temVeiculo ? "AUTOMÓVEL" : "AUTOMÓVEL",
-        proposta:          d.apolice?.numeroProposta || "",
-        apolice:           d.apolice?.numeroApolice || "",
-        dataRenovacao:     d.apolice?.vigenciaFim || "",
-        etiquetaSituacao:  d.apolice?.tipoOperacao || "",
-        etiquetaPagamento: mapPagamento(d.financeiro?.formaPagamento),
-        autoPlaca:         d.veiculo?.placa || "",
-        autoModelo:        d.veiculo?.modelo || "",
-        autoAnoFab:        d.veiculo?.anoFab || "",
-        autoAnoMod:        d.veiculo?.anoMod || "",
-        autoChassi:        d.veiculo?.chassi || "",
-        autoCepPernoite:   d.veiculo?.cepPernoite || "",
-        autoNomeSegurado:  d.veiculo?.condutorNome || "",
-        autoCondutor:      d.veiculo?.condutorNome || "",
-        valor:             d.financeiro?.premioTotal || "",
-        status:            "transmitida",
+        clienteNome:             (d.segurado?.nome || "").toUpperCase(),
+        cpfCnpj:                 d.segurado?.cpfCnpj || "",
+        telefone:                d.segurado?.telefone || "",
+        email:                   d.segurado?.email || "",
+        seguradora:              d.apolice?.seguradora || "",
+        tipoSeguro:              temVeiculo ? "AUTOMÓVEL" : "AUTOMÓVEL",
+        proposta:                d.apolice?.numeroProposta || "",
+        apolice:                 d.apolice?.numeroApolice || "",
+        dataRenovacao:           d.apolice?.vigenciaFim || "",
+        etiquetaSituacao:        d.apolice?.tipoOperacao || "",
+        etiquetaPagamento:       mapPagamento(d.financeiro?.formaPagamento),
+        etiquetaCanal:           "",
+        autoPlaca:               d.veiculo?.placa || "",
+        autoModelo:              d.veiculo?.modelo || "",
+        autoAnoFab:              d.veiculo?.anoFab || "",
+        autoAnoMod:              d.veiculo?.anoMod || "",
+        autoChassi:              d.veiculo?.chassi || "",
+        autoCepPernoite:         d.veiculo?.cepPernoite || "",
+        autoNomeSegurado:        (d.segurado?.nome || "").toUpperCase(),
+        autoCpfSegurado:         d.segurado?.cpfCnpj || "",
+        autoNascimentoSegurado:  d.segurado?.dataNascimento || "",
+        autoCondutor:            (d.veiculo?.condutorNome || "").toUpperCase(),
+        autoCpfCondutor:         d.veiculo?.condutorCpf || "",
+        autoNascimentoCondutor:  d.veiculo?.condutorNascimento || "",
+        condutorDiferente:       !!(d.veiculo?.condutorNome && (d.veiculo?.condutorNome||"").toUpperCase() !== (d.segurado?.nome||"").toUpperCase()),
+        valor:                   d.financeiro?.premioTotal || "",
+        status:                  "transmitida",
       });
       setTipoDoc(d.tipoDocumento === "apolice" ? "apolice" : "proposta");
       setStep(3);
@@ -1754,9 +1771,14 @@ function ImportModal({ onClose, onAdd }) {
         autoAnoMod:        form.autoAnoMod,
         autoChassi:        form.autoChassi,
         autoCepPernoite:   form.autoCepPernoite,
-        autoNomeSegurado:  form.autoNomeSegurado,
-        autoCondutor:      form.autoCondutor,
-        valor:             parseBRL(form.valor),
+        autoNomeSegurado:         form.autoNomeSegurado,
+        autoCpfSegurado:          form.autoCpfSegurado,
+        autoNascimentoSegurado:   form.autoNascimentoSegurado,
+        autoCondutor:             form.condutorDiferente ? form.autoCondutor : form.autoNomeSegurado,
+        autoCpfCondutor:          form.condutorDiferente ? form.autoCpfCondutor : form.autoCpfSegurado,
+        autoNascimentoCondutor:   form.condutorDiferente ? form.autoNascimentoCondutor : form.autoNascimentoSegurado,
+        etiquetaCanal:            form.etiquetaCanal || null,
+        valor:                    parseBRL(form.valor),
         status:            form.status || "transmitida",
         followUps:         [],
         sinistros:         [],
@@ -1860,7 +1882,7 @@ function ImportModal({ onClose, onAdd }) {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
                     <label className={lbl}>Nome completo *</label>
-                    <input className={inp} value={form.clienteNome} onChange={e => setF("clienteNome", e.target.value)} />
+                    <input className={inp} value={form.clienteNome} onChange={e => setF("clienteNome", e.target.value.toUpperCase())} />
                   </div>
                   <div>
                     <label className={lbl}>CPF / CNPJ</label>
@@ -1909,7 +1931,18 @@ function ImportModal({ onClose, onAdd }) {
                     <label className={lbl}>Situação</label>
                     <select className={inp} value={form.etiquetaSituacao} onChange={e => setF("etiquetaSituacao", e.target.value)}>
                       <option value="">Selecione</option>
-                      {SITUACOES.map(s => <option key={s}>{s}</option>)}
+                      <option value="Seguro Novo">Seguro Novo</option>
+                      <option value="Renovação Congênere">Renovação Congênere</option>
+                      <option value="Renovação">Renovação</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={lbl}>Canal de origem</label>
+                    <select className={inp} value={form.etiquetaCanal} onChange={e => setF("etiquetaCanal", e.target.value)}>
+                      <option value="">Selecione</option>
+                      <option value="Google">Google</option>
+                      <option value="Indicação">Indicação</option>
+                      <option value="Site">Site</option>
                     </select>
                   </div>
                 </div>
@@ -1939,6 +1972,50 @@ function ImportModal({ onClose, onAdd }) {
                       <div className="col-span-2">
                         <label className={lbl}>Chassi</label>
                         <input className={inp} value={form.autoChassi} onChange={e => setF("autoChassi", e.target.value.toUpperCase())} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-blue-100 pt-4 mt-2">
+                    <p className={`${lbl} mb-3`}>Segurado</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <label className={lbl}>Nome</label>
+                        <input className={inp} value={form.autoNomeSegurado} onChange={e => setF("autoNomeSegurado", e.target.value.toUpperCase())} />
+                      </div>
+                      <div>
+                        <label className={lbl}>CPF</label>
+                        <input className={inp} placeholder="000.000.000-00" value={form.autoCpfSegurado} onChange={e => setF("autoCpfSegurado", e.target.value)} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Data de nascimento</label>
+                        <input type="date" className={inp} value={form.autoNascimentoSegurado} onChange={e => setF("autoNascimentoSegurado", e.target.value)} />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
+                      <input type="checkbox" className="w-4 h-4 rounded accent-blue-600"
+                        checked={form.condutorDiferente} onChange={e => setF("condutorDiferente", e.target.checked)} />
+                      <span className="text-sm text-slate-600">Condutor principal diferente do segurado</span>
+                    </label>
+
+                    {form.condutorDiferente && (
+                      <div className="mt-3">
+                        <p className={`${lbl} mb-3`}>Condutor principal</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="col-span-2">
+                            <label className={lbl}>Nome</label>
+                            <input className={inp} value={form.autoCondutor} onChange={e => setF("autoCondutor", e.target.value.toUpperCase())} />
+                          </div>
+                          <div>
+                            <label className={lbl}>CPF</label>
+                            <input className={inp} placeholder="000.000.000-00" value={form.autoCpfCondutor} onChange={e => setF("autoCpfCondutor", e.target.value)} />
+                          </div>
+                          <div>
+                            <label className={lbl}>Data de nascimento</label>
+                            <input type="date" className={inp} value={form.autoNascimentoCondutor} onChange={e => setF("autoNascimentoCondutor", e.target.value)} />
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
