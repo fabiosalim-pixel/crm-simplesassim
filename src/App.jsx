@@ -1466,7 +1466,9 @@ function AddModal({ initialStage, onClose, onAdd }) {
               <label className={lbl}>Situação</label>
               <select className={inp} value={d.etiquetaSituacao || ""} onChange={e => set("etiquetaSituacao", e.target.value)}>
                 <option value="">Selecione</option>
-                {SITUACOES.map(s => <option key={s}>{s}</option>)}
+                <option value="Seguro Novo">Seguro Novo</option>
+                <option value="Renovação Congênere">Renovação Congênere</option>
+                <option value="Renovação">Renovação</option>
               </select>
             </div>
             <div>
