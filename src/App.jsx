@@ -8,7 +8,8 @@ const STAGES = [
   { id: "transmitida", label: "Proposta Transmitida",     short: "Transmitida", badge: "bg-orange-500",  bg: "bg-orange-50",  border: "border-orange-300" },
   { id: "vistoria",    label: "Vistoria / Pend. Emissão", short: "Vistoria",    badge: "bg-red-500",     bg: "bg-red-50",     border: "border-red-300",    optional: true },
   { id: "boleto",      label: "Boleto / Débito",          short: "Pagamento",   badge: "bg-yellow-600",  bg: "bg-yellow-50",  border: "border-yellow-300", optional: true },
-  { id: "emitida",     label: "Apólice Emitida",          short: "Emitida",     badge: "bg-emerald-600", bg: "bg-emerald-50", border: "border-emerald-300" },
+  { id: "emitida",      label: "Apólice Emitida",          short: "Emitida",     badge: "bg-emerald-600", bg: "bg-emerald-50",  border: "border-emerald-300" },
+  { id: "crosselling",  label: "Crosselling",              short: "Crosselling", badge: "bg-purple-600",  bg: "bg-purple-50",   border: "border-purple-300" },
 ];
 
 const genId = () => crypto.randomUUID();
