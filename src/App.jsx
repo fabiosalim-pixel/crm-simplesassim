@@ -848,7 +848,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
             </div>
             {d.status === "boleto" && (
               <div>
-                <label className={lbl}>📅 Vencimento do boleto</label>
+                <label className={lbl}>📅 Data de vencimento</label>
                 <input type="date" className={inp} value={d.dataAlerta || ""} onChange={e => set("dataAlerta", e.target.value)} />
               </div>
             )}
@@ -1345,7 +1345,7 @@ function AddModal({ initialStage, onClose, onAdd }) {
           </div>
           {d.status === "boleto" && (
             <div>
-              <label className={lbl}>📅 Vencimento do boleto</label>
+              <label className={lbl}>📅 Data de vencimento</label>
               <input type="date" className={inp} value={d.dataAlerta || ""} onChange={e => set("dataAlerta", e.target.value)} />
             </div>
           )}
