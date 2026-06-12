@@ -1694,6 +1694,7 @@ function ImportModal({ onClose, onAdd }) {
     autoCondutor: "", autoCpfCondutor: "", autoNascimentoCondutor: "",
     condutorDiferente: false,
     valor: "", status: "transmitida",
+    arquivado: false, arquivadoEm: null,
   });
 
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -1722,6 +1723,20 @@ function ImportModal({ onClose, onAdd }) {
       const temVeiculo = !!(d.veiculo?.placa || d.veiculo?.modelo);
       const minhaCorretora = (d.corretor || "").toUpperCase().includes("SIMPLES ASSIM");
 
+      // Calcular dias restantes para o vencimento
+      const vigFim = d.apolice?.vigenciaFim || "";
+      const hoje = new Date(); hoje.setHours(0,0,0,0);
+      const daysLeft = vigFim ? Math.ceil((new Date(vigFim) - hoje) / 86400000) : null;
+
+      // Roteamento por corretora + tipo + prazo
+      const isApoliceMinha = minhaCorretora && d.tipoDocumento === "apolice";
+      const arquivarImport = isApoliceMinha && daysLeft !== null && daysLeft > 30;
+      const importStatus = !minhaCorretora ? "cotacoes"
+        : isApoliceMinha && daysLeft !== null && daysLeft <= 30 ? "cotacoes"
+        : d.tipoDocumento === "apolice" ? "emitida" : "transmitida";
+      const importSituacao = !minhaCorretora ? "Renovação Congênere"
+        : (d.apolice?.tipoOperacao || "Renovação");
+
       setForm({
         clienteNome:             (d.segurado?.nome || "").toUpperCase(),
         cpfCnpj:                 d.segurado?.cpfCnpj || "",
@@ -1732,7 +1747,7 @@ function ImportModal({ onClose, onAdd }) {
         proposta:                d.apolice?.numeroProposta || "",
         apolice:                 d.apolice?.numeroApolice || "",
         dataRenovacao:           d.apolice?.vigenciaFim || "",
-        etiquetaSituacao:        minhaCorretora ? (d.apolice?.tipoOperacao || "") : "Renovação Congênere",
+        etiquetaSituacao:        importSituacao,
         etiquetaPagamento:       mapPagamento(d.financeiro?.formaPagamento),
         etiquetaCanal:           "",
         autoPlaca:               d.veiculo?.placa || "",
@@ -1749,7 +1764,9 @@ function ImportModal({ onClose, onAdd }) {
         autoNascimentoCondutor:  d.veiculo?.condutorNascimento || "",
         condutorDiferente:       !!(d.veiculo?.condutorNome && (d.veiculo?.condutorNome||"").toUpperCase() !== (d.segurado?.nome||"").toUpperCase()),
         valor:                   d.financeiro?.premioTotal || "",
-        status:                  minhaCorretora ? (d.tipoDocumento === "apolice" ? "emitida" : "transmitida") : "cotacoes",
+        status:                  importStatus,
+        arquivado:               arquivarImport,
+        arquivadoEm:             arquivarImport ? new Date().toISOString() : null,
       });
       setTipoDoc(d.tipoDocumento === "apolice" ? "apolice" : "proposta");
       setStep(3);
@@ -1825,7 +1842,8 @@ function ImportModal({ onClose, onAdd }) {
         followUps:         [],
         sinistros:         [],
         historicoCiclos:   [],
-        arquivado:         false,
+        arquivado:         form.arquivado || false,
+        arquivadoEm:       form.arquivadoEm || null,
       };
       await onAdd(card);
       if (arquivo) {
@@ -1915,9 +1933,15 @@ function ImportModal({ onClose, onAdd }) {
         {step === 3 && (
           <>
             <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-emerald-700 font-semibold">
-                <Shield size={14} /> Cliente novo — revise e corrija se necessário antes de salvar
-              </div>
+              {form.arquivado ? (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-amber-800 font-semibold">
+                  <Archive size={14} /> Apólice com +30 dias para vencer — será <strong>arquivada</strong> e entrará em renovação automaticamente
+                </div>
+              ) : (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm text-emerald-700 font-semibold">
+                  <Shield size={14} /> {form.status === "cotacoes" ? "Vence em breve — entrará direto em Cotações e Leads" : "Cliente novo — revise e corrija se necessário antes de salvar"}
+                </div>
+              )}
 
               <div>
                 <p className={`${lbl} mb-3`}>Dados do segurado</p>
