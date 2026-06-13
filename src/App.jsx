@@ -38,6 +38,14 @@ const daysUntil = (d) => {
   return Math.ceil((new Date(d + "T12:00:00") - new Date()) / 86400000);
 };
 
+const isTransmitidaExpirada = (card) => {
+  if (card.status !== "transmitida" || card.arquivado) return false;
+  // criadoEm or dataRenovacao — use updated_at proxy via transmitidaEm if available, else skip
+  if (!card.transmitidaEm) return false;
+  const dias = Math.ceil((new Date() - new Date(card.transmitidaEm)) / 86400000);
+  return dias >= 5;
+};
+
 const isApoliceAlerta = (card) => {
   if (card.status !== "transmitida") return false;
   if (card.etiquetaSituacao === "Seguro Novo") return false;
@@ -132,6 +140,7 @@ function mapRow(r) {
     cpfCnpj:       r.cpf_cnpj,
     telefone:      r.telefone,
     email:         r.email,
+    endereco:      r.endereco || null,
     tipoSeguro:    r.tipo_seguro,
     seguradora:    r.seguradora,
     veiculo:       r.veiculo,
@@ -167,6 +176,7 @@ function mapRow(r) {
     autoChassi:         r.auto_chassi,
     arquivado:        r.arquivado || false,
     arquivadoEm:      r.arquivado_em,
+    transmitidaEm:    r.transmitida_em || null,
     historicoCiclos:  r.historico_ciclos || [],
     anotacoes:        r.observacoes,
     followUps:        r.cotacoes || [],
@@ -175,6 +185,8 @@ function mapRow(r) {
     clienteId:        r.cliente_id,
     criadoEm:         r.criado_em,
     apoliceAnexada:   r.apolice_anexada || false,
+    autoEnviadaCliente: r.auto_enviada_cliente || false,
+    autoEnviadaCliente: r.auto_enviada_cliente || false,
     endossos:         r.endossos || [],
     dataAlerta:       r.data_alerta || null,
   };
@@ -212,6 +224,7 @@ async function upsertCard(card) {
     cpf_cnpj:        card.cpfCnpj,
     telefone:        card.telefone,
     email:           card.email,
+    endereco:        card.endereco || null,
     tipo_seguro:     card.tipoSeguro,
     seguradora:      card.seguradora,
     veiculo:         card.veiculo,
@@ -247,6 +260,7 @@ async function upsertCard(card) {
     auto_chassi:           card.autoChassi || null,
     arquivado:        card.arquivado || false,
     arquivado_em:     card.arquivadoEm || null,
+    transmitida_em:   card.transmitidaEm || null,
     historico_ciclos: card.historicoCiclos || [],
     observacoes:      card.anotacoes,
     cotacoes:         card.followUps || [],
@@ -254,6 +268,8 @@ async function upsertCard(card) {
     mes_referencia:   card.mesReferencia || new Date().toISOString().slice(0, 7),
     atualizado_em:    new Date().toISOString(),
     apolice_anexada:  card.apoliceAnexada || false,
+    auto_enviada_cliente: card.autoEnviadaCliente || false,
+    auto_enviada_cliente: card.autoEnviadaCliente || false,
     endossos:         card.endossos || [],
     data_alerta:      card.dataAlerta || null,
   };
@@ -462,6 +478,8 @@ function ProspeccaoModal({ p, onClose, onSave, onRecuperar }) {
             <div><span className="text-xs text-slate-400">Vencimento anterior</span><div className="font-semibold text-slate-700">{fmt(d.dataVencAnterior)}</div></div>
             {d.telefone && <div><span className="text-xs text-slate-400">Telefone</span><div className="font-semibold text-slate-700">{d.telefone}</div></div>}
             {d.email && <div className="col-span-2"><span className="text-xs text-slate-400">E-mail</span><div className="font-semibold text-slate-700">{d.email}</div></div>}
+            {d.autoDataNasc && <div><span className="text-xs text-slate-400">Data de nascimento</span><div className="font-semibold text-slate-700">{new Date(d.autoDataNasc + "T12:00:00").toLocaleDateString("pt-BR")}</div></div>}
+            {d.endereco && <div className="col-span-2"><span className="text-xs text-slate-400">Endereço</span><div className="font-semibold text-slate-700">{d.endereco}</div></div>}
           </div>
           <div>
             <label className={lbl}>Status</label>
@@ -697,7 +715,7 @@ function EndossoSection({ endossos, onChange, onCancelar }) {
       {(endossos||[]).length > 0 ? (
         <div className="space-y-1.5">
           {[...(endossos||[])].reverse().map(e => (
-            <div key={e.id} className="flex items-start gap-2 px-2.5 py-2 bg-slate-50 rounded-lg border border-slate-100">
+            <div key={e.id} className="flex items-start gap-2 px-2.5 py-2 bg-slate-50 rounded-lg border border-slate-100 group">
               <RotateCcw size={12} className="text-indigo-400 flex-shrink-0 mt-0.5"/>
               <div className="flex-1 min-w-0">
                 <span className="text-xs font-semibold text-indigo-700">{tipoLabel(e.tipo)}</span>
@@ -706,6 +724,10 @@ function EndossoSection({ endossos, onChange, onCancelar }) {
                 {e.cepNovo && <div className="text-xs text-slate-500 mt-0.5">CEP novo: {e.cepNovo}</div>}
                 {e.condutorNome && <div className="text-xs text-slate-500 mt-0.5">Condutor: {e.condutorNome}{e.condutorCpf ? ` · ${e.condutorCpf}` : ""}</div>}
               </div>
+              <button onClick={() => onChange((endossos||[]).filter(x => x.id !== e.id))} title="Remover endosso"
+                className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-opacity flex-shrink-0 mt-0.5">
+                <X size={13} />
+              </button>
             </div>
           ))}
         </div>
@@ -781,6 +803,23 @@ function CardTile({ card, onClick, onDragStart }) {
           <AlertTriangle size={9} /> {(card.sinistros || []).filter(s => s.status !== "Encerrado").length} sinistro{(card.sinistros || []).filter(s => s.status !== "Encerrado").length > 1 ? "s" : ""} aberto{(card.sinistros || []).filter(s => s.status !== "Encerrado").length > 1 ? "s" : ""}
         </div>
       )}
+      {isTransmitidaExpirada(card) && (
+        <div className="mt-1 flex items-center gap-1 text-xs text-orange-600 font-semibold">
+          <Clock size={9} /> Proposta sem retorno (+5 dias)
+        </div>
+      )}
+      {card.autoDataNasc && (() => {
+        const dt = new Date(card.autoDataNasc + "T12:00:00");
+        const hoje = new Date();
+        const aniv = new Date(hoje.getFullYear(), dt.getMonth(), dt.getDate());
+        const diff = Math.ceil((aniv - hoje) / 86400000);
+        if (diff < 0 || diff > 7) return null;
+        return (
+          <div className="mt-1 flex items-center gap-1 text-xs text-pink-600 font-semibold">
+            🎂 {diff === 0 ? "Aniversário hoje!" : `Aniversário em ${diff}d`}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -946,6 +985,11 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
             <div>
               <label className={lbl}>E-mail</label>
               <input className={inp} value={d.email || ""} onChange={e => set("email", e.target.value)} />
+            </div>
+            <div className="col-span-2">
+              <label className={lbl}>Endereço</label>
+              <input className={inp} value={d.endereco || ""} onChange={e => set("endereco", e.target.value)}
+                placeholder="Rua, número, bairro, cidade, UF" />
             </div>
             <div>
               <label className={lbl}>Responsável</label>
@@ -1158,6 +1202,26 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
             <input type="checkbox" className="w-4 h-4 rounded accent-blue-600" checked={!!d.etiquetaSegfy} onChange={e => set("etiquetaSegfy", e.target.checked)} />
             <Tag size={14} className="text-blue-500" /> Marcado como enviado ao Segfy
           </label>
+
+          {d.status === "emitida" && (
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+              <input type="checkbox" className="w-4 h-4 rounded accent-indigo-600"
+                checked={d.autoEnviadaCliente || false}
+                onChange={e => {
+                  set("autoEnviadaCliente", e.target.checked);
+                  if (e.target.checked) {
+                    set("arquivado", true);
+                    set("arquivadoEm", new Date().toISOString());
+                  } else {
+                    set("arquivado", false);
+                    set("arquivadoEm", null);
+                  }
+                }} />
+              <Shield size={14} className="text-indigo-500" />
+              <span className="font-medium">Apólice enviada ao cliente</span>
+              {d.autoEnviadaCliente && <span className="text-xs text-indigo-600 font-semibold">(será arquivada ao salvar)</span>}
+            </label>
+          )}
 
           <div>
             <label className={lbl}>Anotações / histórico</label>
@@ -1819,6 +1883,10 @@ function ImportModal({ onClose, onAdd }) {
 
   const criarCard = async () => {
     if (!form.clienteNome) return;
+    if (form.cpfCnpj && !form.autoNascimentoSegurado) {
+      window.alert("CPF informado — preencha a Data de Nascimento antes de salvar.");
+      return;
+    }
 
     // ── Detecção de duplicata ──────────────────────────────────────────────
     const dupeInfo = [];
@@ -2340,12 +2408,19 @@ export default function App() {
   const handleDrop = async (cardId, newStatus) => {
     const card = cards.find(c => c.id === cardId);
     if (!card || card.status === newStatus) return;
-    const updated = { ...card, status: newStatus };
+    const updated = {
+      ...card, status: newStatus,
+      transmitidaEm: newStatus === "transmitida" && !card.transmitidaEm ? new Date().toISOString() : (card.transmitidaEm || null),
+    };
     setCards(prev => prev.map(c => c.id === cardId ? updated : c));
     await upsertCard(updated);
   };
 
   const handleSave = async (updated) => {
+    const prev_card = cards.find(c => c.id === updated.id);
+    if (updated.status === "transmitida" && prev_card?.status !== "transmitida" && !updated.transmitidaEm) {
+      updated = { ...updated, transmitidaEm: new Date().toISOString() };
+    }
     await upsertCard(updated);
     setCards(prev => prev.map(c => c.id === updated.id ? updated : c));
     setSelected(null);
