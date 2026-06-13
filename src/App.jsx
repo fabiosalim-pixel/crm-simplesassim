@@ -649,13 +649,12 @@ function EndossoSection({ endossos, onChange, onCancelar }) {
   };
 
   const camposFinanceiros = () => (
-    <div className="grid grid-cols-2 gap-3 pt-1 border-t border-indigo-100 mt-1">
+    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-indigo-100 mt-2">
       <div>
         <label className={lbl}>Δ Prêmio Líquido (R$)</label>
         <input type="number" className={inp} step="0.01"
-          placeholder="Positivo = cobrança / Negativo = devolução"
+          placeholder="+ cobrança / - devolução / 0 = sem alteração"
           value={form.premioLiquidoDelta||""} onChange={e=>sf("premioLiquidoDelta",e.target.value)}/>
-        <p className="text-xs text-slate-400 mt-0.5">0 = sem alteração de prêmio</p>
       </div>
       <div>
         <label className={lbl}>% Comissão do endosso</label>
@@ -753,9 +752,9 @@ function EndossoSection({ endossos, onChange, onCancelar }) {
                 {e.placaNova && <div className="text-xs text-slate-500 mt-0.5">Placa: {e.placaNova}{e.modeloNovo ? ` · ${e.modeloNovo}` : ""}</div>}
                 {e.cepNovo && <div className="text-xs text-slate-500 mt-0.5">CEP novo: {e.cepNovo}</div>}
                 {e.condutorNome && <div className="text-xs text-slate-500 mt-0.5">Condutor: {e.condutorNome}{e.condutorCpf ? ` · ${e.condutorCpf}` : ""}</div>}
-                {e.premioLiquidoDelta != null && Number(e.premioLiquidoDelta) !== 0 && (
+                {e.premioLiquidoDelta && Number(e.premioLiquidoDelta) !== 0 && (
                   <div className={`text-xs font-semibold mt-0.5 ${Number(e.premioLiquidoDelta) > 0 ? "text-emerald-600" : "text-red-500"}`}>
-                    Δ Prêmio: {Number(e.premioLiquidoDelta) > 0 ? "+" : ""}{fmtBRL(Number(e.premioLiquidoDelta))}
+                    {"Δ"} Prêmio: {Number(e.premioLiquidoDelta) > 0 ? "+" : ""}{fmtBRL(Number(e.premioLiquidoDelta))}
                     {e.percentualComissao && <span className="ml-1 font-normal text-slate-400">· Com: {fmtBRL(Math.abs(Number(e.premioLiquidoDelta)) * Number(e.percentualComissao) / 100)}</span>}
                   </div>
                 )}
@@ -1118,22 +1117,21 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
                 value={d.percentualComissao || ""} onChange={e => set("percentualComissao", e.target.value)}
                 placeholder="0,00" />
             </div>
-            {(d.premioLiquido && d.percentualComissao) && (
-              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Comissão:</span>
-                <span className="text-sm font-bold text-emerald-700">{fmtBRL(Number(d.premioLiquido) * Number(d.percentualComissao) / 100)}</span>
-                {(d.endossos||[]).some(e => e.premioLiquidoDelta) && (() => {
-                  const deltaComissao = (d.endossos||[]).reduce((sum, e) => {
-                    const pct = Number(e.percentualComissao ?? d.percentualComissao) || 0;
-                    return sum + (Number(e.premioLiquidoDelta) || 0) * pct / 100;
-                  }, 0);
-                  const total = Number(d.premioLiquido) * Number(d.percentualComissao) / 100 + deltaComissao;
-                  return (
-                    <span className="text-xs text-emerald-600 ml-1">(Total c/ endossos: {fmtBRL(total)})</span>
-                  );
-                })()}
-              </div>
-            )}
+            {d.premioLiquido && d.percentualComissao && (() => {
+              const base = Number(d.premioLiquido) * Number(d.percentualComissao) / 100;
+              const hasDeltas = (d.endossos||[]).some(en => en.premioLiquidoDelta);
+              const total = base + (d.endossos||[]).reduce((sum, en) => {
+                const pct = Number(en.percentualComissao ?? d.percentualComissao) || 0;
+                return sum + (Number(en.premioLiquidoDelta) || 0) * pct / 100;
+              }, 0);
+              return (
+                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 col-span-2">
+                  <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Comissão:</span>
+                  <span className="text-sm font-bold text-emerald-700">{fmtBRL(base)}</span>
+                  {hasDeltas && <span className="text-xs text-emerald-600 ml-1">(Total c/ endossos: {fmtBRL(total)})</span>}
+                </div>
+              );
+            })()}
             <div>
               <label className={lbl}>Nº da proposta</label>
               <input className={inp} value={d.proposta || ""} onChange={e => set("proposta", e.target.value)} />
@@ -2760,4 +2758,8 @@ export default function App() {
 
       {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} onApoliceAnexada={() => handleApoliceAnexada(selected.id)} />}
       {addStage && <AddModal initialStage={addStage} onClose={() => setAddStage(null)} onAdd={handleAdd} />}
-      {clienteModal && <ClienteModal clienteId=
+      {clienteModal && <ClienteModal clienteId={clienteModal} onClose={() => setClienteModal(null)} onAbrirCard={(c) => { setClienteModal(null); setSelected(c); }} />}
+      {importModal && <ImportModal onClose={() => setImportModal(false)} onAdd={handleAdd} />}
+    </div>
+  );
+}
