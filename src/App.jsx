@@ -550,10 +550,41 @@ function ProspeccoesView({ prospeccoes, onUpdate, onRecuperar }) {
 }
 
 // ── Componentes ───────────────────────────────────────────────
-function DocsSection({ cardId, onApoliceAnexada, onPropostaAnexada }) {
+function DocsSection({ cardId, onApoliceAnexada, onPropostaAnexada, onExtrairDados }) {
   const [docs, setDocs] = useState([]);
   const [tipoSel, setTipoSel] = useState("proposta");
   const [uploading, setUploading] = useState(false);
+  const [extraindo, setExtraindo] = useState(null);
+
+  const TIPOS_EXTRAIVEIS = ["proposta", "apolice", "apolice_endosso"];
+
+  const handleExtrair = async (doc) => {
+    setExtraindo(doc.id);
+    try {
+      const resp = await fetch(docPublicUrl(doc.storage_path));
+      const blob = await resp.blob();
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const res = await fetch("/api/extract-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfBase64: base64 }),
+      });
+      const json = await res.json();
+      if (json.success && onExtrairDados) {
+        onExtrairDados(json.data, doc.tipo);
+      } else {
+        alert("Não foi possível extrair dados: " + (json.error || "resposta inválida"));
+      }
+    } catch (e) {
+      alert("Erro ao extrair: " + e.message);
+    }
+    setExtraindo(null);
+  };
 
   useEffect(() => { loadDocs(cardId).then(setDocs); }, [cardId]);
 
@@ -607,6 +638,13 @@ function DocsSection({ cardId, onApoliceAnexada, onPropostaAnexada }) {
                 className="text-slate-400 hover:text-blue-600 flex-shrink-0" title="Abrir">
                 <Download size={13} />
               </a>
+              {TIPOS_EXTRAIVEIS.includes(doc.tipo) && (
+                <button onClick={() => handleExtrair(doc)} disabled={extraindo === doc.id}
+                  className="text-xs text-indigo-500 hover:text-indigo-700 font-semibold flex-shrink-0 disabled:opacity-50 whitespace-nowrap"
+                  title="Extrair dados deste PDF via IA">
+                  {extraindo === doc.id ? "⏳" : "⚡ Extrair"}
+                </button>
+              )}
               <button onClick={() => handleDelete(doc)}
                 className="text-slate-300 hover:text-red-500 flex-shrink-0" title="Excluir">
                 <Trash2 size={13} />
@@ -629,6 +667,7 @@ function EndossoSection({ endossos, onChange, onCancelar }) {
     { id: "substituicao_item",   label: "Substituição de veículo" },
     { id: "alteracao_endereco",  label: "Alteração de endereço/CEP" },
     { id: "alteracao_condutor",  label: "Alteração de condutor" },
+    { id: "alteracao_financeira",label: "Ajuste financeiro (endosso)" },
     { id: "cancelamento",        label: "Cancelamento de apólice" },
   ];
 
@@ -857,7 +896,7 @@ function Column({ stage, cards, onCard, onAdd, onDrop }) {
   );
 }
 
-function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onNaoRenovada, onVerCliente, onApoliceAnexada, onPropostaAnexada }) {
+function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onNaoRenovada, onVerCliente, onApoliceAnexada, onPropostaAnexada, onExtrairDados }) {
   const [d, setD] = useState({ followUps: [], historicoCiclos: [], ...card });
   const [fuText, setFuText] = useState("");
   const [fuDate, setFuDate] = useState("");
@@ -867,6 +906,39 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
   const [condutorDif, setCondutorDif] = useState(!!(card.autoCondutor && card.autoCondutor !== card.autoNomeSegurado));
 
   const set = (k, v) => setD(p => ({ ...p, [k]: v }));
+
+  const handleExtrairDados = (data, tipo) => {
+    const updates = {};
+    const parseBRLlocal = (s) => {
+      if (!s) return null;
+      const n = parseFloat(String(s).replace(/\./g, "").replace(",", "."));
+      return isNaN(n) ? null : n;
+    };
+    if (!d.dataRenovacao && data.apolice?.vigenciaFim) updates.dataRenovacao = data.apolice.vigenciaFim;
+    if (!d.valor && data.financeiro?.premioTotal) updates.valor = parseBRLlocal(data.financeiro.premioTotal);
+    if (!d.premioLiquido && data.financeiro?.premioLiquido) updates.premioLiquido = parseBRLlocal(data.financeiro.premioLiquido);
+    if (!d.seguradora && data.apolice?.seguradora) updates.seguradora = data.apolice.seguradora;
+    if (!d.proposta && data.apolice?.numeroProposta) updates.proposta = data.apolice.numeroProposta;
+    if (!d.apolice && data.apolice?.numeroApolice) updates.apolice = data.apolice.numeroApolice;
+    if (tipo === "apolice_endosso" && data.financeiro?.premioLiquido) {
+      const delta = parseBRLlocal(data.financeiro.premioLiquido);
+      if (delta) {
+        const novoEndosso = {
+          id: Math.random().toString(36).slice(2),
+          tipo: "alteracao_financeira",
+          data: data.apolice?.dataEmissao || new Date().toISOString().slice(0, 10),
+          premioLiquidoDelta: delta,
+        };
+        updates.endossos = [...(d.endossos || []), novoEndosso];
+      }
+    }
+    if (Object.keys(updates).length > 0) {
+      setD(prev => ({ ...prev, ...updates }));
+      alert("✅ " + Object.keys(updates).length + " campo(s) preenchido(s) com dados do PDF. Revise e salve.");
+    } else {
+      alert("Nenhum campo novo encontrado no documento (campos já preenchidos foram mantidos).");
+    }
+  };
 
   // Sync card prop changes (e.g. after handleApoliceAnexada updates selected)
   useEffect(() => {
@@ -1356,7 +1428,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
             />
           )}
 
-          <DocsSection cardId={card.id} onApoliceAnexada={onApoliceAnexada} onPropostaAnexada={onPropostaAnexada} />
+          <DocsSection cardId={card.id} onApoliceAnexada={onApoliceAnexada} onPropostaAnexada={onPropostaAnexada} onExtrairDados={handleExtrairDados} />
 
           {(d.historicoCiclos || []).length > 0 && (
             <div>
@@ -2519,13 +2591,13 @@ export default function App() {
   const handlePropostaAnexada = async (cardId) => {
     const card = cards.find(c => c.id === cardId);
     if (!card) return;
-    // Só move se estiver em "enviada" (Enviada ao Cliente)
     if (card.status !== "enviada") return;
+    const agora = new Date().toISOString();
     const { error } = await supabase.from("renovacoes")
-      .update({ status_pipeline: "transmitida" })
+      .update({ status_pipeline: "transmitida", transmitida_em: agora })
       .eq("id", cardId);
     if (error) { console.error("Erro ao mover card:", error); alert("Erro ao mover card: " + error.message); return; }
-    const updated = { ...card, status: "transmitida" };
+    const updated = { ...card, status: "transmitida", transmitidaEm: agora };
     setCards(prev => prev.map(c => c.id === cardId ? updated : c));
     setSelected(updated);
   };
@@ -2705,7 +2777,7 @@ export default function App() {
         <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
       )}
 
-      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} onApoliceAnexada={() => handleApoliceAnexada(selected.id)} onPropostaAnexada={() => handlePropostaAnexada(selected.id)} />}
+      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} onApoliceAnexada={() => handleApoliceAnexada(selected.id)} onPropostaAnexada={() => handlePropostaAnexada(selected.id)} onExtrairDados={(data, tipo) => {}} />}
       {addStage && <AddModal initialStage={addStage} onClose={() => setAddStage(null)} onAdd={handleAdd} />}
       {clienteModal && <ClienteModal clienteId={clienteModal} onClose={() => setClienteModal(null)} onAbrirCard={(c) => { setClienteModal(null); setSelected(c); }} />}
       {importModal && <ImportModal onClose={() => setImportModal(false)} onAdd={handleAdd} />}
