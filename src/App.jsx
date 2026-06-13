@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase";
 import { Shield, Plus, X, ChevronRight, ChevronLeft, Bell, Search, Save, Tag, Filter, AlertTriangle, Paperclip, Download, Trash2, Upload, Archive, Clock, Ban, Users, RotateCcw, Home } from "lucide-react";
 import Dashboard from "./Dashboard";
+import Segurados from "./Segurados";
 
 const STAGES = [
   { id: "cotacoes",    label: "Cotações e Leads",        short: "Cotações",    badge: "bg-blue-600",    bg: "bg-blue-50",    border: "border-blue-300" },
@@ -2654,6 +2655,10 @@ export default function App() {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === "home" ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
               <Home size={12} /> Home
             </button>
+            <button onClick={() => setView("segurados")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === "segurados" ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
+              <Users size={12} /> Segurados
+            </button>
             <button onClick={() => setView("pipeline")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === "pipeline" ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
               <Shield size={12} /> Renovações
@@ -2770,6 +2775,8 @@ export default function App() {
 
       {view === "home" ? (
         <Dashboard />
+      ) : view === "segurados" ? (
+        <Segurados />
       ) : view === "pipeline" ? (
         <div className="flex-1 overflow-x-auto">
           <div className="flex gap-2.5 p-4 h-full" style={{ minWidth: "fit-content" }}>
