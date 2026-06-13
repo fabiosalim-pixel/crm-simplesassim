@@ -864,6 +864,12 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
   const [condutorDif, setCondutorDif] = useState(!!(card.autoCondutor && card.autoCondutor !== card.autoNomeSegurado));
 
   const set = (k, v) => setD(p => ({ ...p, [k]: v }));
+
+  // Sync card prop changes (e.g. after handleApoliceAnexada updates selected)
+  useEffect(() => {
+    setD(prev => ({ ...prev, status: card.status, apoliceAnexada: card.apoliceAnexada }));
+  }, [card.status, card.apoliceAnexada]);
+
   const stageIdx = STAGES.findIndex(s => s.id === d.status);
 
   const addFu = () => {
