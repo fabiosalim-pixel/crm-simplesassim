@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabase";
 import {
-  Search, ChevronLeft, User, Building2, Phone, Mail, MapPin, Shield, Calendar
+  Search, ChevronLeft, User, Building2, Phone, MessageCircle, Mail,
+  MapPin, Shield, Calendar, Briefcase, FileText, Pencil, Check, X
 } from "lucide-react";
 
 const fmtBRL = (v) =>
@@ -13,15 +14,51 @@ const hojeStr = () => new Date().toISOString().slice(0, 10);
 
 const ehVigente = (a) => a.status_pipeline === "emitida" && a.data_renovacao >= hojeStr();
 
+const calcIdade = (d) => {
+  if (!d) return null;
+  const n = new Date(d + "T00:00:00");
+  const h = new Date();
+  let i = h.getFullYear() - n.getFullYear();
+  const m = h.getMonth() - n.getMonth();
+  if (m < 0 || (m === 0 && h.getDate() < n.getDate())) i--;
+  return i;
+};
+
+const montaEndereco = (c) =>
+  [
+    [c.logradouro, c.numero].filter(Boolean).join(", "),
+    c.complemento,
+    c.bairro,
+    [c.cidade, c.estado].filter(Boolean).join("/"),
+    c.cep && `CEP ${c.cep}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
 function Info({ icon: Icon, label, value }) {
   return (
     <div className="flex items-start gap-2">
       <Icon size={14} className="text-slate-400 mt-0.5 flex-shrink-0" />
       <div className="min-w-0">
         <div className="text-xs text-slate-400">{label}</div>
-        <div className="text-slate-700 truncate">{value || "—"}</div>
+        <div className="text-slate-700 break-words">{value || "—"}</div>
       </div>
     </div>
+  );
+}
+
+function Campo({ label, value, onChange, type = "text", placeholder, full }) {
+  return (
+    <label className={`block ${full ? "md:col-span-3" : ""}`}>
+      <span className="text-xs text-slate-400">{label}</span>
+      <input
+        type={type}
+        value={value || ""}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full mt-0.5 px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 bg-white outline-none focus:border-slate-300"
+      />
+    </label>
   );
 }
 
@@ -34,8 +71,41 @@ function StatusPill({ a }) {
   return <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>{txt}</span>;
 }
 
-function Ficha({ cliente: c, apolices: aps, onBack }) {
+function Ficha({ cliente, apolices: aps, onBack, onSaved }) {
+  const [editando, setEditando] = useState(false);
+  const [form, setForm] = useState(cliente);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState(null);
+
+  useEffect(() => { setForm(cliente); setEditando(false); setErro(null); }, [cliente]);
+
+  const set = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }));
+
+  const cancelar = () => { setForm(cliente); setErro(null); setEditando(false); };
+
+  const salvar = async () => {
+    setSalvando(true);
+    setErro(null);
+    const campos = {
+      nome: form.nome, cpf_cnpj: form.cpf_cnpj, tipo_pessoa: form.tipo_pessoa,
+      data_nascimento: form.data_nascimento || null, profissao: form.profissao,
+      telefone: form.telefone, whatsapp: form.whatsapp, email: form.email,
+      cep: form.cep, logradouro: form.logradouro, numero: form.numero, complemento: form.complemento,
+      bairro: form.bairro, cidade: form.cidade, estado: form.estado,
+      status: form.status, origem: form.origem, observacoes: form.observacoes,
+    };
+    const { data, error } = await supabase.from("clientes").update(campos).eq("id", cliente.id).select().single();
+    setSalvando(false);
+    if (error) { setErro(error.message); return; }
+    onSaved(data);
+    setEditando(false);
+  };
+
+  const c = cliente;
   const ativas = aps.filter(ehVigente).length;
+  const idade = calcIdade(c.data_nascimento);
+  const endereco = montaEndereco(c);
+
   return (
     <div className="flex-1 overflow-y-auto p-5" style={{ background: "#F1F2F4" }}>
       <button onClick={onBack} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
@@ -48,18 +118,81 @@ function Ficha({ cliente: c, apolices: aps, onBack }) {
             {c.tipo_pessoa === "PJ" ? <Building2 size={20} className="text-slate-500" /> : <User size={20} className="text-slate-500" />}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-slate-800">{c.nome}</h1>
+            <h1 className="text-lg font-bold text-slate-800 break-words">{c.nome}</h1>
             <div className="text-xs text-slate-400">{c.cpf_cnpj} · {c.tipo_pessoa || "PF"}{c.status ? ` · ${c.status}` : ""}</div>
           </div>
+          {!editando ? (
+            <button onClick={() => setEditando(true)} className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white flex-shrink-0">
+              <Pencil size={13} /> Editar
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={cancelar} disabled={salvando} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white">
+                <X size={13} /> Cancelar
+              </button>
+              <button onClick={salvar} disabled={salvando} className="flex items-center gap-1 text-xs text-white px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-60">
+                <Check size={13} /> {salvando ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          )}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3 mt-4 text-sm">
-          <Info icon={Phone} label="Telefone" value={c.telefone || c.whatsapp} />
-          <Info icon={Mail} label="E-mail" value={c.email} />
-          <Info icon={Calendar} label="Nascimento" value={c.data_nascimento ? fmtData(c.data_nascimento) : null} />
-          <Info icon={MapPin} label="Cidade" value={c.cidade ? `${c.cidade}${c.estado ? "/" + c.estado : ""}` : null} />
-          <Info icon={User} label="Profissão" value={c.profissao} />
-          <Info icon={Shield} label="Origem" value={c.origem} />
-        </div>
+
+        {erro && <div className="mt-3 text-xs text-red-500">Erro ao salvar: {erro}</div>}
+
+        {!editando ? (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-3 mt-4 text-sm">
+              <Info icon={Calendar} label="Nascimento" value={c.data_nascimento ? `${fmtData(c.data_nascimento)}${idade != null ? ` (${idade} anos)` : ""}` : null} />
+              <Info icon={Briefcase} label="Profissão" value={c.profissao} />
+              <Info icon={Shield} label="Origem" value={c.origem} />
+              <Info icon={Phone} label="Telefone" value={c.telefone} />
+              <Info icon={MessageCircle} label="WhatsApp" value={c.whatsapp} />
+              <Info icon={Mail} label="E-mail" value={c.email} />
+              <Info icon={MapPin} label="Endereço" value={endereco} />
+              <Info icon={User} label="Status" value={c.status} />
+            </div>
+            {c.observacoes && (
+              <div className="mt-4 flex items-start gap-2 text-sm">
+                <FileText size={14} className="text-slate-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <div className="text-xs text-slate-400">Observações</div>
+                  <div className="text-slate-700 whitespace-pre-wrap">{c.observacoes}</div>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+            <Campo label="Nome / Razão social" value={form.nome} onChange={set("nome")} full />
+            <Campo label="CPF / CNPJ" value={form.cpf_cnpj} onChange={set("cpf_cnpj")} />
+            <label className="block">
+              <span className="text-xs text-slate-400">Pessoa</span>
+              <select value={form.tipo_pessoa || ""} onChange={set("tipo_pessoa")} className="w-full mt-0.5 px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 bg-white outline-none focus:border-slate-300">
+                <option value="">—</option>
+                <option value="PF">Física</option>
+                <option value="PJ">Jurídica</option>
+              </select>
+            </label>
+            <Campo label="Status" value={form.status} onChange={set("status")} />
+            <Campo label="Nascimento" value={form.data_nascimento} onChange={set("data_nascimento")} type="date" />
+            <Campo label="Profissão" value={form.profissao} onChange={set("profissao")} />
+            <Campo label="Origem" value={form.origem} onChange={set("origem")} />
+            <Campo label="Telefone" value={form.telefone} onChange={set("telefone")} />
+            <Campo label="WhatsApp" value={form.whatsapp} onChange={set("whatsapp")} />
+            <Campo label="E-mail" value={form.email} onChange={set("email")} />
+            <Campo label="CEP" value={form.cep} onChange={set("cep")} />
+            <Campo label="Logradouro" value={form.logradouro} onChange={set("logradouro")} />
+            <Campo label="Número" value={form.numero} onChange={set("numero")} />
+            <Campo label="Complemento" value={form.complemento} onChange={set("complemento")} />
+            <Campo label="Bairro" value={form.bairro} onChange={set("bairro")} />
+            <Campo label="Cidade" value={form.cidade} onChange={set("cidade")} />
+            <Campo label="Estado (UF)" value={form.estado} onChange={set("estado")} />
+            <label className="block md:col-span-3">
+              <span className="text-xs text-slate-400">Observações</span>
+              <textarea value={form.observacoes || ""} onChange={set("observacoes")} rows={3} className="w-full mt-0.5 px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 bg-white outline-none focus:border-slate-300" />
+            </label>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
@@ -115,11 +248,12 @@ export default function Segurados() {
     })();
   }, []);
 
+  const onSaved = (atualizado) =>
+    setClientes((lista) => lista.map((c) => (c.id === atualizado.id ? atualizado : c)));
+
   const porCliente = useMemo(() => {
     const m = {};
-    for (const a of apolices) {
-      (m[a.cliente_id] = m[a.cliente_id] || []).push(a);
-    }
+    for (const a of apolices) (m[a.cliente_id] = m[a.cliente_id] || []).push(a);
     return m;
   }, [apolices]);
 
@@ -138,7 +272,7 @@ export default function Segurados() {
     const c = clientes.find((x) => x.id === selId);
     if (c) {
       const aps = (porCliente[selId] || []).slice().sort((a, b) => (b.data_renovacao || "").localeCompare(a.data_renovacao || ""));
-      return <Ficha cliente={c} apolices={aps} onBack={() => setSelId(null)} />;
+      return <Ficha cliente={c} apolices={aps} onBack={() => setSelId(null)} onSaved={onSaved} />;
     }
   }
 
@@ -162,8 +296,8 @@ export default function Segurados() {
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm divide-y divide-slate-100 overflow-hidden">
         {listaFiltrada.map((c) => {
-          const aps = porCliente[c.id] || [];
-          const ativas = aps.filter(ehVigente).length;
+          const apsC = porCliente[c.id] || [];
+          const ativas = apsC.filter(ehVigente).length;
           return (
             <button key={c.id} onClick={() => setSelId(c.id)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
               <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
@@ -174,7 +308,7 @@ export default function Segurados() {
                 <div className="text-xs text-slate-400 truncate">{c.cpf_cnpj || "—"} · {c.cidade || "—"}{c.estado ? `/${c.estado}` : ""}</div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="text-xs text-slate-500">{aps.length} apólice{aps.length !== 1 ? "s" : ""}</div>
+                <div className="text-xs text-slate-500">{apsC.length} apólice{apsC.length !== 1 ? "s" : ""}</div>
                 {ativas > 0 && <div className="text-xs text-emerald-600 font-medium">{ativas} vigente{ativas !== 1 ? "s" : ""}</div>}
               </div>
             </button>
