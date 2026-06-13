@@ -269,7 +269,6 @@ async function upsertCard(card) {
     atualizado_em:    new Date().toISOString(),
     apolice_anexada:  card.apoliceAnexada || false,
     auto_enviada_cliente: card.autoEnviadaCliente || false,
-    auto_enviada_cliente: card.autoEnviadaCliente || false,
     endossos:         card.endossos || [],
     data_alerta:      card.dataAlerta || null,
   };
@@ -2509,11 +2508,14 @@ export default function App() {
   const handleApoliceAnexada = async (cardId) => {
     const card = cards.find(c => c.id === cardId);
     if (!card) return;
-    // Só move para emitida se ainda não estiver arquivado nem já emitida
     const novoStatus = (card.status === "transmitida" || card.status === "vistoria" || card.status === "boleto")
       ? "emitida" : card.status;
+    // UPDATE direto — evita falha silenciosa do upsertCard por colunas novas
+    const { error } = await supabase.from("renovacoes")
+      .update({ status_pipeline: novoStatus, apolice_anexada: true })
+      .eq("id", cardId);
+    if (error) { console.error("Erro ao mover card:", error); alert("Erro ao mover card: " + error.message); return; }
     const updated = { ...card, apoliceAnexada: true, status: novoStatus };
-    await upsertCard(updated);
     setCards(prev => prev.map(c => c.id === cardId ? updated : c));
     setSelected(updated);
   };
