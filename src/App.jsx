@@ -550,7 +550,7 @@ function ProspeccoesView({ prospeccoes, onUpdate, onRecuperar }) {
 }
 
 // ── Componentes ───────────────────────────────────────────────
-function DocsSection({ cardId, onApoliceAnexada }) {
+function DocsSection({ cardId, onApoliceAnexada, onPropostaAnexada }) {
   const [docs, setDocs] = useState([]);
   const [tipoSel, setTipoSel] = useState("proposta");
   const [uploading, setUploading] = useState(false);
@@ -565,6 +565,7 @@ function DocsSection({ cardId, onApoliceAnexada }) {
     if (doc) {
       setDocs(prev => [doc, ...prev]);
       if (tipoSel === "apolice" && onApoliceAnexada) onApoliceAnexada();
+      if (tipoSel === "proposta" && onPropostaAnexada) onPropostaAnexada();
     }
     setUploading(false);
     e.target.value = "";
@@ -856,7 +857,7 @@ function Column({ stage, cards, onCard, onAdd, onDrop }) {
   );
 }
 
-function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onNaoRenovada, onVerCliente, onApoliceAnexada }) {
+function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onNaoRenovada, onVerCliente, onApoliceAnexada, onPropostaAnexada }) {
   const [d, setD] = useState({ followUps: [], historicoCiclos: [], ...card });
   const [fuText, setFuText] = useState("");
   const [fuDate, setFuDate] = useState("");
@@ -1355,7 +1356,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
             />
           )}
 
-          <DocsSection cardId={card.id} onApoliceAnexada={onApoliceAnexada} />
+          <DocsSection cardId={card.id} onApoliceAnexada={onApoliceAnexada} onPropostaAnexada={onPropostaAnexada} />
 
           {(d.historicoCiclos || []).length > 0 && (
             <div>
@@ -2515,6 +2516,20 @@ export default function App() {
   const vistoriasPendentes = cards.filter(isVistoriaAlerta).length;
   const boletosPendentes = cards.filter(isBoletoAlerta).length;
 
+  const handlePropostaAnexada = async (cardId) => {
+    const card = cards.find(c => c.id === cardId);
+    if (!card) return;
+    // Só move se estiver em "enviada" (Enviada ao Cliente)
+    if (card.status !== "enviada") return;
+    const { error } = await supabase.from("renovacoes")
+      .update({ status_pipeline: "transmitida" })
+      .eq("id", cardId);
+    if (error) { console.error("Erro ao mover card:", error); alert("Erro ao mover card: " + error.message); return; }
+    const updated = { ...card, status: "transmitida" };
+    setCards(prev => prev.map(c => c.id === cardId ? updated : c));
+    setSelected(updated);
+  };
+
   const handleApoliceAnexada = async (cardId) => {
     const card = cards.find(c => c.id === cardId);
     if (!card) return;
@@ -2690,7 +2705,7 @@ export default function App() {
         <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
       )}
 
-      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} onApoliceAnexada={() => handleApoliceAnexada(selected.id)} />}
+      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} onApoliceAnexada={() => handleApoliceAnexada(selected.id)} onPropostaAnexada={() => handlePropostaAnexada(selected.id)} />}
       {addStage && <AddModal initialStage={addStage} onClose={() => setAddStage(null)} onAdd={handleAdd} />}
       {clienteModal && <ClienteModal clienteId={clienteModal} onClose={() => setClienteModal(null)} onAbrirCard={(c) => { setClienteModal(null); setSelected(c); }} />}
       {importModal && <ImportModal onClose={() => setImportModal(false)} onAdd={handleAdd} />}
