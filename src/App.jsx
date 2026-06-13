@@ -75,7 +75,7 @@ const fmt = (d) => {
 };
 
 const fmtBRL = (v) =>
-  v ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
+  v ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—";
 
 const maskCpfCnpj = (v) => {
   const d = v.replace(/\D/g, "").slice(0, 14);
@@ -86,6 +86,8 @@ const maskCpfCnpj = (v) => {
     [a, b, c].filter(Boolean).join(".").replace(/^(\d{2})\./, "$1.") + (e ? "/" + e : "") + (f ? "-" + f : ""))
     .replace(/^(\d{2})(\d{3})(\d{3})/, "$1.$2.$3");
 };
+
+const isCNPJ = (v) => (v || "").replace(/\D/g, "").length > 11;
 
 const maskPhone = (v) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -189,8 +191,6 @@ function mapRow(r) {
     autoEnviadaCliente: r.auto_enviada_cliente || false,
     endossos:         r.endossos || [],
     dataAlerta:       r.data_alerta || null,
-    premioLiquido:     r.premio_liquido || null,
-    percentualComissao: r.percentual_comissao || null,
   };
 }
 
@@ -273,8 +273,6 @@ async function upsertCard(card) {
     auto_enviada_cliente: card.autoEnviadaCliente || false,
     endossos:         card.endossos || [],
     data_alerta:      card.dataAlerta || null,
-    premio_liquido:       card.premioLiquido ? Number(card.premioLiquido) : null,
-    percentual_comissao:  card.percentualComissao ? Number(card.percentualComissao) : null,
   };
   const { error } = await supabase.from("renovacoes").upsert(row);
   if (error) console.error("Erro ao salvar:", error);
@@ -648,50 +646,24 @@ function EndossoSection({ endossos, onChange, onCancelar }) {
     setForm(null);
   };
 
-  const camposFinanceiros = () => (
-    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-indigo-100 mt-2">
-      <div>
-        <label className={lbl}>Δ Prêmio Líquido (R$)</label>
-        <input type="number" className={inp} step="0.01"
-          placeholder="+ cobrança / - devolução / 0 = sem alteração"
-          value={form.premioLiquidoDelta||""} onChange={e=>sf("premioLiquidoDelta",e.target.value)}/>
-      </div>
-      <div>
-        <label className={lbl}>% Comissão do endosso</label>
-        <input type="number" className={inp} step="0.01" min="0" max="100"
-          placeholder="Herda da apólice se vazio"
-          value={form.percentualComissao||""} onChange={e=>sf("percentualComissao",e.target.value)}/>
-      </div>
-    </div>
-  );
-
   const renderCampos = () => {
     if (!form) return null;
     if (form.tipo === "substituicao_item") return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className={lbl}>Nova placa</label><input className={inp} placeholder="ABC-1234" value={form.placaNova||""} onChange={e=>sf("placaNova",e.target.value)}/></div>
-          <div><label className={lbl}>Novo chassi</label><input className={inp} value={form.chassiNovo||""} onChange={e=>sf("chassiNovo",e.target.value)}/></div>
-          <div><label className={lbl}>Novo modelo</label><input className={inp} value={form.modeloNovo||""} onChange={e=>sf("modeloNovo",e.target.value)}/></div>
-          <div><label className={lbl}>Ano fab/mod</label><input className={inp} placeholder="2024/2025" value={form.anoNovo||""} onChange={e=>sf("anoNovo",e.target.value)}/></div>
-        </div>
-        {camposFinanceiros()}
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={lbl}>Nova placa</label><input className={inp} placeholder="ABC-1234" value={form.placaNova||""} onChange={e=>sf("placaNova",e.target.value)}/></div>
+        <div><label className={lbl}>Novo chassi</label><input className={inp} value={form.chassiNovo||""} onChange={e=>sf("chassiNovo",e.target.value)}/></div>
+        <div><label className={lbl}>Novo modelo</label><input className={inp} value={form.modeloNovo||""} onChange={e=>sf("modeloNovo",e.target.value)}/></div>
+        <div><label className={lbl}>Ano fab/mod</label><input className={inp} placeholder="2024/2025" value={form.anoNovo||""} onChange={e=>sf("anoNovo",e.target.value)}/></div>
       </div>
     );
     if (form.tipo === "alteracao_endereco") return (
-      <div className="space-y-3">
-        <div><label className={lbl}>Novo CEP de risco</label><input className={inp} placeholder="00000-000" value={form.cepNovo||""} onChange={e=>sf("cepNovo",e.target.value)}/></div>
-        {camposFinanceiros()}
-      </div>
+      <div><label className={lbl}>Novo CEP de risco</label><input className={inp} placeholder="00000-000" value={form.cepNovo||""} onChange={e=>sf("cepNovo",e.target.value)}/></div>
     );
     if (form.tipo === "alteracao_condutor") return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2"><label className={lbl}>Nome do condutor</label><input className={inp} value={form.condutorNome||""} onChange={e=>sf("condutorNome",e.target.value)}/></div>
-          <div><label className={lbl}>CPF</label><input className={inp} placeholder="000.000.000-00" value={form.condutorCpf||""} onChange={e=>sf("condutorCpf",e.target.value)}/></div>
-          <div><label className={lbl}>Data de nascimento</label><input type="date" className={inp} value={form.condutorNascimento||""} onChange={e=>sf("condutorNascimento",e.target.value)}/></div>
-        </div>
-        {camposFinanceiros()}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2"><label className={lbl}>Nome do condutor</label><input className={inp} value={form.condutorNome||""} onChange={e=>sf("condutorNome",e.target.value)}/></div>
+        <div><label className={lbl}>CPF</label><input className={inp} placeholder="000.000.000-00" value={form.condutorCpf||""} onChange={e=>sf("condutorCpf",e.target.value)}/></div>
+        <div><label className={lbl}>Data de nascimento</label><input type="date" className={inp} value={form.condutorNascimento||""} onChange={e=>sf("condutorNascimento",e.target.value)}/></div>
       </div>
     );
     if (form.tipo === "cancelamento") return (
@@ -752,12 +724,6 @@ function EndossoSection({ endossos, onChange, onCancelar }) {
                 {e.placaNova && <div className="text-xs text-slate-500 mt-0.5">Placa: {e.placaNova}{e.modeloNovo ? ` · ${e.modeloNovo}` : ""}</div>}
                 {e.cepNovo && <div className="text-xs text-slate-500 mt-0.5">CEP novo: {e.cepNovo}</div>}
                 {e.condutorNome && <div className="text-xs text-slate-500 mt-0.5">Condutor: {e.condutorNome}{e.condutorCpf ? ` · ${e.condutorCpf}` : ""}</div>}
-                {e.premioLiquidoDelta && Number(e.premioLiquidoDelta) !== 0 && (
-                  <div className={`text-xs font-semibold mt-0.5 ${Number(e.premioLiquidoDelta) > 0 ? "text-emerald-600" : "text-red-500"}`}>
-                    {"Δ"} Prêmio: {Number(e.premioLiquidoDelta) > 0 ? "+" : ""}{fmtBRL(Number(e.premioLiquidoDelta))}
-                    {e.percentualComissao && <span className="ml-1 font-normal text-slate-400">· Com: {fmtBRL(Math.abs(Number(e.premioLiquidoDelta)) * Number(e.percentualComissao) / 100)}</span>}
-                  </div>
-                )}
               </div>
               <button onClick={() => onChange((endossos||[]).filter(x => x.id !== e.id))} title="Remover endosso"
                 className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-opacity flex-shrink-0 mt-0.5">
@@ -810,7 +776,7 @@ function CardTile({ card, onClick, onDragStart }) {
         </div>
       )}
       <div className="flex justify-between items-center mt-1.5">
-        <span className="text-xs font-semibold text-emerald-600">{fmtBRL(card.premioLiquido ?? card.valor)}</span>
+        <span className="text-xs font-semibold text-emerald-600">{fmtBRL(card.valor)}</span>
         <Chip days={days} status={card.status} />
       </div>
       {pending > 0 && (
@@ -1100,38 +1066,11 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
               <input type="date" className={inp} value={d.dataRenovacao || ""} onChange={e => set("dataRenovacao", e.target.value)} />
             </div>
             <div>
-              <label className={lbl}>Prêmio Bruto (R$){d.etiquetaSituacao === "Renovação Congênere" ? " *" : ""}</label>
+              <label className={lbl}>Prêmio (R$){d.etiquetaSituacao === "Renovação Congênere" ? " *" : ""}</label>
               <input type="number" className={`${inp} ${d.etiquetaSituacao === "Renovação Congênere" ? "border-amber-300" : ""}`}
                 value={d.valor || ""} onChange={e => set("valor", e.target.value)}
                 placeholder={d.etiquetaSituacao === "Renovação Congênere" ? "Valor do ano anterior" : ""} />
             </div>
-            <div>
-              <label className={lbl}>Prêmio Líquido (R$)</label>
-              <input type="number" className={inp} step="0.01" min="0"
-                value={d.premioLiquido || ""} onChange={e => set("premioLiquido", e.target.value)}
-                placeholder="Base de cálculo da comissão" />
-            </div>
-            <div>
-              <label className={lbl}>% Comissão</label>
-              <input type="number" className={inp} step="0.01" min="0.01" max="100"
-                value={d.percentualComissao || ""} onChange={e => set("percentualComissao", e.target.value)}
-                placeholder="0,00" />
-            </div>
-            {d.premioLiquido && d.percentualComissao && (() => {
-              const base = Number(d.premioLiquido) * Number(d.percentualComissao) / 100;
-              const hasDeltas = (d.endossos||[]).some(en => en.premioLiquidoDelta);
-              const total = base + (d.endossos||[]).reduce((sum, en) => {
-                const pct = Number(en.percentualComissao ?? d.percentualComissao) || 0;
-                return sum + (Number(en.premioLiquidoDelta) || 0) * pct / 100;
-              }, 0);
-              return (
-                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 col-span-2">
-                  <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Comissão:</span>
-                  <span className="text-sm font-bold text-emerald-700">{fmtBRL(base)}</span>
-                  {hasDeltas && <span className="text-xs text-emerald-600 ml-1">(Total c/ endossos: {fmtBRL(total)})</span>}
-                </div>
-              );
-            })()}
             <div>
               <label className={lbl}>Nº da proposta</label>
               <input className={inp} value={d.proposta || ""} onChange={e => set("proposta", e.target.value)} />
@@ -1937,7 +1876,6 @@ function ImportModal({ onClose, onAdd }) {
         autoCondutor1825:        d.veiculo?.condutor1825anos || false,
         condutorDiferente:       !!(d.veiculo?.condutorNome && (d.veiculo?.condutorNome||"").toUpperCase() !== (d.segurado?.nome||"").toUpperCase()),
         valor:                   d.financeiro?.premioTotal || "",
-        premioLiquido:           d.financeiro?.premioLiquido || "",
         status:                  importStatus,
         arquivado:               arquivarImport,
         arquivadoEm:             arquivarImport ? new Date().toISOString() : null,
@@ -1952,7 +1890,7 @@ function ImportModal({ onClose, onAdd }) {
 
   const criarCard = async () => {
     if (!form.clienteNome) return;
-    if (form.cpfCnpj && !form.autoNascimentoSegurado) {
+    if (form.cpfCnpj && !isCNPJ(form.cpfCnpj) && !form.autoNascimentoSegurado) {
       window.alert("CPF informado — preencha a Data de Nascimento antes de salvar.");
       return;
     }
@@ -2021,8 +1959,6 @@ function ImportModal({ onClose, onAdd }) {
         autoEstadoCivilCondutor:  form.condutorDiferente ? (form.autoEstadoCivilCondutor || null) : (form.autoEstadoCivil || null),
         etiquetaCanal:            form.etiquetaCanal || null,
         valor:                    parseBRL(form.valor),
-        premioLiquido:             parseBRL(form.premioLiquido),
-        percentualComissao:        form.percentualComissao ? Number(form.percentualComissao) : null,
         status:            form.status || "transmitida",
         followUps:         [],
         sinistros:         [],
@@ -2245,13 +2181,15 @@ function ImportModal({ onClose, onAdd }) {
                         <input className={inp} value={form.autoNomeSegurado} onChange={e => setF("autoNomeSegurado", e.target.value.toUpperCase())} />
                       </div>
                       <div>
-                        <label className={lbl}>CPF</label>
-                        <input className={inp} placeholder="000.000.000-00" value={form.autoCpfSegurado} onChange={e => setF("autoCpfSegurado", e.target.value)} />
+                        <label className={lbl}>CPF / CNPJ</label>
+                        <input className={inp} placeholder="CPF ou CNPJ" value={form.autoCpfSegurado} onChange={e => setF("autoCpfSegurado", maskCpfCnpj(e.target.value))} />
                       </div>
-                      <div>
-                        <label className={lbl}>Data de nascimento</label>
-                        <input type="date" className={inp} value={form.autoNascimentoSegurado} onChange={e => setF("autoNascimentoSegurado", e.target.value)} />
-                      </div>
+                      {!isCNPJ(form.autoCpfSegurado) && (
+                        <div>
+                          <label className={lbl}>Data de nascimento</label>
+                          <input type="date" className={inp} value={form.autoNascimentoSegurado} onChange={e => setF("autoNascimentoSegurado", e.target.value)} />
+                        </div>
+                      )}
                     </div>
 
                     <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
@@ -2325,12 +2263,8 @@ function ImportModal({ onClose, onAdd }) {
                 <p className={`${lbl} mb-3`}>Financeiro</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={lbl}>Prêmio Bruto (R$)</label>
-                    <input className={inp} placeholder="Ex: 3.100,34" value={form.valor} onChange={e => setF("valor", e.target.value)} />
-                  </div>
-                  <div>
-                    <label className={lbl}>Prêmio Líquido (R$)</label>
-                    <input className={inp} placeholder="Ex: 2.887,26" value={form.premioLiquido||""} onChange={e => setF("premioLiquido", e.target.value)} />
+                    <label className={lbl}>Prêmio total (R$)</label>
+                    <input className={inp} placeholder="Ex: 1.481,68" value={form.valor} onChange={e => setF("valor", e.target.value)} />
                   </div>
                   <div>
                     <label className={lbl}>Forma de pagamento</label>
