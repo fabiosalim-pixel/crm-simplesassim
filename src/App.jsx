@@ -914,7 +914,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
       const n = parseFloat(String(s).replace(/\./g, "").replace(",", "."));
       return isNaN(n) ? null : n;
     };
-    if (!d.dataRenovacao && data.apolice?.vigenciaFim) updates.dataRenovacao = data.apolice.vigenciaFim;
+    if (data.apolice?.vigenciaFim) updates.dataRenovacao = data.apolice.vigenciaFim;
     if (!d.valor && data.financeiro?.premioTotal) updates.valor = parseBRLlocal(data.financeiro.premioTotal);
     if (!d.premioLiquido && data.financeiro?.premioLiquido) updates.premioLiquido = parseBRLlocal(data.financeiro.premioLiquido);
     if (!d.seguradora && data.apolice?.seguradora) updates.seguradora = data.apolice.seguradora;
