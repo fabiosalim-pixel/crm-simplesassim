@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabase";
 import {
   Search, ChevronLeft, User, Building2, Phone, MessageCircle, Mail,
-  MapPin, Shield, Calendar, Briefcase, FileText, Pencil, Check, X
+  MapPin, Shield, Calendar, Briefcase, FileText, Pencil, Check, X, Target
 } from "lucide-react";
 
 const fmtBRL = (v) =>
@@ -13,6 +13,8 @@ const fmtData = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR"
 const hojeStr = () => new Date().toISOString().slice(0, 10);
 
 const ehVigente = (a) => a.status_pipeline === "emitida" && a.data_renovacao >= hojeStr();
+
+const norm = (s) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
 
 const calcIdade = (d) => {
   if (!d) return null;
@@ -47,6 +49,15 @@ function Info({ icon: Icon, label, value }) {
   );
 }
 
+function MiniStat({ label, value }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-3">
+      <div className="text-xs text-slate-400 uppercase tracking-wide">{label}</div>
+      <div className="text-lg font-bold text-slate-800 mt-0.5 truncate">{value}</div>
+    </div>
+  );
+}
+
 function Campo({ label, value, onChange, type = "text", placeholder, full }) {
   return (
     <label className={`block ${full ? "md:col-span-3" : ""}`}>
@@ -71,7 +82,7 @@ function StatusPill({ a }) {
   return <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>{txt}</span>;
 }
 
-function Ficha({ cliente, apolices: aps, onBack, onSaved }) {
+function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState(cliente);
   const [salvando, setSalvando] = useState(false);
@@ -106,12 +117,24 @@ function Ficha({ cliente, apolices: aps, onBack, onSaved }) {
   const idade = calcIdade(c.data_nascimento);
   const endereco = montaEndereco(c);
 
+  // Valor do cliente
+  const premioAtivo = aps.filter(ehVigente).reduce((s, a) => s + Number(a.valor || 0), 0);
+  const comissaoAcum = aps
+    .filter((a) => a.status_pipeline === "emitida")
+    .reduce((s, a) => s + (Number(a.premio_liquido || 0) * Number(a.percentual_comissao || 0)) / 100, 0);
+
+  // Cross-sell (data-driven: ramos da carteira × ramos do cliente)
+  const ramosCliente = new Set(aps.map((a) => norm(a.tipo_seguro)).filter(Boolean));
+  const possui = universo.filter((r) => ramosCliente.has(norm(r)));
+  const oportunidades = universo.filter((r) => !ramosCliente.has(norm(r)));
+
   return (
     <div className="flex-1 overflow-y-auto p-5" style={{ background: "#F1F2F4" }}>
       <button onClick={onBack} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
         <ChevronLeft size={16} /> Voltar para a lista
       </button>
 
+      {/* Dados do cliente */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 mb-4">
         <div className="flex items-start gap-3">
           <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
@@ -195,6 +218,34 @@ function Ficha({ cliente, apolices: aps, onBack, onSaved }) {
         )}
       </div>
 
+      {/* Valor do cliente */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <MiniStat label="Prêmio ativo" value={fmtBRL(premioAtivo)} />
+        <MiniStat label="Comissão acumulada" value={fmtBRL(comissaoAcum)} />
+        <MiniStat label="Apólices" value={`${aps.length} · ${ativas} vigente${ativas !== 1 ? "s" : ""}`} />
+      </div>
+
+      {/* Cross-sell */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Target size={15} className="text-amber-500" />
+          <h2 className="text-sm font-semibold text-slate-700">Oportunidades de cross-sell</h2>
+        </div>
+        {oportunidades.length === 0 ? (
+          <div className="text-sm text-slate-400">Este cliente já tem todos os ramos que você trabalha hoje.</div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {oportunidades.map((r) => (
+              <span key={r} className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">{r}</span>
+            ))}
+          </div>
+        )}
+        {possui.length > 0 && (
+          <div className="mt-3 text-xs text-slate-400">Já possui: {possui.join(" · ")}</div>
+        )}
+      </div>
+
+      {/* Histórico de apólices */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
         <h2 className="text-sm font-semibold text-slate-700 mb-3">
           Histórico de apólices <span className="text-slate-400 font-normal">({aps.length} · {ativas} vigente{ativas !== 1 ? "s" : ""})</span>
@@ -257,6 +308,13 @@ export default function Segurados() {
     return m;
   }, [apolices]);
 
+  // Universo de ramos que a corretora trabalha hoje (data-driven)
+  const universo = useMemo(() => {
+    const s = new Set();
+    for (const a of apolices) if (a.tipo_seguro) s.add(a.tipo_seguro);
+    return [...s].sort();
+  }, [apolices]);
+
   const listaFiltrada = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return clientes;
@@ -272,7 +330,7 @@ export default function Segurados() {
     const c = clientes.find((x) => x.id === selId);
     if (c) {
       const aps = (porCliente[selId] || []).slice().sort((a, b) => (b.data_renovacao || "").localeCompare(a.data_renovacao || ""));
-      return <Ficha cliente={c} apolices={aps} onBack={() => setSelId(null)} onSaved={onSaved} />;
+      return <Ficha cliente={c} apolices={aps} universo={universo} onBack={() => setSelId(null)} onSaved={onSaved} />;
     }
   }
 
