@@ -22,12 +22,15 @@ const PROSP_STAGES = [
 ];
 
 const DOC_TIPOS = [
-  { id: "proposta",       label: "Proposta",         required: true  },
-  { id: "apolice",        label: "Apólice",           required: true  },
-  { id: "nota_fiscal",    label: "Nota Fiscal",       required: false },
-  { id: "laudo_vistoria", label: "Laudo de Vistoria", required: false },
-  { id: "cnh",            label: "CNH",               required: false },
-  { id: "crlv",           label: "CRLV-e",            required: false },
+  { id: "proposta",          label: "Proposta",             required: true  },
+  { id: "apolice",           label: "Apólice",              required: true  },
+  { id: "proposta_endosso",  label: "Proposta de Endosso",  required: false },
+  { id: "apolice_endosso",   label: "Apólice de Endosso",   required: false },
+  { id: "nota_fiscal",       label: "Nota Fiscal",          required: false },
+  { id: "laudo_vistoria",    label: "Laudo de Vistoria",    required: false },
+  { id: "cnh",               label: "CNH",                  required: false },
+  { id: "crlv",              label: "CRLV-e",               required: false },
+  { id: "outros",            label: "Outros",               required: false },
 ];
 
 const daysUntil = (d) => {
@@ -1876,6 +1879,7 @@ function ImportModal({ onClose, onAdd }) {
         autoCondutor:             form.condutorDiferente ? form.autoCondutor : form.autoNomeSegurado,
         autoCpfCondutor:          form.condutorDiferente ? form.autoCpfCondutor : form.autoCpfSegurado,
         autoNascimentoCondutor:   form.condutorDiferente ? form.autoNascimentoCondutor : form.autoNascimentoSegurado,
+        autoDataNasc:             form.condutorDiferente ? (form.autoNascimentoCondutor || form.autoNascimentoSegurado) : form.autoNascimentoSegurado,
         autoEstadoCivil:          form.autoEstadoCivil || null,
         autoEstadoCivilCondutor:  form.condutorDiferente ? (form.autoEstadoCivilCondutor || null) : (form.autoEstadoCivil || null),
         etiquetaCanal:            form.etiquetaCanal || null,
@@ -1943,10 +1947,20 @@ function ImportModal({ onClose, onAdd }) {
             </div>
             <div>
               <label className={lbl}>Arquivo PDF</label>
-              <label className={`mt-2 flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl transition-colors ${lgpdOk ? "cursor-pointer border-slate-300 hover:border-blue-400 hover:bg-blue-50" : "border-slate-200 opacity-40 cursor-not-allowed"}`}>
+              <label
+                className={`mt-2 flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl transition-colors ${lgpdOk ? "cursor-pointer border-slate-300 hover:border-blue-400 hover:bg-blue-50" : "border-slate-200 opacity-40 cursor-not-allowed"}`}
+                onDragOver={e => { if (!lgpdOk) return; e.preventDefault(); e.currentTarget.classList.add("border-blue-500","bg-blue-50"); }}
+                onDragLeave={e => { e.currentTarget.classList.remove("border-blue-500","bg-blue-50"); }}
+                onDrop={e => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove("border-blue-500","bg-blue-50");
+                  if (!lgpdOk) return;
+                  const f = e.dataTransfer.files[0];
+                  if (f && (f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"))) setArquivo(f);
+                }}>
                 <Upload size={24} className="text-slate-400 mb-2" />
                 <span className="text-sm text-slate-500 text-center px-4">
-                  {arquivo ? arquivo.name : "Clique para selecionar a proposta ou apólice em PDF"}
+                  {arquivo ? arquivo.name : "Arraste o PDF aqui ou clique para selecionar"}
                 </span>
                 {arquivo && <span className="text-xs text-slate-400 mt-1">{(arquivo.size / 1024).toFixed(0)} KB</span>}
                 <input type="file" accept=".pdf,application/pdf" className="hidden" disabled={!lgpdOk}
@@ -2400,19 +2414,33 @@ export default function App() {
     setView("pipeline");
   };
 
-  const visible = cards.filter(c => {
-    const ms = !search || c.clienteNome?.toLowerCase().includes(search.toLowerCase()) || (c.cpfCnpj || "").includes(search);
-    const mm = !filterMonth || (c.dataRenovacao || "").startsWith(filterMonth);
-    return ms && mm;
-  });
+  const visible = cards
+    .filter(c => {
+      const ms = !search || c.clienteNome?.toLowerCase().includes(search.toLowerCase()) || (c.cpfCnpj || "").includes(search);
+      const mm = !filterMonth || (c.dataRenovacao || "").startsWith(filterMonth);
+      return ms && mm;
+    })
+    .sort((a, b) => {
+      const da = a.dataRenovacao || "9999-99";
+      const db = b.dataRenovacao || "9999-99";
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
 
   const urgentes = cards.filter(c => { const d = daysUntil(c.dataRenovacao); return d !== null && d <= 7 && c.status !== "emitida"; }).length;
   const apolicesPendentes = cards.filter(isApoliceAlerta).length;
   const vistoriasPendentes = cards.filter(isVistoriaAlerta).length;
   const boletosPendentes = cards.filter(isBoletoAlerta).length;
 
-  const handleApoliceAnexada = (cardId) => {
-    setCards(prev => prev.map(c => c.id === cardId ? { ...c, apoliceAnexada: true } : c));
+  const handleApoliceAnexada = async (cardId) => {
+    const card = cards.find(c => c.id === cardId);
+    if (!card) return;
+    // Só move para emitida se ainda não estiver arquivado nem já emitida
+    const novoStatus = (card.status === "transmitida" || card.status === "vistoria" || card.status === "boleto")
+      ? "emitida" : card.status;
+    const updated = { ...card, apoliceAnexada: true, status: novoStatus };
+    await upsertCard(updated);
+    setCards(prev => prev.map(c => c.id === cardId ? updated : c));
+    setSelected(updated);
   };
 
   const months = Array.from({ length: 8 }, (_, i) => {
@@ -2537,16 +2565,18 @@ export default function App() {
             </div>
           )}
         </div>
+        <button onClick={() => setMostrarArquivados(prev => !prev)}
+          title={mostrarArquivados ? "Voltar ao pipeline" : "Ver apólices arquivadas"}
+          className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border transition-colors ${mostrarArquivados ? "bg-amber-100 border-amber-300 text-amber-700 font-semibold" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
+          <Archive size={12} /> {mostrarArquivados ? "Arquivados" : "Arquivados"}
+        </button>
         <Filter size={13} className="text-slate-400" />
         <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-600"
           value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
           <option value="">Todos os meses</option>
           {months.map(m => <option key={m.val} value={m.val}>{m.label}</option>)}
         </select>
-        <button onClick={() => setMostrarArquivados(prev => !prev)}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${mostrarArquivados ? "bg-amber-100 border-amber-400 text-amber-700" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
-          <Archive size={13} /> {mostrarArquivados ? "Ver pipeline" : "Arquivados"}
-        </button>
+
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setImportModal(true)}
             className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
