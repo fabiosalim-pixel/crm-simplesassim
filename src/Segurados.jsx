@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "./supabase";
 import {
   Search, ChevronLeft, User, Building2, Phone, MessageCircle, Mail,
-  MapPin, Shield, Calendar, Briefcase, FileText, Pencil, Check, X, Target
+  MapPin, Shield, Calendar, Briefcase, FileText, Pencil, Check, X, Target,
+  Cake, AlertTriangle, UserMinus, Zap
 } from "lucide-react";
 
 const fmtBRL = (v) =>
@@ -36,6 +37,59 @@ const montaEndereco = (c) =>
   ]
     .filter(Boolean)
     .join(" · ");
+
+const CORES_GATILHO = {
+  violet: "bg-violet-50 text-violet-700 border-violet-200",
+  red:    "bg-red-50 text-red-700 border-red-200",
+  amber:  "bg-amber-50 text-amber-700 border-amber-200",
+  orange: "bg-orange-50 text-orange-700 border-orange-200",
+  slate:  "bg-slate-50 text-slate-600 border-slate-200",
+};
+
+function calcGatilhos(c, aps) {
+  const out = [];
+  const hoje0 = new Date(hojeStr() + "T00:00:00");
+
+  // Aniversário no mês
+  if (c.data_nascimento) {
+    const nasc = new Date(c.data_nascimento + "T00:00:00");
+    if (nasc.getMonth() === hoje0.getMonth()) {
+      const dd = String(nasc.getDate()).padStart(2, "0");
+      const mm = String(nasc.getMonth() + 1).padStart(2, "0");
+      out.push({ cor: "violet", icon: Cake, texto: `Aniversário em ${dd}/${mm}` });
+    }
+  }
+
+  // Apólice vigente vencendo em ≤30 dias
+  const vig = aps.filter(ehVigente);
+  const venc = vig
+    .map((a) => ({ a, dias: Math.round((new Date(a.data_renovacao + "T00:00:00") - hoje0) / 86400000) }))
+    .filter((x) => x.dias <= 30)
+    .sort((x, y) => x.dias - y.dias);
+  if (venc.length) {
+    const v = venc[0];
+    out.push({
+      cor: v.dias <= 7 ? "red" : "amber", icon: AlertTriangle,
+      texto: `${v.a.tipo_seguro || "Apólice"} vence em ${v.dias} dia${v.dias !== 1 ? "s" : ""} (${fmtData(v.a.data_renovacao)})`,
+    });
+  }
+
+  // Contato incompleto
+  const faltam = [];
+  if (!(c.telefone || "").trim() && !(c.whatsapp || "").trim()) faltam.push("telefone");
+  if (!(c.email || "").trim()) faltam.push("e-mail");
+  if (faltam.length) out.push({ cor: "slate", icon: Phone, texto: `Contato incompleto: falta ${faltam.join(" e ")}` });
+
+  // Sem apólice vigente
+  if (vig.length === 0) {
+    out.push({
+      cor: "orange", icon: UserMinus,
+      texto: aps.length ? "Sem apólice vigente — oportunidade de reativação" : "Sem apólices — cliente para captação",
+    });
+  }
+
+  return out;
+}
 
 function Info({ icon: Icon, label, value }) {
   return (
@@ -116,6 +170,7 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
   const ativas = aps.filter(ehVigente).length;
   const idade = calcIdade(c.data_nascimento);
   const endereco = montaEndereco(c);
+  const gatilhos = calcGatilhos(c, aps);
 
   // Valor do cliente
   const premioAtivo = aps.filter(ehVigente).reduce((s, a) => s + Number(a.valor || 0), 0);
@@ -217,6 +272,23 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
           </div>
         )}
       </div>
+
+      {/* Gatilhos de ação */}
+      {gatilhos.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap size={15} className="text-amber-500" />
+            <h2 className="text-sm font-semibold text-slate-700">Ações sugeridas</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {gatilhos.map((g, i) => (
+              <span key={i} className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border font-medium ${CORES_GATILHO[g.cor]}`}>
+                <g.icon size={12} /> {g.texto}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Valor do cliente */}
       <div className="grid grid-cols-3 gap-3 mb-4">
