@@ -1380,7 +1380,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
                     </select>
                   </div>
                   <div>
-                    <label className={lbl}>Protocolo / N° sinistro</label>
+                    <label className={lbl}>Protocolo / Nº sinistro</label>
                     <input className={inp} placeholder="Ex: 2024-001234" value={snForm.protocolo || ""} onChange={e => setSnForm(p => ({ ...p, protocolo: e.target.value }))} />
                   </div>
                   <div>
@@ -1390,15 +1390,39 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
                   <div>
                     <label className={lbl}>Status</label>
                     <select className={inp} value={snForm.status || "Aberto"} onChange={e => setSnForm(p => ({ ...p, status: e.target.value }))}>
-                      {["Aberto","Em análise","Aguardando doc.","Encerrado"].map(s => <option key={s}>{s}</option>)}
+                      {SN_STATUS.map(s => <option key={s}>{s}</option>)}
                     </select>
                   </div>
+                  <div className="col-span-2">
+                    <label className={lbl}>Descrição do ocorrido</label>
+                    <textarea className={inp} rows={2} placeholder="Descreva o que aconteceu..." value={snForm.descricao || ""} onChange={e => setSnForm(p => ({ ...p, descricao: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Data prevista de resolução</label>
+                    <input type="date" className={inp} value={snForm.dataPrevistaResolucao || ""} onChange={e => setSnForm(p => ({ ...p, dataPrevistaResolucao: e.target.value }))} />
+                  </div>
                   {snForm.status === "Encerrado" && (
-                    <div className="col-span-2">
+                    <div>
                       <label className={lbl}>Data de encerramento</label>
                       <input type="date" className={inp} value={snForm.dataEncerramento || ""} onChange={e => setSnForm(p => ({ ...p, dataEncerramento: e.target.value }))} />
                     </div>
                   )}
+                  <div className="col-span-2">
+                    <label className={lbl}>Documentos</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {SN_DOCS.map(doc => (
+                        <label key={doc} className="flex items-center gap-1 text-xs cursor-pointer">
+                          <input type="checkbox" checked={(snForm.docs||[]).includes(doc)}
+                            onChange={() => setSnForm(p => ({ ...p, docs: (p.docs||[]).includes(doc) ? p.docs.filter(d=>d!==doc) : [...(p.docs||[]),doc] }))} />
+                          {doc}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <label className={lbl}>Observações</label>
+                    <textarea className={inp} rows={2} placeholder="Observações adicionais..." value={snForm.observacoes || ""} onChange={e => setSnForm(p => ({ ...p, observacoes: e.target.value }))} />
+                  </div>
                 </div>
                 <div className="flex gap-2 justify-end">
                   <button onClick={() => setSnForm(null)} className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700">Cancelar</button>
@@ -1410,29 +1434,95 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
               </div>
             )}
             {(d.sinistros || []).length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {(d.sinistros || []).map(s => {
-                  const cor = { "Aberto": "bg-red-100 text-red-700", "Em análise": "bg-blue-100 text-blue-700", "Aguardando doc.": "bg-amber-100 text-amber-700", "Encerrado": "bg-emerald-100 text-emerald-700" }[s.status] || "bg-slate-100 text-slate-600";
+                  const cor = {
+                    "Aberto": "bg-red-100 text-red-700",
+                    "Documentação": "bg-amber-100 text-amber-700",
+                    "Aguardando Seguradora": "bg-blue-100 text-blue-700",
+                    "Em Regulação": "bg-violet-100 text-violet-700",
+                    "Encerrado": "bg-emerald-100 text-emerald-700"
+                  }[s.status] || "bg-slate-100 text-slate-600";
+                  const cf = snContatoForm[s.id] || {};
                   return (
-                    <div key={s.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-slate-700 text-sm">{s.tipo}</span>
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cor}`}>{s.status}</span>
+                    <div key={s.id} className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                      {/* Cabeçalho do sinistro */}
+                      <div className="flex items-start gap-3 p-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-slate-700 text-sm">{s.tipo}</span>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cor}`}>{s.status}</span>
+                          </div>
+                          <div className="text-xs text-slate-400 mt-1 space-y-0.5">
+                            {s.protocolo && <div>Protocolo: {s.protocolo}</div>}
+                            {s.dataOcorrencia && <div>Ocorrência: {fmt(s.dataOcorrencia)}</div>}
+                            {s.dataPrevistaResolucao && <div>Previsão: {fmt(s.dataPrevistaResolucao)}</div>}
+                            {s.dataEncerramento && <div>Encerrado em: {fmt(s.dataEncerramento)}</div>}
+                            {s.descricao && <div className="text-slate-500 mt-1">{s.descricao}</div>}
+                          </div>
+                          {/* Checklist de documentos */}
+                          {SN_DOCS.some(doc => (s.docs||[]).includes(doc)) && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {SN_DOCS.filter(doc => (s.docs||[]).includes(doc)).map(doc => (
+                                <span key={doc} className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full">{doc} ✓</span>
+                              ))}
+                              {SN_DOCS.filter(doc => !(s.docs||[]).includes(doc)).map(doc => (
+                                <span key={doc} className="text-xs bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-full cursor-pointer hover:bg-slate-200"
+                                  onClick={() => toggleDocSinistro(s.id, doc)}>{doc}</span>
+                              ))}
+                            </div>
+                          )}
+                          {!SN_DOCS.some(doc => (s.docs||[]).includes(doc)) && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {SN_DOCS.map(doc => (
+                                <span key={doc} className="text-xs bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-full cursor-pointer hover:bg-slate-200"
+                                  onClick={() => toggleDocSinistro(s.id, doc)}>{doc}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <div className="text-xs text-slate-400 mt-0.5 space-y-0.5">
-                          {s.protocolo && <div>Protocolo: {s.protocolo}</div>}
-                          {s.dataOcorrencia && <div>Ocorrência: {fmt(s.dataOcorrencia)}</div>}
-                          {s.dataEncerramento && <div>Encerrado em: {fmt(s.dataEncerramento)}</div>}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <select className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none bg-white"
+                            value={s.status} onChange={e => updateSinistroStatus(s.id, e.target.value)}>
+                            {SN_STATUS.map(st => <option key={st}>{st}</option>)}
+                          </select>
+                          <button onClick={() => removeSinistro(s.id)} className="text-slate-300 hover:text-red-400 ml-1"><X size={14} /></button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <select className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none bg-white"
-                          value={s.status} onChange={e => updateSinistroStatus(s.id, e.target.value)}>
-                          {["Aberto","Em análise","Aguardando doc.","Encerrado"].map(st => <option key={st}>{st}</option>)}
-                        </select>
-                        <button onClick={() => removeSinistro(s.id)} className="text-slate-300 hover:text-red-400 ml-1"><X size={14} /></button>
+                      {/* Histórico de contatos */}
+                      <div className="border-t border-slate-200 px-3 py-2 bg-white">
+                        <div className="text-xs font-semibold text-slate-500 mb-2">Histórico de contatos com a seguradora</div>
+                        {(s.contatos||[]).length > 0 && (
+                          <div className="space-y-1.5 mb-2">
+                            {(s.contatos||[]).map(c => (
+                              <div key={c.id} className="text-xs text-slate-600 flex gap-2">
+                                <span className="text-slate-400 flex-shrink-0">{fmt(c.data)}</span>
+                                <span>{c.descricao}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-2 items-end">
+                          <input type="date" className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none"
+                            value={cf.data || ""} onChange={e => setSnContatoForm(p => ({ ...p, [s.id]: { ...cf, data: e.target.value } }))} />
+                          <input className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none"
+                            placeholder="Descrição do contato..."
+                            value={cf.descricao || ""} onChange={e => setSnContatoForm(p => ({ ...p, [s.id]: { ...cf, descricao: e.target.value } }))} />
+                          <button
+                            disabled={!cf.data || !cf.descricao}
+                            onClick={() => { addContatoSinistro(s.id, { data: cf.data, descricao: cf.descricao }); setSnContatoForm(p => ({ ...p, [s.id]: {} })); }}
+                            className="text-xs bg-slate-700 hover:bg-slate-900 text-white px-2 py-1 rounded-lg disabled:opacity-40">
+                            + Registrar
+                          </button>
+                        </div>
                       </div>
+                      {/* Observações */}
+                      {s.observacoes && (
+                        <div className="border-t border-slate-200 px-3 py-2 bg-white">
+                          <div className="text-xs text-slate-400 font-semibold mb-0.5">Observações</div>
+                          <div className="text-xs text-slate-600">{s.observacoes}</div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
