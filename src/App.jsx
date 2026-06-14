@@ -958,14 +958,32 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
   };
   const toggleFu = (id) => set("followUps", d.followUps.map(f => f.id === id ? { ...f, feito: !f.feito } : f));
 
+  const SN_STATUS = ["Aberto","Documentação","Aguardando Seguradora","Em Regulação","Encerrado"];
+  const SN_DOCS   = ["BO","Fotos","NF","CNH","CRLV","Laudo"];
+
   const addSinistro = () => {
     if (!snForm?.tipo) return;
-    const novo = { id: genId(), tipo: snForm.tipo, protocolo: snForm.protocolo || "", dataOcorrencia: snForm.dataOcorrencia || "", dataEncerramento: snForm.dataEncerramento || "", status: snForm.status || "Aberto" };
+    const novo = {
+      id: genId(), tipo: snForm.tipo, protocolo: snForm.protocolo || "",
+      descricao: snForm.descricao || "", dataOcorrencia: snForm.dataOcorrencia || "",
+      dataPrevistaResolucao: snForm.dataPrevistaResolucao || "",
+      dataEncerramento: snForm.dataEncerramento || "",
+      status: snForm.status || "Aberto",
+      docs: snForm.docs || [],
+      contatos: [],
+      observacoes: snForm.observacoes || "",
+    };
     set("sinistros", [...(d.sinistros || []), novo]);
     setSnForm(null);
   };
   const removeSinistro = (id) => set("sinistros", (d.sinistros || []).filter(s => s.id !== id));
-  const updateSinistroStatus = (id, status) => set("sinistros", (d.sinistros || []).map(s => s.id === id ? { ...s, status, dataEncerramento: status === "Encerrado" ? (s.dataEncerramento || new Date().toISOString().slice(0,10)) : s.dataEncerramento } : s));
+  const updateSinistroStatus = (id, status) => set("sinistros", (d.sinistros || []).map(s =>
+    s.id === id ? { ...s, status, dataEncerramento: status === "Encerrado" ? (s.dataEncerramento || new Date().toISOString().slice(0,10)) : s.dataEncerramento } : s));
+  const addContatoSinistro = (sinId, contato) => set("sinistros", (d.sinistros || []).map(s =>
+    s.id === sinId ? { ...s, contatos: [...(s.contatos||[]), { id: genId(), ...contato }] } : s));
+  const toggleDocSinistro = (sinId, doc) => set("sinistros", (d.sinistros || []).map(s =>
+    s.id === sinId ? { ...s, docs: (s.docs||[]).includes(doc) ? s.docs.filter(d=>d!==doc) : [...(s.docs||[]),doc] } : s));
+  const [snContatoForm, setSnContatoForm] = useState({});
 
   const handleSave = async () => {
     setSaving(true);
