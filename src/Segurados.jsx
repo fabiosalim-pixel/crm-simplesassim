@@ -11,6 +11,13 @@ const fmtBRL = (v) =>
 
 const fmtData = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—");
 
+const fmtFone = (v) => {
+  const d = (v || "").replace(/\D/g, "");
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return v || null;
+};
+
 const hojeStr = () => new Date().toISOString().slice(0, 10);
 
 const ehVigente = (a) => a.status_pipeline === "emitida" && a.data_renovacao >= hojeStr();
@@ -229,8 +236,8 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
               <Info icon={Calendar} label="Nascimento" value={c.data_nascimento ? `${fmtData(c.data_nascimento)}${idade != null ? ` (${idade} anos)` : ""}` : null} />
               <Info icon={Briefcase} label="Profissão" value={c.profissao} />
               <Info icon={Shield} label="Origem" value={c.origem} />
-              <Info icon={Phone} label="Telefone" value={c.telefone} />
-              <Info icon={MessageCircle} label="WhatsApp" value={c.whatsapp} />
+              <Info icon={Phone} label="Telefone" value={fmtFone(c.telefone)} />
+              <Info icon={MessageCircle} label="WhatsApp" value={fmtFone(c.whatsapp)} />
               <Info icon={Mail} label="E-mail" value={c.email} />
               <Info icon={MapPin} label="Endereço" value={endereco} />
               <Info icon={User} label="Status" value={c.status} />
