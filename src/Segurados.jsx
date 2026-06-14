@@ -167,8 +167,7 @@ function DetalheApolice({ a }) {
     { l: "Mês referência",   v: a.mes_referencia },
   ].filter(({ v }) => v);
 
-  const ehAuto = norm(a.tipo_seguro) === "AUTOMOVEL" || norm(a.tipo_seguro).startsWith("AUTO");
-  const autoCampos = !ehAuto ? [] : [
+  const autoCampos = [
     { l: "Placa",            v: a.auto_placa },
     { l: "Modelo",           v: a.auto_modelo },
     { l: "Ano fab/mod",      v: a.auto_ano_fab && a.auto_ano_mod ? `${a.auto_ano_fab}/${a.auto_ano_mod}` : null },
@@ -206,6 +205,21 @@ function DetalheApolice({ a }) {
 
 function ApolicesExpandiveis({ aps, ativas }) {
   const [aberto, setAberto] = useState(null);
+
+  // Agrupa por ramo + seguradora, ordena ciclos do mais recente para o mais antigo
+  const grupos = useMemo(() => {
+    const map = {};
+    for (const a of aps) {
+      const chave = `${norm(a.tipo_seguro || "")}_${norm(a.seguradora || "")}`;
+      if (!map[chave]) map[chave] = { ramo: a.tipo_seguro || "—", seguradora: a.seguradora || "—", ciclos: [] };
+      map[chave].ciclos.push(a);
+    }
+    return Object.values(map).map((g) => ({
+      ...g,
+      ciclos: g.ciclos.sort((x, y) => (y.data_renovacao || "").localeCompare(x.data_renovacao || "")),
+    })).sort((x, y) => (y.ciclos[0]?.data_renovacao || "").localeCompare(x.ciclos[0]?.data_renovacao || ""));
+  }, [aps]);
+
   return (
     <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
       <h2 className="text-sm font-semibold text-slate-700 mb-3">
@@ -217,36 +231,56 @@ function ApolicesExpandiveis({ aps, ativas }) {
       {aps.length === 0 ? (
         <div className="text-sm text-slate-400 py-6 text-center">Nenhuma apólice registrada para este cliente.</div>
       ) : (
-        <div className="space-y-2">
-          {aps.map((a) => {
-            const exp = aberto === a.id;
+        <div className="space-y-3">
+          {grupos.map((g) => {
+            const vigente = g.ciclos.find(ehVigente);
+            const ultimo = g.ciclos[0];
             return (
-              <div key={a.id}
-                className={`rounded-lg border transition-colors ${exp ? "border-slate-300 bg-slate-50" : "border-slate-100 bg-white"}`}>
-                <button
-                  onClick={() => setAberto(exp ? null : a.id)}
-                  className="w-full flex items-center gap-3 p-3 text-left">
-                  <span className={`text-slate-400 transition-transform flex-shrink-0 ${exp ? "rotate-90" : ""}`}>▶</span>
+              <div key={`${g.ramo}_${g.seguradora}`} className="rounded-lg border border-slate-200 overflow-hidden">
+                {/* Cabeçalho do grupo (ramo + seguradora) */}
+                <div className="flex items-center gap-3 px-3 py-2 bg-slate-50 border-b border-slate-200">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-slate-800 truncate">
-                      {a.tipo_seguro || "—"} · {a.seguradora || "—"}
-                    </div>
-                    <div className="text-xs text-slate-400 truncate">
-                      Vencimento: {fmtData(a.data_renovacao)}
-                      {a.apolice_nova ? ` · Apólice ${a.apolice_nova}` : ""}
-                      {a.proposta ? ` · Proposta ${a.proposta}` : ""}
-                    </div>
+                    <span className="text-xs font-semibold text-slate-700 uppercase tracking-wide">{g.ramo}</span>
+                    <span className="text-xs text-slate-400 ml-2">{g.seguradora}</span>
                   </div>
-                  <div className="text-right flex-shrink-0 ml-2">
-                    <div className="text-sm text-slate-600">{fmtBRL(a.valor)}</div>
-                    <StatusPill a={a} />
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {vigente
+                      ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">Vigente</span>
+                      : <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">Encerrada</span>}
+                    <span className="text-xs text-slate-500 font-medium">{g.ciclos.length} ciclo{g.ciclos.length !== 1 ? "s" : ""}</span>
                   </div>
-                </button>
-                {exp && (
-                  <div className="px-4 pb-4">
-                    <DetalheApolice a={a} />
-                  </div>
-                )}
+                </div>
+                {/* Ciclos */}
+                <div className="divide-y divide-slate-100">
+                  {g.ciclos.map((a) => {
+                    const exp = aberto === a.id;
+                    return (
+                      <div key={a.id} className={exp ? "bg-slate-50" : "bg-white"}>
+                        <button
+                          onClick={() => setAberto(exp ? null : a.id)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
+                          <span className={`text-slate-300 text-xs transition-transform flex-shrink-0 ${exp ? "rotate-90" : ""}`}>▶</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-slate-500">
+                              Venc. {fmtData(a.data_renovacao)}
+                              {a.apolice_nova ? ` · Apólice ${a.apolice_nova}` : ""}
+                              {a.proposta ? ` · Proposta ${a.proposta}` : ""}
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0 ml-2">
+                            <div className="text-sm font-medium text-slate-700">{fmtBRL(a.valor)}</div>
+                            <StatusPill a={a} />
+                          </div>
+                        </button>
+                        {exp && (
+                          <div className="px-4 pb-4">
+                            <DetalheApolice a={a} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
