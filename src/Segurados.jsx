@@ -60,11 +60,17 @@ function calcGatilhos(c, aps) {
     }
   }
 
-  // Apólice vigente vencendo em ≤30 dias
+  // Apólice vigente OU renovação em andamento vencendo em ≤30 dias
   const vig = aps.filter(ehVigente);
-  const venc = vig
+  const emAberto = aps.filter(
+    (a) =>
+      !a.arquivado &&
+      a.status_pipeline !== "emitida" &&
+      !["Não Renovada", "Cancelada", "Recusada", "Sem Negócio"].includes(a.etiqueta_situacao || "")
+  );
+  const venc = [...vig, ...emAberto]
     .map((a) => ({ a, dias: Math.round((new Date(a.data_renovacao + "T00:00:00") - hoje0) / 86400000) }))
-    .filter((x) => x.dias <= 30)
+    .filter((x) => x.dias >= 0 && x.dias <= 30)
     .sort((x, y) => x.dias - y.dias);
   if (venc.length) {
     const v = venc[0];
@@ -80,8 +86,8 @@ function calcGatilhos(c, aps) {
   if (!(c.email || "").trim()) faltam.push("e-mail");
   if (faltam.length) out.push({ cor: "slate", icon: Phone, texto: `Contato incompleto: falta ${faltam.join(" e ")}` });
 
-  // Sem apólice vigente
-  if (vig.length === 0) {
+  // Cliente realmente parado: sem vigente E sem renovação em aberto
+  if (vig.length === 0 && emAberto.length === 0) {
     out.push({
       cor: "orange", icon: UserMinus,
       texto: aps.length ? "Sem apólice vigente — oportunidade de reativação" : "Sem apólices — cliente para captação",
