@@ -99,6 +99,8 @@ const maskPhone = (v) => {
 };
 
 // ── Etiquetas em camadas ──────────────────────────────────────
+const RAMOS_IMOVEL = ["EMPRESARIAL","RESIDENCIAL","CONDOMÍNIO","FIANÇA LOCATÍCIA","RC OBRAS","RISCO DE ENGENHARIA","RURAL"];
+
 const SITUACOES = ["Cancelada","Endosso","Não Renovada","Protocolado","Recusada","Renov. Congênere","Renovação","Seguro Novo","Sem Negócio"];
 const PAGAMENTOS = ["Boleto","Cartão de Crédito","Débito em Conta","Link de Pagamento","PIX"];
 const CANAIS = ["Google","Indicação","Site"];
@@ -158,8 +160,7 @@ function mapRow(r) {
     etiquetaSituacao: r.etiqueta_situacao,
     etiquetaPagamento:r.etiqueta_pagamento,
     etiquetaCanal:    r.etiqueta_canal,
-    autoClasseBonus:    r.auto_classe_bonus,
-    autoNomeSegurado:         r.auto_nome_segurado,
+    autoClasseBonus:    r.auto_classe_bonus,    autoNomeSegurado:         r.auto_nome_segurado,
     autoCpfSegurado:          r.auto_cpf_segurado,
     autoNascimentoSegurado:   r.auto_nascimento_segurado,
     autoCondutor:             r.auto_condutor,
@@ -190,9 +191,18 @@ function mapRow(r) {
     criadoEm:         r.criado_em,
     apoliceAnexada:   r.apolice_anexada || false,
     autoEnviadaCliente: r.auto_enviada_cliente || false,
-    autoEnviadaCliente: r.auto_enviada_cliente || false,
     endossos:         r.endossos || [],
     dataAlerta:       r.data_alerta || null,
+    imovelCep:         r.imovel_cep || null,
+    imovelLogradouro:  r.imovel_logradouro || null,
+    imovelNumero:      r.imovel_numero || null,
+    imovelComplemento: r.imovel_complemento || null,
+    imovelBairro:      r.imovel_bairro || null,
+    imovelCidade:      r.imovel_cidade || null,
+    imovelUf:          r.imovel_uf || null,
+    imovelAtividade:   r.imovel_atividade || null,
+    imovelTipo:        r.imovel_tipo || null,
+    imovelValorRisco:  r.imovel_valor_risco || null,
   };
 }
 
@@ -275,6 +285,16 @@ async function upsertCard(card) {
     auto_enviada_cliente: card.autoEnviadaCliente || false,
     endossos:         card.endossos || [],
     data_alerta:      card.dataAlerta || null,
+    imovel_cep:         card.imovelCep || null,
+    imovel_logradouro:  card.imovelLogradouro || null,
+    imovel_numero:      card.imovelNumero || null,
+    imovel_complemento: card.imovelComplemento || null,
+    imovel_bairro:      card.imovelBairro || null,
+    imovel_cidade:      card.imovelCidade || null,
+    imovel_uf:          card.imovelUf || null,
+    imovel_atividade:   card.imovelAtividade || null,
+    imovel_tipo:        card.imovelTipo || null,
+    imovel_valor_risco: card.imovelValorRisco ? Number(card.imovelValorRisco) : null,
   };
   const { error } = await supabase.from("renovacoes").upsert(row);
   if (error) console.error("Erro ao salvar:", error);
@@ -1254,10 +1274,12 @@ function PainelSinistros({ cards, onCard }) {
                 {CANAIS.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
-            <div className="col-span-2">
-              <label className={lbl}>Veículo / bem segurado</label>
-              <input className={inp} placeholder="Placa / Modelo / Endereço / Descrição" value={d.veiculo || ""} onChange={e => set("veiculo", e.target.value)} />
-            </div>
+            {d.tipoSeguro !== "AUTOMÓVEL" && !RAMOS_IMOVEL.includes(d.tipoSeguro) && (
+              <div className="col-span-2">
+                <label className={lbl}>Bem segurado / descrição</label>
+                <input className={inp} placeholder="Descrição do bem ou risco segurado" value={d.veiculo || ""} onChange={e => set("veiculo", e.target.value)} />
+              </div>
+            )}
             <div>
               <label className={lbl}>Data de renovação</label>
               <input type="date" className={inp} value={d.dataRenovacao || ""} onChange={e => set("dataRenovacao", e.target.value)} />
@@ -1402,10 +1424,58 @@ function PainelSinistros({ cards, onCard }) {
             </div>
           )}
 
-          <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
-            <input type="checkbox" className="w-4 h-4 rounded accent-blue-600" checked={!!d.etiquetaSegfy} onChange={e => set("etiquetaSegfy", e.target.checked)} />
-            <Tag size={14} className="text-blue-500" /> Marcado como enviado ao Segfy
-          </label>
+          {RAMOS_IMOVEL.includes(d.tipoSeguro) && (
+            <div className="border border-emerald-200 rounded-xl p-4 bg-emerald-50 space-y-4">
+              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">🏢 Local de risco / bem segurado</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className={lbl}>Endereço (logradouro)</label>
+                  <input className={inp} placeholder="Rua, avenida, quadra..." value={d.imovelLogradouro || ""} onChange={e => set("imovelLogradouro", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Número</label>
+                  <input className={inp} value={d.imovelNumero || ""} onChange={e => set("imovelNumero", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Complemento</label>
+                  <input className={inp} placeholder="Sala, bloco, andar..." value={d.imovelComplemento || ""} onChange={e => set("imovelComplemento", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Bairro</label>
+                  <input className={inp} value={d.imovelBairro || ""} onChange={e => set("imovelBairro", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>CEP</label>
+                  <input className={inp} placeholder="00000-000" value={d.imovelCep || ""} onChange={e => set("imovelCep", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Cidade</label>
+                  <input className={inp} value={d.imovelCidade || ""} onChange={e => set("imovelCidade", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>UF</label>
+                  <input className={inp} maxLength={2} placeholder="DF" value={d.imovelUf || ""} onChange={e => set("imovelUf", e.target.value.toUpperCase())} />
+                </div>
+                <div className="col-span-2">
+                  <label className={lbl}>Atividade / ocupação</label>
+                  <input className={inp} placeholder="Ex: Escritório, Shopping, Residência..." value={d.imovelAtividade || ""} onChange={e => set("imovelAtividade", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Tipo de bem</label>
+                  <select className={inp} value={d.imovelTipo || ""} onChange={e => set("imovelTipo", e.target.value)}>
+                    <option value="">Selecione</option>
+                    <option>Prédio</option>
+                    <option>Conteúdo</option>
+                    <option>Prédio e Conteúdo</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={lbl}>Valor em risco (R$)</label>
+                  <input type="number" className={inp} placeholder="Valor declarado" value={d.imovelValorRisco || ""} onChange={e => set("imovelValorRisco", e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
 
           {d.status === "emitida" && (
             <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
