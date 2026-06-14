@@ -167,7 +167,8 @@ function DetalheApolice({ a }) {
     { l: "Mês referência",   v: a.mes_referencia },
   ].filter(({ v }) => v);
 
-  const autoCampos = [
+  const ehAuto = norm(a.tipo_seguro) === "AUTOMOVEL" || norm(a.tipo_seguro).startsWith("AUTO");
+  const autoCampos = !ehAuto ? [] : [
     { l: "Placa",            v: a.auto_placa },
     { l: "Modelo",           v: a.auto_modelo },
     { l: "Ano fab/mod",      v: a.auto_ano_fab && a.auto_ano_mod ? `${a.auto_ano_fab}/${a.auto_ano_mod}` : null },
