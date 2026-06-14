@@ -100,6 +100,7 @@ const maskPhone = (v) => {
 
 // ── Etiquetas em camadas ──────────────────────────────────────
 const RAMOS_IMOVEL = ["EMPRESARIAL","RESIDENCIAL","CONDOMÍNIO","FIANÇA LOCATÍCIA","RC OBRAS","RISCO DE ENGENHARIA","RURAL"];
+const RAMOS_VIDA = ["VIDA INDIVIDUAL","VIDA EM GRUPO","ACIDENTES PESSOAIS"];
 
 const SITUACOES = ["Cancelada","Endosso","Não Renovada","Protocolado","Recusada","Renov. Congênere","Renovação","Seguro Novo","Sem Negócio"];
 const PAGAMENTOS = ["Boleto","Cartão de Crédito","Débito em Conta","Link de Pagamento","PIX"];
@@ -203,6 +204,10 @@ function mapRow(r) {
     imovelAtividade:   r.imovel_atividade || null,
     imovelTipo:        r.imovel_tipo || null,
     imovelValorRisco:  r.imovel_valor_risco || null,
+    vidaCapitalMorte:     r.vida_capital_morte || null,
+    vidaCapitalInvalidez: r.vida_capital_invalidez || null,
+    vidaCapitalFuneral:   r.vida_capital_funeral || null,
+    vidaBeneficiarios:    r.vida_beneficiarios || [],
   };
 }
 
@@ -295,6 +300,10 @@ async function upsertCard(card) {
     imovel_atividade:   card.imovelAtividade || null,
     imovel_tipo:        card.imovelTipo || null,
     imovel_valor_risco: card.imovelValorRisco ? Number(card.imovelValorRisco) : null,
+    vida_capital_morte:     card.vidaCapitalMorte ? Number(card.vidaCapitalMorte) : null,
+    vida_capital_invalidez: card.vidaCapitalInvalidez ? Number(card.vidaCapitalInvalidez) : null,
+    vida_capital_funeral:   card.vidaCapitalFuneral ? Number(card.vidaCapitalFuneral) : null,
+    vida_beneficiarios:     card.vidaBeneficiarios || [],
   };
   const { error } = await supabase.from("renovacoes").upsert(row);
   if (error) console.error("Erro ao salvar:", error);
@@ -1066,6 +1075,10 @@ function PainelSinistros({ cards, onCard }) {
     }
   };
 
+  const addBeneficiario = () => set("vidaBeneficiarios", [...(d.vidaBeneficiarios || []), { id: genId(), nome: "", parentesco: "", cpf: "", percentual: "" }]);
+  const removeBeneficiario = (id) => set("vidaBeneficiarios", (d.vidaBeneficiarios || []).filter(b => b.id !== id));
+  const updateBeneficiario = (id, campo, valor) => set("vidaBeneficiarios", (d.vidaBeneficiarios || []).map(b => b.id === id ? { ...b, [campo]: valor } : b));
+
   // Sync card prop changes (e.g. after handleApoliceAnexada updates selected)
   useEffect(() => {
     setD(prev => ({ ...prev, status: card.status, apoliceAnexada: card.apoliceAnexada }));
@@ -1274,7 +1287,7 @@ function PainelSinistros({ cards, onCard }) {
                 {CANAIS.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
-            {d.tipoSeguro !== "AUTOMÓVEL" && !RAMOS_IMOVEL.includes(d.tipoSeguro) && (
+            {d.tipoSeguro !== "AUTOMÓVEL" && !RAMOS_IMOVEL.includes(d.tipoSeguro) && !RAMOS_VIDA.includes(d.tipoSeguro) && (
               <div className="col-span-2">
                 <label className={lbl}>Bem segurado / descrição</label>
                 <input className={inp} placeholder="Descrição do bem ou risco segurado" value={d.veiculo || ""} onChange={e => set("veiculo", e.target.value)} />
@@ -1473,6 +1486,72 @@ function PainelSinistros({ cards, onCard }) {
                   <label className={lbl}>Valor em risco (R$)</label>
                   <input type="number" className={inp} placeholder="Valor declarado" value={d.imovelValorRisco || ""} onChange={e => set("imovelValorRisco", e.target.value)} />
                 </div>
+              </div>
+            </div>
+          )}
+
+          {RAMOS_VIDA.includes(d.tipoSeguro) && (
+            <div className="border border-rose-200 rounded-xl p-4 bg-rose-50 space-y-4">
+              <p className="text-xs font-semibold text-rose-700 uppercase tracking-wide">❤️ Dados do seguro de vida / pessoas</p>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className={lbl}>Capital morte (R$)</label>
+                  <input type="number" className={inp} placeholder="0,00" value={d.vidaCapitalMorte || ""} onChange={e => set("vidaCapitalMorte", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Capital invalidez (R$)</label>
+                  <input type="number" className={inp} placeholder="0,00" value={d.vidaCapitalInvalidez || ""} onChange={e => set("vidaCapitalInvalidez", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Assistência funeral (R$)</label>
+                  <input type="number" className={inp} placeholder="0,00" value={d.vidaCapitalFuneral || ""} onChange={e => set("vidaCapitalFuneral", e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className={lbl}>Beneficiários</label>
+                  <button onClick={addBeneficiario} className="flex items-center gap-1 text-xs text-rose-700 hover:text-rose-900 font-semibold transition-colors">
+                    <Plus size={13} /> Adicionar beneficiário
+                  </button>
+                </div>
+                {(d.vidaBeneficiarios || []).length === 0 ? (
+                  <p className="text-xs text-slate-400 py-2">Nenhum beneficiário cadastrado.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(d.vidaBeneficiarios || []).map(b => (
+                      <div key={b.id} className="bg-white border border-rose-200 rounded-lg p-3 grid grid-cols-12 gap-2 items-end">
+                        <div className="col-span-4">
+                          <label className="text-xs text-slate-400">Nome</label>
+                          <input className={inp} value={b.nome || ""} onChange={e => updateBeneficiario(b.id, "nome", e.target.value)} />
+                        </div>
+                        <div className="col-span-3">
+                          <label className="text-xs text-slate-400">Parentesco</label>
+                          <input className={inp} placeholder="Filho(a), Cônjuge..." value={b.parentesco || ""} onChange={e => updateBeneficiario(b.id, "parentesco", e.target.value)} />
+                        </div>
+                        <div className="col-span-3">
+                          <label className="text-xs text-slate-400">CPF</label>
+                          <input className={inp} value={b.cpf || ""} onChange={e => updateBeneficiario(b.id, "cpf", maskCpfCnpj(e.target.value))} />
+                        </div>
+                        <div className="col-span-1">
+                          <label className="text-xs text-slate-400">%</label>
+                          <input type="number" className={inp} value={b.percentual || ""} onChange={e => updateBeneficiario(b.id, "percentual", e.target.value)} />
+                        </div>
+                        <div className="col-span-1 flex justify-center">
+                          <button onClick={() => removeBeneficiario(b.id)} className="text-slate-300 hover:text-red-500 pb-2"><Trash2 size={16} /></button>
+                        </div>
+                      </div>
+                    ))}
+                    {(() => {
+                      const soma = (d.vidaBeneficiarios || []).reduce((s, b) => s + (Number(b.percentual) || 0), 0);
+                      if (soma === 0) return null;
+                      return (
+                        <div className={`text-xs font-semibold text-right pr-2 ${soma === 100 ? "text-emerald-600" : "text-amber-600"}`}>
+                          Total: {soma}%{soma !== 100 ? " (deve somar 100%)" : " ✓"}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
           )}
