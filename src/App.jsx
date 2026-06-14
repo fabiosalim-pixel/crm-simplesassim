@@ -2503,14 +2503,15 @@ export default function App() {
   };
 
   const handleSave = async (updated) => {
-    const prev_card = cards.find(c => c.id === updated.id);
-    if (updated.status === "transmitida" && prev_card?.status !== "transmitida" && !updated.transmitidaEm) {
-      updated = { ...updated, transmitidaEm: new Date().toISOString() };
-    }
     await upsertCard(updated);
-    setCards(prev => prev.map(c => c.id === updated.id ? updated : c));
+    if (updated.arquivado) {
+      setCards(prev => prev.filter(c => c.id !== updated.id));
+    } else {
+      setCards(prev => prev.map(c => c.id === updated.id ? updated : c));
+    }
     setSelected(null);
   };
+};
 
   const handleDelete = async (id) => {
     await deleteCard(id);
