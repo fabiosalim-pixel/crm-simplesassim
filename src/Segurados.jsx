@@ -167,7 +167,7 @@ function DetalheApolice({ a }) {
     { l: "Mês referência",   v: a.mes_referencia },
   ].filter(({ v }) => v);
 
-  const ehAuto = norm(a.tipo_seguro) === "AUTOMOVEL" || norm(a.tipo_seguro).startsWith("AUTO");
+  const ehAuto = norm(a.tipo_seguro || "").startsWith("AUTO");
   const autoCampos = !ehAuto ? [] : [
     { l: "Placa",            v: a.auto_placa },
     { l: "Modelo",           v: a.auto_modelo },
