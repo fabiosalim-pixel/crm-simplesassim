@@ -404,7 +404,9 @@ async function searchClientes(q) {
 }
 
 async function findOrCreateCliente({ nome, cpfCnpj, telefone, email }) {
-  const normCpf = (cpfCnpj || "").replace(/\D/g, "");
+  // Normalização robusta: só dígitos; se vier com zero a mais, mantém os 14 últimos (CNPJ) / 11 (CPF)
+  let normCpf = (cpfCnpj || "").replace(/\D/g, "");
+  if (normCpf.length > 14) normCpf = normCpf.slice(-14);
   if (normCpf) {
     const { data: existing } = await supabase
       .from("clientes").select("id")
