@@ -2654,7 +2654,13 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [clienteModal, setClienteModal] = useState(null);
   const [importModal, setImportModal] = useState(false);
+  const [toast, setToast] = useState(null);
   const searchRef = useRef(null);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -2718,10 +2724,13 @@ export default function App() {
     await upsertCard(updated);
     if (recemArquivado) {
       setCards(prev => prev.filter(c => c.id !== updated.id));
+      setSelected(null);
     } else {
       setCards(prev => prev.map(c => c.id === updated.id ? updated : c));
+      const camposIgnorar = ["followUps","sinistros","endossos","historicoCiclos","criadoEm","arquivadoEm","transmitidaEm"];
+      const qtd = anterior ? Object.keys(updated).filter(k => !camposIgnorar.includes(k) && JSON.stringify(updated[k]) !== JSON.stringify(anterior[k])).length : 0;
+      showToast(`✅ ${qtd > 0 ? `${qtd} campo${qtd !== 1 ? "s" : ""} atualizado${qtd !== 1 ? "s" : ""}` : "Card salvo"} com sucesso.`);
     }
-    setSelected(null);
   };
   const handleDelete = async (id) => {
     await deleteCard(id);
@@ -3011,6 +3020,11 @@ export default function App() {
       {addStage && <AddModal initialStage={addStage} onClose={() => setAddStage(null)} onAdd={handleAdd} />}
       {clienteModal && <ClienteModal clienteId={clienteModal} onClose={() => setClienteModal(null)} onAbrirCard={(c) => { setClienteModal(null); setSelected(c); }} />}
       {importModal && <ImportModal onClose={() => setImportModal(false)} onAdd={handleAdd} />}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] bg-slate-800 text-white text-sm font-medium px-5 py-3 rounded-xl shadow-xl flex items-center gap-2 animate-fade-in">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
