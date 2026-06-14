@@ -329,6 +329,72 @@ function ApolicesExpandiveis({ aps, ativas }) {
   );
 }
 
+const SN_STATUS_COR = {
+  "Aberto":               "bg-red-100 text-red-700",
+  "Documentação":         "bg-amber-100 text-amber-700",
+  "Aguardando Seguradora":"bg-blue-100 text-blue-700",
+  "Em Regulação":         "bg-violet-100 text-violet-700",
+  "Encerrado":            "bg-emerald-100 text-emerald-700",
+};
+
+function SinistrosCliente({ aps }) {
+  const todos = aps.flatMap((a) =>
+    (a.sinistros || []).map((s) => ({ ...s, tipo_seguro: a.tipo_seguro, seguradora: a.seguradora, apolice_id: a.id }))
+  );
+  const abertos = todos.filter((s) => s.status !== "Encerrado");
+  const encerrados = todos.filter((s) => s.status === "Encerrado");
+  const [verEncerrados, setVerEncerrados] = useState(false);
+  const lista = verEncerrados ? todos : abertos;
+
+  if (todos.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <AlertTriangle size={15} className="text-red-500" />
+          <h2 className="text-sm font-semibold text-slate-700">Sinistros</h2>
+          {abertos.length > 0 && (
+            <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">
+              {abertos.length} aberto{abertos.length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+        {encerrados.length > 0 && (
+          <button onClick={() => setVerEncerrados((v) => !v)}
+            className="text-xs text-slate-400 hover:text-slate-600">
+            {verEncerrados ? "Ocultar encerrados" : `Ver encerrados (${encerrados.length})`}
+          </button>
+        )}
+      </div>
+      <div className="space-y-2">
+        {lista.map((s) => (
+          <div key={s.id} className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-slate-700">{s.tipo}</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${SN_STATUS_COR[s.status] || "bg-slate-100 text-slate-500"}`}>{s.status}</span>
+                <span className="text-xs text-slate-400">{s.tipo_seguro} · {s.seguradora}</span>
+              </div>
+              <div className="text-xs text-slate-400 mt-0.5 space-y-0.5">
+                {s.protocolo && <span className="mr-3">Protocolo: {s.protocolo}</span>}
+                {s.dataOcorrencia && <span className="mr-3">Ocorrência: {fmtData(s.dataOcorrencia)}</span>}
+                {s.dataPrevistaResolucao && <span className="mr-3">Previsão: {fmtData(s.dataPrevistaResolucao)}</span>}
+              </div>
+              {s.descricao && <div className="text-xs text-slate-500 mt-1">{s.descricao}</div>}
+              {(s.contatos || []).length > 0 && (
+                <div className="mt-1.5 text-xs text-slate-400">
+                  Último contato: {fmtData((s.contatos[s.contatos.length - 1]).data)} — {(s.contatos[s.contatos.length - 1]).descricao}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState(cliente);
@@ -509,6 +575,9 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
           <div className="mt-3 text-xs text-slate-400">Já possui: {possui.join(" · ")}</div>
         )}
       </div>
+
+      {/* Sinistros do cliente */}
+      <SinistrosCliente aps={aps} />
 
       {/* Histórico de apólices */}
       <ApolicesExpandiveis aps={aps} ativas={ativas} />
