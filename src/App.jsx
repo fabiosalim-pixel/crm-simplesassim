@@ -101,6 +101,7 @@ const maskPhone = (v) => {
 // ── Etiquetas em camadas ──────────────────────────────────────
 const RAMOS_IMOVEL = ["EMPRESARIAL","RESIDENCIAL","CONDOMÍNIO","FIANÇA LOCATÍCIA","RC OBRAS","RISCO DE ENGENHARIA","RURAL"];
 const RAMOS_VIDA = ["VIDA INDIVIDUAL","VIDA EM GRUPO","ACIDENTES PESSOAIS"];
+const RAMOS_EQUIP = ["BIKE","EQUIPAMENTOS PORTÁTEIS"];
 
 const SITUACOES = ["Cancelada","Endosso","Não Renovada","Protocolado","Recusada","Renov. Congênere","Renovação","Seguro Novo","Sem Negócio"];
 const PAGAMENTOS = ["Boleto","Cartão de Crédito","Débito em Conta","Link de Pagamento","PIX"];
@@ -208,6 +209,12 @@ function mapRow(r) {
     vidaCapitalInvalidez: r.vida_capital_invalidez || null,
     vidaCapitalFuneral:   r.vida_capital_funeral || null,
     vidaBeneficiarios:    r.vida_beneficiarios || [],
+    equipTipo:           r.equip_tipo || null,
+    equipMarca:          r.equip_marca || null,
+    equipModelo:         r.equip_modelo || null,
+    equipSerie:          r.equip_serie || null,
+    equipDataAquisicao:  r.equip_data_aquisicao || null,
+    equipValorAquisicao: r.equip_valor_aquisicao || null,
   };
 }
 
@@ -304,6 +311,12 @@ async function upsertCard(card) {
     vida_capital_invalidez: card.vidaCapitalInvalidez ? Number(card.vidaCapitalInvalidez) : null,
     vida_capital_funeral:   card.vidaCapitalFuneral ? Number(card.vidaCapitalFuneral) : null,
     vida_beneficiarios:     card.vidaBeneficiarios || [],
+    equip_tipo:            card.equipTipo || null,
+    equip_marca:           card.equipMarca || null,
+    equip_modelo:          card.equipModelo || null,
+    equip_serie:           card.equipSerie || null,
+    equip_data_aquisicao:  card.equipDataAquisicao || null,
+    equip_valor_aquisicao: card.equipValorAquisicao ? Number(card.equipValorAquisicao) : null,
   };
   const { error } = await supabase.from("renovacoes").upsert(row);
   if (error) console.error("Erro ao salvar:", error);
@@ -1287,7 +1300,7 @@ function PainelSinistros({ cards, onCard }) {
                 {CANAIS.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
-            {d.tipoSeguro !== "AUTOMÓVEL" && !RAMOS_IMOVEL.includes(d.tipoSeguro) && !RAMOS_VIDA.includes(d.tipoSeguro) && (
+            {d.tipoSeguro !== "AUTOMÓVEL" && !RAMOS_IMOVEL.includes(d.tipoSeguro) && !RAMOS_VIDA.includes(d.tipoSeguro) && !RAMOS_EQUIP.includes(d.tipoSeguro) && (
               <div className="col-span-2">
                 <label className={lbl}>Bem segurado / descrição</label>
                 <input className={inp} placeholder="Descrição do bem ou risco segurado" value={d.veiculo || ""} onChange={e => set("veiculo", e.target.value)} />
@@ -1552,6 +1565,38 @@ function PainelSinistros({ cards, onCard }) {
                     })()}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {RAMOS_EQUIP.includes(d.tipoSeguro) && (
+            <div className="border border-cyan-200 rounded-xl p-4 bg-cyan-50 space-y-4">
+              <p className="text-xs font-semibold text-cyan-700 uppercase tracking-wide">🚲 Dados do equipamento</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={lbl}>Tipo de equipamento</label>
+                  <input className={inp} placeholder="Bike, notebook, drone..." value={d.equipTipo || ""} onChange={e => set("equipTipo", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Marca</label>
+                  <input className={inp} placeholder="Ex: Scott" value={d.equipMarca || ""} onChange={e => set("equipMarca", e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <label className={lbl}>Modelo</label>
+                  <input className={inp} placeholder="Ex: Scott Addict 20 Disc" value={d.equipModelo || ""} onChange={e => set("equipModelo", e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <label className={lbl}>Nº de série / chassi</label>
+                  <input className={inp} value={d.equipSerie || ""} onChange={e => set("equipSerie", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Data de aquisição</label>
+                  <input type="date" className={inp} value={d.equipDataAquisicao || ""} onChange={e => set("equipDataAquisicao", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Valor de aquisição (R$)</label>
+                  <input type="number" className={inp} placeholder="0,00" value={d.equipValorAquisicao || ""} onChange={e => set("equipValorAquisicao", e.target.value)} />
+                </div>
               </div>
             </div>
           )}
