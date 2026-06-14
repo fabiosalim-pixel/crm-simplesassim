@@ -149,6 +149,43 @@ function StatusPill({ a }) {
   return <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>{txt}</span>;
 }
 
+const TIPO_LABEL = {
+  proposta: "Proposta", apolice: "Apólice", nf: "Nota Fiscal",
+  laudo: "Laudo de Vistoria", cnh: "CNH", crlv: "CRLV-e",
+};
+
+function AnexosApolice({ renovacaoId }) {
+  const [docs, setDocs] = useState(null);
+
+  useEffect(() => {
+    supabase.from("documentos").select("*").eq("renovacao_id", renovacaoId)
+      .order("criado_em", { ascending: false })
+      .then(({ data }) => setDocs(data || []));
+  }, [renovacaoId]);
+
+  if (docs === null) return <div className="text-xs text-slate-400 mt-2">Carregando anexos...</div>;
+  if (docs.length === 0) return <div className="text-xs text-slate-400 mt-2">Nenhum anexo vinculado.</div>;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-100">
+      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Anexos</div>
+      <div className="space-y-1.5">
+        {docs.map((doc) => {
+          const { data: { publicUrl } } = supabase.storage.from("documentos").getPublicUrl(doc.storage_path);
+          return (
+            <a key={doc.id} href={publicUrl} target="_blank" rel="noreferrer"
+              className="flex items-center gap-2 text-xs text-blue-600 hover:text-blue-800 hover:underline">
+              <FileText size={12} className="flex-shrink-0" />
+              <span className="font-medium">{TIPO_LABEL[doc.tipo] || doc.tipo}</span>
+              <span className="text-slate-400 truncate">{doc.nome_arquivo}</span>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DetalheApolice({ a }) {
   const comissaoValor = (Number(a.premio_liquido || 0) * Number(a.percentual_comissao || 0)) / 100;
   const campos = [
@@ -200,6 +237,7 @@ function DetalheApolice({ a }) {
           </div>
         </div>
       )}
+      <AnexosApolice renovacaoId={a.id} />
     </div>
   );
 }
