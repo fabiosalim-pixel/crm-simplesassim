@@ -2503,16 +2503,16 @@ export default function App() {
   };
 
   const handleSave = async (updated) => {
+    const anterior = cards.find(c => c.id === updated.id);
+    const recemArquivado = updated.arquivado && anterior && !anterior.arquivado;
     await upsertCard(updated);
-    if (updated.arquivado) {
+    if (recemArquivado) {
       setCards(prev => prev.filter(c => c.id !== updated.id));
     } else {
       setCards(prev => prev.map(c => c.id === updated.id ? updated : c));
     }
     setSelected(null);
   };
-};
-
   const handleDelete = async (id) => {
     await deleteCard(id);
     setCards(prev => prev.filter(c => c.id !== id));
