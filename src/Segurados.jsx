@@ -149,6 +149,112 @@ function StatusPill({ a }) {
   return <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>{txt}</span>;
 }
 
+function DetalheApolice({ a }) {
+  const comissaoValor = (Number(a.premio_liquido || 0) * Number(a.percentual_comissao || 0)) / 100;
+  const campos = [
+    { l: "Nº Apólice",       v: a.apolice_nova },
+    { l: "Nº Proposta",      v: a.proposta },
+    { l: "Seguradora",       v: a.seguradora },
+    { l: "Ramo",             v: a.tipo_seguro },
+    { l: "Situação",         v: a.etiqueta_situacao },
+    { l: "Vigência fim",     v: fmtData(a.data_renovacao) },
+    { l: "Prêmio total",     v: fmtBRL(a.valor) },
+    { l: "Prêmio líquido",   v: a.premio_liquido ? fmtBRL(a.premio_liquido) : null },
+    { l: "Comissão (%)",     v: a.percentual_comissao ? `${a.percentual_comissao}%` : null },
+    { l: "Comissão (R$)",    v: comissaoValor > 0 ? fmtBRL(comissaoValor) : null },
+    { l: "Pagamento",        v: a.etiqueta_pagamento },
+    { l: "Canal/Origem",     v: a.etiqueta_canal },
+    { l: "Mês referência",   v: a.mes_referencia },
+  ].filter(({ v }) => v);
+
+  const autoCampos = [
+    { l: "Placa",            v: a.auto_placa },
+    { l: "Modelo",           v: a.auto_modelo },
+    { l: "Ano fab/mod",      v: a.auto_ano_fab && a.auto_ano_mod ? `${a.auto_ano_fab}/${a.auto_ano_mod}` : null },
+    { l: "Segurado",         v: a.auto_nome_segurado },
+    { l: "CPF segurado",     v: a.auto_cpf_segurado },
+    { l: "Condutor",         v: a.auto_condutor },
+  ].filter(({ v }) => v);
+
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-100 space-y-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
+        {campos.map(({ l, v }) => (
+          <div key={l}>
+            <div className="text-xs text-slate-400">{l}</div>
+            <div className="text-xs font-medium text-slate-700">{v}</div>
+          </div>
+        ))}
+      </div>
+      {autoCampos.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Veículo / Condutor</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
+            {autoCampos.map(({ l, v }) => (
+              <div key={l}>
+                <div className="text-xs text-slate-400">{l}</div>
+                <div className="text-xs font-medium text-slate-700">{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ApolicesExpandiveis({ aps, ativas }) {
+  const [aberto, setAberto] = useState(null);
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+      <h2 className="text-sm font-semibold text-slate-700 mb-3">
+        Histórico de apólices{" "}
+        <span className="text-slate-400 font-normal">
+          ({aps.length} · {ativas} vigente{ativas !== 1 ? "s" : ""})
+        </span>
+      </h2>
+      {aps.length === 0 ? (
+        <div className="text-sm text-slate-400 py-6 text-center">Nenhuma apólice registrada para este cliente.</div>
+      ) : (
+        <div className="space-y-2">
+          {aps.map((a) => {
+            const exp = aberto === a.id;
+            return (
+              <div key={a.id}
+                className={`rounded-lg border transition-colors ${exp ? "border-slate-300 bg-slate-50" : "border-slate-100 bg-white"}`}>
+                <button
+                  onClick={() => setAberto(exp ? null : a.id)}
+                  className="w-full flex items-center gap-3 p-3 text-left">
+                  <span className={`text-slate-400 transition-transform flex-shrink-0 ${exp ? "rotate-90" : ""}`}>▶</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-slate-800 truncate">
+                      {a.tipo_seguro || "—"} · {a.seguradora || "—"}
+                    </div>
+                    <div className="text-xs text-slate-400 truncate">
+                      Vencimento: {fmtData(a.data_renovacao)}
+                      {a.apolice_nova ? ` · Apólice ${a.apolice_nova}` : ""}
+                      {a.proposta ? ` · Proposta ${a.proposta}` : ""}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-2">
+                    <div className="text-sm text-slate-600">{fmtBRL(a.valor)}</div>
+                    <StatusPill a={a} />
+                  </div>
+                </button>
+                {exp && (
+                  <div className="px-4 pb-4">
+                    <DetalheApolice a={a} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState(cliente);
@@ -331,31 +437,7 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
       </div>
 
       {/* Histórico de apólices */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-        <h2 className="text-sm font-semibold text-slate-700 mb-3">
-          Histórico de apólices <span className="text-slate-400 font-normal">({aps.length} · {ativas} vigente{ativas !== 1 ? "s" : ""})</span>
-        </h2>
-        {aps.length === 0 ? (
-          <div className="text-sm text-slate-400 py-6 text-center">Nenhuma apólice registrada para este cliente.</div>
-        ) : (
-          <div className="space-y-2">
-            {aps.map((a) => (
-              <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-slate-800 truncate">{a.tipo_seguro || "—"} · {a.seguradora || "—"}</div>
-                  <div className="text-xs text-slate-400 truncate">
-                    Vencimento: {fmtData(a.data_renovacao)}{a.apolice_nova ? ` · Apólice ${a.apolice_nova}` : ""}
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-sm text-slate-600">{fmtBRL(a.valor)}</div>
-                  <StatusPill a={a} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <ApolicesExpandiveis aps={aps} ativas={ativas} />
     </div>
   );
 }
