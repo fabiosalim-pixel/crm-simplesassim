@@ -102,6 +102,7 @@ const maskPhone = (v) => {
 const RAMOS_IMOVEL = ["EMPRESARIAL","RESIDENCIAL","CONDOMÍNIO","FIANÇA LOCATÍCIA","RC OBRAS","RISCO DE ENGENHARIA","RURAL"];
 const RAMOS_VIDA = ["VIDA INDIVIDUAL","VIDA EM GRUPO","ACIDENTES PESSOAIS"];
 const RAMOS_EQUIP = ["BIKE","EQUIPAMENTOS PORTÁTEIS"];
+const RAMOS_VIAGEM = ["SEGURO VIAGEM"];
 
 const SITUACOES = ["Cancelada","Endosso","Não Renovada","Protocolado","Recusada","Renov. Congênere","Renovação","Seguro Novo","Sem Negócio"];
 const PAGAMENTOS = ["Boleto","Cartão de Crédito","Débito em Conta","Link de Pagamento","PIX"];
@@ -215,6 +216,12 @@ function mapRow(r) {
     equipSerie:          r.equip_serie || null,
     equipDataAquisicao:  r.equip_data_aquisicao || null,
     equipValorAquisicao: r.equip_valor_aquisicao || null,
+    viagemDestino:     r.viagem_destino || null,
+    viagemOrigem:      r.viagem_origem || null,
+    viagemMotivo:      r.viagem_motivo || null,
+    viagemDataIda:     r.viagem_data_ida || null,
+    viagemDataVolta:   r.viagem_data_volta || null,
+    viagemFaixaEtaria: r.viagem_faixa_etaria || null,
   };
 }
 
@@ -317,6 +324,12 @@ async function upsertCard(card) {
     equip_serie:           card.equipSerie || null,
     equip_data_aquisicao:  card.equipDataAquisicao || null,
     equip_valor_aquisicao: card.equipValorAquisicao ? Number(card.equipValorAquisicao) : null,
+    viagem_destino:      card.viagemDestino || null,
+    viagem_origem:       card.viagemOrigem || null,
+    viagem_motivo:       card.viagemMotivo || null,
+    viagem_data_ida:     card.viagemDataIda || null,
+    viagem_data_volta:   card.viagemDataVolta || null,
+    viagem_faixa_etaria: card.viagemFaixaEtaria || null,
   };
   const { error } = await supabase.from("renovacoes").upsert(row);
   if (error) console.error("Erro ao salvar:", error);
@@ -1300,7 +1313,7 @@ function PainelSinistros({ cards, onCard }) {
                 {CANAIS.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
-            {d.tipoSeguro !== "AUTOMÓVEL" && !RAMOS_IMOVEL.includes(d.tipoSeguro) && !RAMOS_VIDA.includes(d.tipoSeguro) && !RAMOS_EQUIP.includes(d.tipoSeguro) && (
+            {d.tipoSeguro !== "AUTOMÓVEL" && !RAMOS_IMOVEL.includes(d.tipoSeguro) && !RAMOS_VIDA.includes(d.tipoSeguro) && !RAMOS_EQUIP.includes(d.tipoSeguro) && !RAMOS_VIAGEM.includes(d.tipoSeguro) && (
               <div className="col-span-2">
                 <label className={lbl}>Bem segurado / descrição</label>
                 <input className={inp} placeholder="Descrição do bem ou risco segurado" value={d.veiculo || ""} onChange={e => set("veiculo", e.target.value)} />
@@ -1598,6 +1611,43 @@ function PainelSinistros({ cards, onCard }) {
                   <input type="number" className={inp} placeholder="0,00" value={d.equipValorAquisicao || ""} onChange={e => set("equipValorAquisicao", e.target.value)} />
                 </div>
               </div>
+            </div>
+          )}
+
+          {RAMOS_VIAGEM.includes(d.tipoSeguro) && (
+            <div className="border border-teal-200 rounded-xl p-4 bg-teal-50 space-y-4">
+              <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide">✈️ Dados da viagem</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={lbl}>Origem</label>
+                  <input className={inp} placeholder="Ex: Brasil" value={d.viagemOrigem || ""} onChange={e => set("viagemOrigem", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Destino</label>
+                  <input className={inp} placeholder="Ex: Portugal, França" value={d.viagemDestino || ""} onChange={e => set("viagemDestino", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Data de ida</label>
+                  <input type="date" className={inp} value={d.viagemDataIda || ""} onChange={e => set("viagemDataIda", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Data de volta</label>
+                  <input type="date" className={inp} value={d.viagemDataVolta || ""} onChange={e => set("viagemDataVolta", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Motivo da viagem</label>
+                  <input className={inp} placeholder="Turismo/Lazer, Trabalho..." value={d.viagemMotivo || ""} onChange={e => set("viagemMotivo", e.target.value)} />
+                </div>
+                <div>
+                  <label className={lbl}>Faixa etária</label>
+                  <input className={inp} placeholder="Ex: De 50 a 69 anos" value={d.viagemFaixaEtaria || ""} onChange={e => set("viagemFaixaEtaria", e.target.value)} />
+                </div>
+              </div>
+              {d.viagemDataIda && d.viagemDataVolta && (
+                <p className="text-xs text-teal-600 font-medium">
+                  Período: {Math.max(0, Math.round((new Date(d.viagemDataVolta) - new Date(d.viagemDataIda)) / 86400000) + 1)} dia(s)
+                </p>
+              )}
             </div>
           )}
 
