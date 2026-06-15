@@ -3085,7 +3085,7 @@ export default function App() {
     .filter(c => {
       const ms = !search || c.clienteNome?.toLowerCase().includes(search.toLowerCase()) || (c.cpfCnpj || "").includes(search);
       const mm = !filterMonth || (c.dataRenovacao || "").startsWith(filterMonth);
-      const mu = !onlyUrgentes || (() => { const dd = daysUntil(c.dataRenovacao); return dd !== null && dd <= 7 && c.status !== "emitida"; })();
+      const mu = !onlyUrgentes || (() => { const dd = daysUntil(c.dataRenovacao); return dd !== null && dd <= 5 && c.status !== "emitida"; })();
       return ms && mm && mu;
     })
     .sort((a, b) => {
@@ -3094,7 +3094,7 @@ export default function App() {
       return da < db ? -1 : da > db ? 1 : 0;
     });
 
-  const urgentes = cards.filter(c => { const d = daysUntil(c.dataRenovacao); return d !== null && d <= 7 && c.status !== "emitida"; }).length;
+  const urgentes = cards.filter(c => { const d = daysUntil(c.dataRenovacao); return d !== null && d <= 5 && c.status !== "emitida"; }).length;
   const apolicesPendentes = cards.filter(isApoliceAlerta).length;
   const vistoriasPendentes = cards.filter(isVistoriaAlerta).length;
   const boletosPendentes = cards.filter(isBoletoAlerta).length;
@@ -3273,7 +3273,7 @@ export default function App() {
         {onlyUrgentes && (
           <button onClick={() => setOnlyUrgentes(false)}
             className="flex items-center gap-1.5 bg-red-100 border border-red-300 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-red-200 transition-colors">
-            <Bell size={11} /> Só urgentes (≤7 dias) <X size={12} className="ml-0.5" />
+            <Bell size={11} /> Só urgentes (≤5 dias) <X size={12} className="ml-0.5" />
           </button>
         )}
 
