@@ -637,6 +637,156 @@ function ProspeccaoModal({ p, onClose, onSave, onRecuperar }) {
   );
 }
 
+function AniversariantesView({ onVerCliente }) {
+  const [modo, setModo] = useState("hoje");
+  const [clientes, setClientes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busca, setBusca] = useState("");
+
+  const hoje = new Date();
+  const mm = String(hoje.getMonth() + 1).padStart(2, "0");
+  const dd = String(hoje.getDate()).padStart(2, "0");
+
+  const carregarAniversariantes = async (m) => {
+    setLoading(true);
+    const { data, error } = await supabase.from("clientes").select("*").not("data_nascimento", "is", null);
+    if (error) { setLoading(false); return; }
+
+    const hoje2 = new Date();
+    const filtrados = (data || []).filter(c => {
+      if (!c.data_nascimento) return false;
+      const [, cMm, cDd] = c.data_nascimento.split("-");
+      const anivEsteAno = new Date(hoje2.getFullYear(), Number(cMm) - 1, Number(cDd));
+      if (m === "hoje") return cMm === mm && cDd === dd;
+      const diffDias = Math.ceil((anivEsteAno - hoje2) / 86400000);
+      const limite = m === "15" ? 15 : 30;
+      return diffDias >= 0 && diffDias <= limite;
+    });
+
+    filtrados.sort((a, b) => {
+      const [, am, ad] = a.data_nascimento.split("-");
+      const [, bm, bd] = b.data_nascimento.split("-");
+      return (Number(am) * 100 + Number(ad)) - (Number(bm) * 100 + Number(bd));
+    });
+
+    setClientes(filtrados);
+    setLoading(false);
+  };
+
+  useEffect(() => { carregarAniversariantes(modo); }, [modo]);
+
+  const fmtData = (d) => {
+    if (!d) return "";
+    const [, m2, dd2] = d.split("-");
+    return `${dd2}/${m2}`;
+  };
+
+  const calcIdade = (d) => {
+    if (!d) return "";
+    const [y] = d.split("-");
+    return new Date().getFullYear() - Number(y);
+  };
+
+  const msgWhatsApp = (c) =>
+    encodeURIComponent(`Olá ${c.nome.split(" ")[0]}, tudo bem? 🎂 A equipe da Simples Assim deseja um feliz aniversário! Que este novo ano seja repleto de realizações. Um abraço!`);
+
+  const msgEmail = (c) =>
+    encodeURIComponent(`Feliz Aniversário, ${c.nome.split(" ")[0]}! 🎉 A equipe Simples Assim deseja um dia muito especial e um novo ano repleto de conquistas. Um abraço!`);
+
+  const visiveis = clientes.filter(c =>
+    !busca || c.nome?.toLowerCase().includes(busca.toLowerCase())
+  );
+
+  const btnModo = (v, label) => (
+    <button key={v} onClick={() => setModo(v)}
+      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+        modo === v ? "bg-amber-500 text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+      }`}>
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="flex-1 overflow-y-auto p-5" style={{ background: "#F1F2F4" }}>
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
+        {/* Cabeçalho */}
+        <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">🎂 Aniversariantes</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{visiveis.length} cliente{visiveis.length !== 1 ? "s" : ""} encontrado{visiveis.length !== 1 ? "s" : ""}</p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {[["hoje","Hoje"], ["15","Próximos 15 dias"], ["30","Próximos 30 dias"]].map(([v, l]) => btnModo(v, l))}
+          </div>
+        </div>
+
+        {/* Busca */}
+        <div className="px-4 py-3 border-b border-slate-100">
+          <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+            placeholder="Buscar por nome..." value={busca} onChange={e => setBusca(e.target.value)} />
+        </div>
+
+        {/* Lista */}
+        {loading ? (
+          <div className="p-8 text-center text-slate-400 text-sm">Carregando...</div>
+        ) : visiveis.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-sm">
+            Nenhum aniversariante {modo === "hoje" ? "hoje" : `nos próximos ${modo} dias`}.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {visiveis.map(c => (
+              <div key={c.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors">
+                {/* Avatar */}
+                <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  {(c.nome || "?")[0]}
+                </div>
+
+                {/* Dados */}
+                <div className="flex-1 min-w-0">
+                  <button onClick={() => onVerCliente && onVerCliente(c.id)}
+                    className="font-semibold text-slate-800 text-sm hover:text-blue-600 text-left truncate block">
+                    {c.nome}
+                  </button>
+                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                    {c.data_nascimento && (
+                      <span className="text-xs text-amber-600 font-semibold">
+                        🎂 {fmtData(c.data_nascimento)} · {calcIdade(c.data_nascimento)} anos
+                      </span>
+                    )}
+                    {c.email && <span className="text-xs text-slate-400 truncate">{c.email}</span>}
+                  </div>
+                </div>
+
+                {/* Ações */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {(c.whatsapp || c.telefone) && (
+                    <a href={`https://wa.me/55${(c.whatsapp || c.telefone).replace(/\D/g, "")}?text=${msgWhatsApp(c)}`}
+                      target="_blank" rel="noreferrer"
+                      className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                        <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.117 1.527 5.847L.057 23.886a.5.5 0 0 0 .612.612l6.101-1.474A11.949 11.949 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.98 0-3.83-.574-5.388-1.563l-.385-.232-3.995.965.982-3.918-.252-.4A9.953 9.953 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+                      </svg>
+                      WhatsApp
+                    </a>
+                  )}
+                  {c.email && (
+                    <a href={`mailto:${c.email}?subject=Feliz%20Aniversário!%20🎂&body=${msgEmail(c)}`}
+                      className="flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                      ✉️ E-mail
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProspeccoesView({ prospeccoes, onUpdate, onRecuperar }) {
   const [sel, setSel] = useState(null);
   return (
@@ -3393,6 +3543,8 @@ export default function App() {
         />
       ) : view === "segurados" ? (
         <Segurados />
+      ) : view === "aniversariantes" ? (
+        <AniversariantesView onVerCliente={(id) => { setView("segurados"); }} />
       ) : view === "pipeline" ? (
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-x-auto">
