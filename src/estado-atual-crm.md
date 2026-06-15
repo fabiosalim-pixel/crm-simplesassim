@@ -1,6 +1,6 @@
 # Estado Atual — CRM Simples Assim
 
-> Atualizado em 14/06/2026. Não editar manualmente.
+> Atualizado em 15/06/2026 (sessão 2). Não editar manualmente.
 
 ---
 
@@ -22,8 +22,8 @@ GitHub: repositório `crm-simplesassim` (Windows, PowerShell).
 ## SEÇÃO 1 — Arquivos do projeto
 
 ### Componentes React ativos
-- `src/App.jsx` — componente principal (~2900 linhas), monolítico
-- `src/Dashboard.jsx` — dashboard com 8 cards + gráfico rosca (mix de carteira)
+- `src/App.jsx` — componente principal (~3600 linhas), monolítico. Inclui `AniversariantesView`.
+- `src/Dashboard.jsx` — dashboard com 4 regiões, seletor de período, cards clicáveis (reescrito 15/06 sessão 2)
 - `src/Segurados.jsx` — área do segurado com ficha completa
 - `src/supabase.js` — cliente Supabase
 
@@ -54,6 +54,31 @@ Colunas principais confirmadas via CSV:
 - `auto_data_nascimento` (date), `auto_condutor`, `auto_cpf_condutor`
 - `auto_nascimento_condutor`, `auto_cep_pernoite`, `auto_tipo_utilizacao`, `auto_condutor_1825`
 - `auto_estado_civil`, `auto_nome_segurado`, `responsavel`
+- **`data_emissao`** (date, add 15/06 sessão 2) — data real de emissão/produção da apólice.
+  Backfill: `arquivado_em::date` onde existia, `atualizado_em::date` como fallback.
+  Gravada automaticamente no `upsertCard` quando `status = 'emitida'`. Marco de produção para o dashboard.
+
+### Blocos estruturados por ramo (adicionados 15/06/2026)
+Substituem o antigo campo único "Veículo/Bem Segurado" (que sumiu para ramos com bloco
+próprio; vira "Bem segurado / descrição" texto livre só para ramos sem bloco).
+Cada bloco aparece condicionalmente conforme `tipo_seguro`. Arrays de ramos no topo do App.jsx:
+`RAMOS_IMOVEL`, `RAMOS_VIDA`, `RAMOS_EQUIP`, `RAMOS_VIAGEM`.
+
+- **Endereço do cliente** (estruturado, substitui `endereco` texto solto — este foi mantido por compat):
+  `endereco_cep`, `endereco_logradouro`, `endereco_numero`, `endereco_complemento`,
+  `endereco_bairro`, `endereco_cidade`, `endereco_uf` (todos text). ViaCEP no campo CEP.
+- **Imóvel** (EMPRESARIAL, RESIDENCIAL, CONDOMÍNIO, FIANÇA LOCATÍCIA, RC OBRAS, RISCO DE ENGENHARIA, RURAL):
+  `imovel_cep`, `imovel_logradouro`, `imovel_numero`, `imovel_complemento`, `imovel_bairro`,
+  `imovel_cidade`, `imovel_uf`, `imovel_atividade`, `imovel_tipo` (text), `imovel_valor_risco` (numeric). ViaCEP no CEP.
+- **Vida/Pessoas** (VIDA INDIVIDUAL, VIDA EM GRUPO, ACIDENTES PESSOAIS):
+  `vida_capital_morte`, `vida_capital_invalidez`, `vida_capital_funeral` (numeric),
+  `vida_beneficiarios` (jsonb: `[{id, nome, parentesco, cpf, percentual}]`). Validador soma % = 100.
+- **Equipamento** (BIKE, EQUIPAMENTOS PORTÁTEIS):
+  `equip_tipo`, `equip_marca`, `equip_modelo`, `equip_serie` (text),
+  `equip_data_aquisicao` (date), `equip_valor_aquisicao` (numeric).
+- **Viagem** (SEGURO VIAGEM):
+  `viagem_destino`, `viagem_origem`, `viagem_motivo`, `viagem_faixa_etaria` (text),
+  `viagem_data_ida`, `viagem_data_volta` (date). Contador de dias automático na UI.
 
 ### Tabela: `clientes`
 Colunas: id, nome, cpf_cnpj, tipo_pessoa, data_nascimento (date), profissao,
@@ -92,19 +117,47 @@ Cria novo card (INSERT) para renovações 30 dias antes do vencimento.
 - Exclui: Não Renovada, Cancelada, Recusada, Sem Negócio, Viagem, RC Obras
 - Agendada via pg_cron: job `reativar-renovacoes-diario`, `0 11 * * *` (08:00 Brasília)
 
-### `dashboard_metrics()` → jsonb
-Retorna: carteira_qtd, carteira_valor, premio_mes, comissao_mes,
-emitidas_mes, total_mes, taxa_renovacao, projecao_comissao_60d,
-perdidos_mes, urgentes_5d, sinistros_abertos, mix_carteira (array por ramo)
+### `dashboard_metrics(p_inicio, p_fim, p_renovar_dias)` → jsonb
+**Versão 2 (15/06 sessão 2)** — parametrizada por período. Substitui versão sem parâmetros (dropada).
+Defaults: `p_inicio = início do mês corrente`, `p_fim = hoje`, `p_renovar_dias = 30`.
+
+Retorna 4 regiões separadas:
+- **Produção (período para trás):** `emitidas_periodo`, `premio_periodo`, `comissao_periodo`,
+  `perdidas_periodo`, `total_periodo`, `periodo_inicio`, `periodo_fim`. Usa `data_emissao`.
+- **Carteira (foto de agora):** `carteira_qtd`, `carteira_valor`, `carteira_comissao`, `mix_carteira`.
+- **A renovar (para frente):** `a_renovar_qtd`, `a_renovar_premio`, `renovar_dias`.
+- **Aniversariantes:** `aniv_hoje`, `aniv_15d`, `aniv_30d`. Lógica MM-DD (ignora ano).
+- **Foto geral:** `sinistros_abertos`, `urgentes_5d`.
+- **Compat. legada:** `premio_mes`, `comissao_mes`, `emitidas_mes`, `total_mes`, `taxa_renovacao`,
+  `perdidos_mes`, `projecao_comissao_60d` (mantidos para não quebrar código antigo).
+- **Correção 15/06 sessão 1:** `sinistros_abertos` filtra `arquivado = false`.
 
 ---
 
-## SEÇÃO 4 — Componente Dashboard.jsx
+## SEÇÃO 4 — Componente Dashboard.jsx (reescrito 15/06 sessão 2)
 
-8 cards de indicadores + gráfico rosca "Mix de Carteira por ramo".
-Chama `supabase.rpc('dashboard_metrics')`.
-Cards: Carteira ativa, Prêmio do mês, Comissão do mês, Taxa de renovação,
-Receita projetada 60d, Perdidos no mês, Sinistros abertos, Urgentes (≤5 dias).
+**4 regiões com seletor de período e cards clicáveis.**
+Chama `supabase.rpc('dashboard_metrics', { p_inicio, p_fim, p_renovar_dias })`.
+Recebe props `onNavigate(view)` e `onFiltro(filtro)` do App.jsx para drill-downs.
+
+### Região 1 — Produção (para trás)
+Seletor: Mês atual / 15 / 30 / 90 dias / intervalo livre (data início → fim).
+Cards clicáveis: Apólices emitidas, Prêmio produzido, Comissões, Taxa de renovação, Perdidos.
+Card informativo: Proj. comissão 60d.
+Drill-down → pipeline filtrado por status.
+
+### Região 2 — Carteira (foto de agora)
+Cards: Apólices vigentes, Comissão da carteira (informativos).
+Cards clicáveis: Sinistros abertos, Urgentes (≤5 dias).
+Gráfico rosca: Mix de carteira por ramo.
+
+### Região 3 — A renovar (para frente)
+Seletor de horizonte: 15 / 60 / 90 dias.
+Bloco clicável violeta: qtd de apólices + prêmio em jogo. Drill-down → pipeline.
+
+### Região 4 — Aniversariantes (para frente)
+Seletor: Hoje / 15 dias / 30 dias.
+Bloco clicável âmbar → tela `AniversariantesView` (view = "aniversariantes").
 
 ---
 
@@ -199,15 +252,49 @@ Coluna fixa 256px à direita do Kanban, scroll próprio.
 7. crosselling — "Crosselling" (roxo claro)
 
 ### Fluxo de arquivamento
-- `handleSave`: se `updated.arquivado && !anterior.arquivado` → remove da lista (some sem F5)
+- `handleSave`: card **NÃO fecha mais ao salvar** (mudança 15/06). Só fecha quando arquivado
+  ou no X. Mostra toast "X campo(s) atualizado(s) com sucesso" (some em 3,5s).
 - `handleArquivar`: `upsertCard` + `setCards(filter)`
 - `handleNaoRenovada`: arquiva + cria prospecção automática
 
+### Campos financeiros (App.jsx, estado 15/06/2026)
+- Prêmio (`valor`) e Prêmio líquido (`premioLiquido`) usam **máscara de moeda BR** (texto "1.583,00").
+  Funções: `maskMoeda` (formata), `moedaParaNumero` (salvar), `numeroParaMoeda` (carregar do banco).
+- Comissão (%) → campo `percentualComissao`. Comissão (R$) calculada e exibida (read-only) = líquido × %.
+- `fmtBRL` corrigido com `maximumFractionDigits: 2` (arredonda em 2 casas).
+
+### Endereço (App.jsx + extract-pdf.js, 15/06/2026)
+- Função `buscaCEP(cep)` → ViaCEP (`https://viacep.com.br/ws/CEP/json/`), gratuito, sem chave, CORS ok.
+  Dispara no `onBlur`. Máscara `maskCEP`. Usado no endereço do cliente e no bloco Imóvel.
+- `extract-pdf.js`: agora extrai endereço do segurado (PASSO 6 + objeto `endereco` no JSON).
+  `handleExtrairDados` preenche `endereco_*` (fill-blank-only).
+
 ### Import de PDF
-- Botão "Importar PDF" → `ImportModal`
-- Extrai dados via API Anthropic (claude-sonnet-4-6)
+- Botão "Importar PDF" → `ImportModal`; extração no endpoint backend `/api/extract-pdf` (extract-pdf.js)
+- Modelo da extração: `claude-haiku-4-5-20251001` (no endpoint). App.jsx menciona sonnet em comentário antigo.
+- Retorna JSON com `segurado`, `endereco` (novo 15/06), `apolice`, `veiculo`, `financeiro`
 - `findOrCreateCliente`: busca por `cpf_cnpj_norm` com norm robusta (últimos 14/11 dígitos)
 - Cria card com `status_pipeline` e `etiqueta_situacao` adequados
+- Backup do endpoint antigo guardado como `api/extract-pdf.js.bak` (não vira rota Vercel)
+
+### AniversariantesView (add 15/06 sessão 2, dentro do App.jsx)
+Tela dedicada acessada via `view = "aniversariantes"` (clique no bloco âmbar do dashboard).
+- Seletor: Hoje / Próximos 15 dias / Próximos 30 dias
+- Busca por nome
+- Lista: avatar inicial, nome clicável (→ Segurados), data de aniversário + idade, e-mail
+- **Botão WhatsApp** — `wa.me/55NUM?text=mensagem pronta de parabéns` (sem API, link direto)
+- **Botão E-mail** — `mailto:` com assunto e mensagem pronta (sem backend)
+- Lógica de filtro: compara MM-DD do `data_nascimento` (ignora ano), correto para qualquer faixa etária
+- Ponte para etapa 2 de comunicação (automação via Resend virá depois)
+
+### Badge "urgente" (topo) e critério de urgência
+- Badge "X urgente(s)" é **clicável** (15/06): leva ao pipeline + ativa filtro `onlyUrgentes`.
+  Chip vermelho "Só urgentes (≤5 dias)" com X para limpar.
+- Critério unificado em **≤5 dias** (badge, filtro e card do dashboard). Bordas dos cards individuais
+  mantêm gradiente próprio (vermelho ≤2, amarelo ≤7).
+
+### Canais de origem (etiqueta_canal)
+Array `CANAIS`: Google, Indicação, Site, **Cliente da Corretora**, **Outros/Não informado** (2 últimos add 15/06).
 
 ---
 
@@ -236,10 +323,14 @@ Tarefas criadas no Asana com contexto técnico:
 2. **10/jul** — E-mail de aviso na reativação automática (Resend + Edge Function)
 3. **15/jul** — Frente 4: paridade de campos com Segfy (vigência início, parcelamento, observações)
 4. **30/jul** — Opção B: campo `linha_apolice` para encadeamento robusto de ciclos
+5. **30/jun** — Visual do CRM (Home, cards, layout de Renovações e Prospecções) — gid 1215699702329897
 
 ### Pendentes não criados no Asana
-- Entrega 4 do módulo sinistros: validar `sinistros_abertos` na `dashboard_metrics()`
-- Ponto 1 do dia 14/06: visual do CRM (Home, cards, layout de Renovações e Prospecções)
+- ~~Entrega 4 do módulo sinistros: validar `sinistros_abertos`~~ ✅ FEITO 15/06 sessão 1
+- ~~Visual do CRM~~ → criado no Asana (item 5 acima)
+- **E-mail automático de aniversário** via Resend — próximo passo da etapa 2 de comunicação
+- **WhatsApp em massa / campanha** — avaliar integração futura (Twilio/Z-API)
+- **Drill-down de sinistros** no dashboard (botão "Sinistros abertos" ainda não tem tela dedicada)
 
 ---
 
@@ -253,6 +344,22 @@ Tarefas criadas no Asana com contexto técnico:
 - **crypto.randomUUID()** para IDs (não usar custom generators)
 - **.env no Windows** — usar `Set-Content` no PowerShell (Notepad salva como .env.txt)
 - **Asana free/Basic** — não expõe custom fields via API (priority não pode ser setada programaticamente)
+- **Blocos por ramo = colunas estruturadas com prefixo** (15/06) — escolhido sobre campo genérico de texto.
+  Incremental: novo ramo de natureza diferente → adiciona bloco sem refazer. Evolução futura possível:
+  mover blocos para jsonb quando a tabela ficar muito larga (não agora).
+- **ViaCEP** (não API Correios, que é paga) — gratuito, sem chave, CORS liberado, chamado do frontend.
+- **Múltiplos carros do mesmo cliente** = múltiplos cards (não um card com vários veículos). Confirmado.
+- **Edição de App.jsx por str_replace tem risco de remover elemento adjacente usado como âncora.**
+  Verificação de integridade obrigatória antes de cada entrega: comparar campos de `mapRow`/`upsertCard`
+  do arquivo recebido vs entregue. (Lição: checkbox Segfy e campos de comissão sumiram em sessões anteriores.)
+- **Dashboard híbrido** (15/06 sessão 2): drill-downs reaproveitam telas existentes (Renovações/Segurados);
+  tela dedicada criada só para Aniversariantes (gatilho de ação de comunicação).
+- **`data_emissao`** = marco de produção (não `arquivado_em`, que pode ter outros motivos).
+  Backfill: `arquivado_em` → `atualizado_em` como fallback. Gravada automaticamente ao emitir.
+- **Aniversariantes** = tela de relacionamento, não de renovação. Gatilho de WhatsApp/e-mail.
+  WhatsApp via link `wa.me` (sem API). E-mail via `mailto:` (sem backend). Automação via Resend no futuro.
+- **Período do dashboard**: produção = para trás (o que foi vendido); a renovar = para frente (esforço futuro).
+  Dois seletores independentes, cada um na sua região. Aniversariantes = para frente (quem vai fazer aniversário).
 
 ---
 

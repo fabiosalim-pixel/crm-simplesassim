@@ -1237,55 +1237,12 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
     };
 
     const SN_STATUS_COR_PILL = {
-  "Aberto":                "bg-red-100 text-red-700",
-  "Documentação":          "bg-amber-100 text-amber-700",
-  "Aguardando Seguradora": "bg-blue-100 text-blue-700",
-  "Em Regulação":          "bg-violet-100 text-violet-700",
-};
+      "Aberto":                "bg-red-100 text-red-700",
+      "Documentação":          "bg-amber-100 text-amber-700",
+      "Aguardando Seguradora": "bg-blue-100 text-blue-700",
+      "Em Regulação":          "bg-violet-100 text-violet-700",
+    };
 
-function PainelSinistros({ cards, onCard }) {
-  const itens = cards.flatMap(c =>
-    (c.sinistros || [])
-      .filter(s => s.status !== "Encerrado")
-      .map(s => ({ ...s, card: c }))
-  ).sort((a, b) => (a.dataOcorrencia || "").localeCompare(b.dataOcorrencia || ""));
-
-  return (
-    <div className="w-64 flex-shrink-0 border-l border-slate-200 bg-slate-50 overflow-y-auto flex flex-col">
-      <div className="px-3 py-2.5 border-b border-slate-200 flex items-center gap-2 bg-white sticky top-0">
-        <AlertTriangle size={13} className="text-red-500 flex-shrink-0" />
-        <span className="text-xs font-semibold text-slate-700">Sinistros abertos</span>
-        {itens.length > 0 && (
-          <span className="ml-auto text-xs bg-red-100 text-red-700 font-bold px-1.5 py-0.5 rounded-full">{itens.length}</span>
-        )}
-      </div>
-      {itens.length === 0 ? (
-        <div className="text-xs text-slate-400 text-center py-8 px-3">Nenhum sinistro aberto.</div>
-      ) : (
-        <div className="p-2 space-y-2">
-          {itens.map(s => (
-            <div key={s.id}
-              onClick={() => onCard(s.card)}
-              className="bg-white rounded-lg border border-slate-200 p-2.5 cursor-pointer hover:border-red-300 hover:shadow-sm transition-all">
-              <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                <span className="text-xs font-semibold text-slate-700">{s.tipo}</span>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${SN_STATUS_COR_PILL[s.status] || "bg-slate-100 text-slate-500"}`}>{s.status}</span>
-              </div>
-              <div className="text-xs text-slate-600 font-medium truncate">{s.card.clienteNome}</div>
-              <div className="text-xs text-slate-400 truncate">{s.card.tipoSeguro} · {s.card.seguradora}</div>
-              {s.protocolo && <div className="text-xs text-slate-400 mt-0.5">Prot: {s.protocolo}</div>}
-              {s.dataPrevistaResolucao && (
-                <div className="text-xs text-slate-400 mt-0.5">
-                  Previsão: {new Date(s.dataPrevistaResolucao + "T00:00:00").toLocaleDateString("pt-BR")}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
     if (data.apolice?.vigenciaFim) updates.dataRenovacao = data.apolice.vigenciaFim;
     if (!d.valor && data.financeiro?.premioTotal) updates.valor = numeroParaMoeda(parseBRLlocal(data.financeiro.premioTotal));
     if (!d.premioLiquido && data.financeiro?.premioLiquido) updates.premioLiquido = numeroParaMoeda(parseBRLlocal(data.financeiro.premioLiquido));
@@ -1315,8 +1272,17 @@ function PainelSinistros({ cards, onCard }) {
       }
     }
     if (Object.keys(updates).length > 0) {
+      // Se for proposta e card ainda em cotações → avança para transmitida automaticamente
+      if (tipo === "proposta" && d.status === "cotacoes") {
+        updates.status = "transmitida";
+        updates.transmitidaEm = new Date().toISOString();
+        updates.etiquetaSituacao = updates.etiquetaSituacao || d.etiquetaSituacao || "Renovação";
+      }
       setD(prev => ({ ...prev, ...updates }));
-      alert("✅ " + Object.keys(updates).length + " campo(s) preenchido(s) com dados do PDF. Revise e salve.");
+      const msg = updates.status === "transmitida"
+        ? `✅ ${Object.keys(updates).length} campo(s) preenchido(s). Card movido para Proposta Transmitida. Revise e salve.`
+        : `✅ ${Object.keys(updates).length} campo(s) preenchido(s) com dados do PDF. Revise e salve.`;
+      alert(msg);
     } else {
       alert("Nenhum campo novo encontrado no documento (campos já preenchidos foram mantidos).");
     }
@@ -3562,7 +3528,7 @@ export default function App() {
         <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
       )}
 
-      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} onApoliceAnexada={() => handleApoliceAnexada(selected.id)} onPropostaAnexada={() => handlePropostaAnexada(selected.id)} onExtrairDados={(data, tipo) => {}} />}
+      {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} onApoliceAnexada={() => handleApoliceAnexada(selected.id)} onPropostaAnexada={() => handlePropostaAnexada(selected.id)} onExtrairDados={(data, tipo) => { setCards(prev => prev.map(c => c.id === selected.id ? { ...c } : c)); }} />}
       {addStage && <AddModal initialStage={addStage} onClose={() => setAddStage(null)} onAdd={handleAdd} />}
       {clienteModal && <ClienteModal clienteId={clienteModal} onClose={() => setClienteModal(null)} onAbrirCard={(c) => { setClienteModal(null); setSelected(c); }} />}
       {importModal && <ImportModal onClose={() => setImportModal(false)} onAdd={handleAdd} />}
