@@ -60,19 +60,7 @@ Buscar na seção "Dados Gerais", "Dados do Segurado", "DADOS DO(A) SEGURADO(A)"
 - email: endereço de e-mail
 - telefone: número de telefone (com DDD)
 
-## PASSO 6 — EXTRAIR ENDEREÇO DO SEGURADO
-
-Buscar o endereço do segurado/proponente (NÃO o do corretor, NÃO o local de risco da empresa quando houver segurado pessoa física). Pode aparecer como "Endereço", "Endereço de Correspondência", "Endereço Residencial":
-- cep: CEP com hífen (ex: "71915-500")
-- logradouro: rua/avenida/quadra SEM o número (ex: "QUADRA 106", "Rua das Flores")
-- numero: número do endereço (ex: "803")
-- complemento: complemento (ex: "LT 04 BL B AP", "APT 207", "Sala 49")
-- bairro: bairro (ex: "NORTE AGUAS CLARAS")
-- cidade: cidade (ex: "BRASILIA")
-- uf: sigla do estado (ex: "DF")
-→ Se algum campo não existir, deixar string vazia ""
-
-## PASSO 7 — EXTRAIR CONDUTOR PRINCIPAL
+## PASSO 6 — EXTRAIR CONDUTOR PRINCIPAL
 
 Buscar na seção "Questionário de avaliação de risco", "DADOS DO PERFIL", "Condutor principal", "Dados do motorista principal" ou equivalente:
 - condutorNome: nome completo em MAIÚSCULAS
@@ -84,7 +72,7 @@ Buscar na seção "Questionário de avaliação de risco", "DADOS DO PERFIL", "C
 
 ⚠️ O condutor pode ser a MESMA pessoa que o segurado ou DIFERENTE. Preencher sempre.
 
-## PASSO 8 — EXTRAIR DADOS DO VEÍCULO
+## PASSO 7 — EXTRAIR DADOS DO VEÍCULO
 
 - placa: placa do veículo (ex: "ABC1D23")
 - chassi: número do chassi
@@ -106,7 +94,7 @@ Buscar na seção "Questionário de avaliação de risco", "DADOS DO PERFIL", "C
   → Se disser "Não" ou "estou ciente que não haverá cobertura" → false
   → Se não houver campo → false
 
-## PASSO 9 — EXTRAIR VIGÊNCIA E OPERAÇÃO
+## PASSO 8 — EXTRAIR VIGÊNCIA E OPERAÇÃO
 
 - vigenciaInicio: início da vigência (YYYY-MM-DD)
 - vigenciaFim: fim da vigência (YYYY-MM-DD)
@@ -117,7 +105,7 @@ Buscar na seção "Questionário de avaliação de risco", "DADOS DO PERFIL", "C
   → Seguro novo/primeiro seguro → "Seguro Novo"
 - classeBonus: número da classe de bônus (ex: "10", "1")
 
-## PASSO 10 — EXTRAIR FINANCEIRO
+## PASSO 9 — EXTRAIR FINANCEIRO
 
 - premioLiquido: valor do prêmio sem IOF (sem "R$")
 - premioTotal: valor total com IOF (sem "R$")
@@ -140,15 +128,6 @@ Retorne APENAS este JSON válido (sem markdown, sem blocos de código, sem texto
     "sexo": "",
     "email": "",
     "telefone": ""
-  },
-  "endereco": {
-    "cep": "",
-    "logradouro": "",
-    "numero": "",
-    "complemento": "",
-    "bairro": "",
-    "cidade": "",
-    "uf": ""
   },
   "apolice": {
     "seguradora": "",

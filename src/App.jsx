@@ -191,6 +191,13 @@ function mapRow(r) {
     telefone:      r.telefone,
     email:         r.email,
     endereco:      r.endereco || null,
+    enderecoCep:         r.endereco_cep || null,
+    enderecoLogradouro:  r.endereco_logradouro || null,
+    enderecoNumero:      r.endereco_numero || null,
+    enderecoComplemento: r.endereco_complemento || null,
+    enderecoBairro:      r.endereco_bairro || null,
+    enderecoCidade:      r.endereco_cidade || null,
+    enderecoUf:          r.endereco_uf || null,
     tipoSeguro:    r.tipo_seguro,
     seguradora:    r.seguradora,
     veiculo:       r.veiculo,
@@ -301,6 +308,13 @@ async function upsertCard(card) {
     telefone:        card.telefone,
     email:           card.email,
     endereco:        card.endereco || null,
+    endereco_cep:         card.enderecoCep || null,
+    endereco_logradouro:  card.enderecoLogradouro || null,
+    endereco_numero:      card.enderecoNumero || null,
+    endereco_complemento: card.enderecoComplemento || null,
+    endereco_bairro:      card.enderecoBairro || null,
+    endereco_cidade:      card.enderecoCidade || null,
+    endereco_uf:          card.enderecoUf || null,
     tipo_seguro:     card.tipoSeguro,
     seguradora:      card.seguradora,
     veiculo:         card.veiculo,
@@ -1126,6 +1140,16 @@ function PainelSinistros({ cards, onCard }) {
     if (!d.seguradora && data.apolice?.seguradora) updates.seguradora = data.apolice.seguradora;
     if (!d.proposta && data.apolice?.numeroProposta) updates.proposta = data.apolice.numeroProposta;
     if (!d.apolice && data.apolice?.numeroApolice) updates.apolice = data.apolice.numeroApolice;
+    if (data.endereco) {
+      const e = data.endereco;
+      if (!d.enderecoCep && e.cep) updates.enderecoCep = maskCEP(e.cep);
+      if (!d.enderecoLogradouro && e.logradouro) updates.enderecoLogradouro = e.logradouro;
+      if (!d.enderecoNumero && e.numero) updates.enderecoNumero = e.numero;
+      if (!d.enderecoComplemento && e.complemento) updates.enderecoComplemento = e.complemento;
+      if (!d.enderecoBairro && e.bairro) updates.enderecoBairro = e.bairro;
+      if (!d.enderecoCidade && e.cidade) updates.enderecoCidade = e.cidade;
+      if (!d.enderecoUf && e.uf) updates.enderecoUf = e.uf;
+    }
     if (tipo === "apolice_endosso" && data.financeiro?.premioLiquido) {
       const delta = parseBRLlocal(data.financeiro.premioLiquido);
       if (delta) {
@@ -1294,20 +1318,46 @@ function PainelSinistros({ cards, onCard }) {
               <label className={lbl}>E-mail</label>
               <input className={inp} value={d.email || ""} onChange={e => set("email", e.target.value)} />
             </div>
-            <div className="col-span-2 grid grid-cols-3 gap-4">
-              <div>
-                <label className={lbl}>CEP</label>
-                <input className={inp} placeholder="00000-000" value={d.cepBusca || ""}
-                  onChange={e => set("cepBusca", maskCEP(e.target.value))}
-                  onBlur={async e => {
-                    const r = await buscaCEP(e.target.value);
-                    if (r) set("endereco", `${r.logradouro} - ${r.bairro}, ${r.cidade}/${r.uf}`);
-                  }} />
-              </div>
-              <div className="col-span-2">
-                <label className={lbl}>Endereço</label>
-                <input className={inp} value={d.endereco || ""} onChange={e => set("endereco", e.target.value)}
-                  placeholder="Rua, número, bairro, cidade, UF" />
+            <div className="col-span-2 border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">📍 Endereço do cliente</p>
+              <div className="grid grid-cols-6 gap-3">
+                <div className="col-span-2">
+                  <label className={lbl}>CEP</label>
+                  <input className={inp} placeholder="00000-000" value={d.enderecoCep || ""}
+                    onChange={e => set("enderecoCep", maskCEP(e.target.value))}
+                    onBlur={async e => {
+                      const r = await buscaCEP(e.target.value);
+                      if (r) setD(prev => ({ ...prev,
+                        enderecoLogradouro: r.logradouro || prev.enderecoLogradouro,
+                        enderecoBairro: r.bairro || prev.enderecoBairro,
+                        enderecoCidade: r.cidade || prev.enderecoCidade,
+                        enderecoUf: r.uf || prev.enderecoUf }));
+                    }} />
+                </div>
+                <div className="col-span-4">
+                  <label className={lbl}>Logradouro</label>
+                  <input className={inp} value={d.enderecoLogradouro || ""} onChange={e => set("enderecoLogradouro", e.target.value)} placeholder="Rua, avenida, quadra..." />
+                </div>
+                <div className="col-span-2">
+                  <label className={lbl}>Número</label>
+                  <input className={inp} value={d.enderecoNumero || ""} onChange={e => set("enderecoNumero", e.target.value)} />
+                </div>
+                <div className="col-span-4">
+                  <label className={lbl}>Complemento</label>
+                  <input className={inp} value={d.enderecoComplemento || ""} onChange={e => set("enderecoComplemento", e.target.value)} placeholder="Bloco, apto, lote..." />
+                </div>
+                <div className="col-span-3">
+                  <label className={lbl}>Bairro</label>
+                  <input className={inp} value={d.enderecoBairro || ""} onChange={e => set("enderecoBairro", e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <label className={lbl}>Cidade</label>
+                  <input className={inp} value={d.enderecoCidade || ""} onChange={e => set("enderecoCidade", e.target.value)} />
+                </div>
+                <div className="col-span-1">
+                  <label className={lbl}>UF</label>
+                  <input className={inp} maxLength={2} placeholder="DF" value={d.enderecoUf || ""} onChange={e => set("enderecoUf", e.target.value.toUpperCase())} />
+                </div>
               </div>
             </div>
             <div>
