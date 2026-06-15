@@ -234,6 +234,7 @@ function mapRow(r) {
     autoChassi:         r.auto_chassi,
     arquivado:        r.arquivado || false,
     arquivadoEm:      r.arquivado_em,
+    dataEmissao:      r.data_emissao || null,
     transmitidaEm:    r.transmitida_em || null,
     historicoCiclos:  r.historico_ciclos || [],
     anotacoes:        r.observacoes,
@@ -352,6 +353,7 @@ async function upsertCard(card) {
     auto_chassi:           card.autoChassi || null,
     arquivado:        card.arquivado || false,
     arquivado_em:     card.arquivadoEm || null,
+    data_emissao:     card.dataEmissao || (card.status === 'emitida' ? new Date().toISOString().slice(0, 10) : null),
     transmitida_em:   card.transmitidaEm || null,
     historico_ciclos: card.historicoCiclos || [],
     observacoes:      card.anotacoes,
@@ -1253,7 +1255,7 @@ function PainelSinistros({ cards, onCard }) {
     };
     const historico = [...(d.historicoCiclos || []), ciclo];
     setSaving(true);
-    await onArquivar({ ...d, historicoCiclos: historico, arquivado: true, arquivadoEm: new Date().toISOString() });
+    await onArquivar({ ...d, historicoCiclos: historico, arquivado: true, arquivadoEm: new Date().toISOString(), dataEmissao: d.dataEmissao || new Date().toISOString().slice(0, 10) });
     setSaving(false);
   };
 
