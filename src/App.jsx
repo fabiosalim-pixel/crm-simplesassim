@@ -125,7 +125,7 @@ const RAMOS_VIAGEM = ["SEGURO VIAGEM"];
 
 const SITUACOES = ["Cancelada","Endosso","Não Renovada","Protocolado","Recusada","Renov. Congênere","Renovação","Seguro Novo","Sem Negócio"];
 const PAGAMENTOS = ["Boleto","Cartão de Crédito","Débito em Conta","Link de Pagamento","PIX"];
-const CANAIS = ["Google","Indicação","Site"];
+const CANAIS = ["Google","Indicação","Site","Cliente da Corretora","Outros/Não informado"];
 
 const SITUACAO_COR = {
   "Renovação":         "bg-blue-100 text-blue-700",
@@ -152,6 +152,8 @@ const CANAL_COR = {
   "Parceiro":    "bg-orange-100 text-orange-700",
   "Google":      "bg-red-100 text-red-700",
   "Crosselling": "bg-pink-100 text-pink-700",
+  "Cliente da Corretora": "bg-blue-100 text-blue-700",
+  "Outros/Não informado": "bg-slate-100 text-slate-600",
 };
 
 function TagChip({ label, corMap }) {
