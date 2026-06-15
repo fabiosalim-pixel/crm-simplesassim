@@ -1651,6 +1651,11 @@ function PainelSinistros({ cards, onCard }) {
             </div>
           )}
 
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+            <input type="checkbox" className="w-4 h-4 rounded accent-blue-600" checked={!!d.etiquetaSegfy} onChange={e => set("etiquetaSegfy", e.target.checked)} />
+            <Tag size={14} className="text-blue-500" /> Marcado como enviado ao Segfy
+          </label>
+
           {d.status === "emitida" && (
             <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
               <input type="checkbox" className="w-4 h-4 rounded accent-indigo-600"
