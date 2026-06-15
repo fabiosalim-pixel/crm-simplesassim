@@ -77,7 +77,7 @@ const fmt = (d) => {
 };
 
 const fmtBRL = (v) =>
-  v ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—";
+  v ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
 
 const maskCpfCnpj = (v) => {
   const d = v.replace(/\D/g, "").slice(0, 14);
