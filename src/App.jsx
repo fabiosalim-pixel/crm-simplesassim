@@ -91,6 +91,25 @@ const maskCpfCnpj = (v) => {
 
 const isCNPJ = (v) => (v || "").replace(/\D/g, "").length > 11;
 
+// Formata centavos digitados em moeda BR: "158300" -> "1.583,00"
+const maskMoeda = (v) => {
+  const dig = String(v).replace(/\D/g, "");
+  if (!dig) return "";
+  const n = (parseInt(dig, 10) / 100);
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+// Converte "1.583,00" -> 1583.00 (numero)
+const moedaParaNumero = (s) => {
+  if (s === null || s === undefined || s === "") return null;
+  const n = parseFloat(String(s).replace(/\./g, "").replace(",", "."));
+  return isNaN(n) ? null : n;
+};
+// Numero do banco -> "1.583,00" para exibir no input
+const numeroParaMoeda = (v) => {
+  if (v === null || v === undefined || v === "") return "";
+  return Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 const maskPhone = (v) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
   if (d.length <= 10)
@@ -154,8 +173,8 @@ function mapRow(r) {
     seguradora:    r.seguradora,
     veiculo:       r.veiculo,
     dataRenovacao: r.data_renovacao,
-    valor:         r.valor,
-    premioLiquido:      r.premio_liquido,
+    valor:         numeroParaMoeda(r.valor),
+    premioLiquido:      numeroParaMoeda(r.premio_liquido),
     percentualComissao: r.percentual_comissao,
     status:        r.status_pipeline,
     responsavel:   r.responsavel,
@@ -264,8 +283,8 @@ async function upsertCard(card) {
     seguradora:      card.seguradora,
     veiculo:         card.veiculo,
     data_renovacao:  card.dataRenovacao || null,
-    valor:           card.valor ? Number(card.valor) : null,
-    premio_liquido:      card.premioLiquido ? Number(card.premioLiquido) : null,
+    valor:           moedaParaNumero(card.valor),
+    premio_liquido:      moedaParaNumero(card.premioLiquido),
     percentual_comissao: card.percentualComissao ? Number(card.percentualComissao) : null,
     status_pipeline: card.status,
     responsavel:     card.responsavel,
@@ -396,7 +415,7 @@ async function criarProspeccao(card) {
     email:                 card.email,
     produto:               card.tipoSeguro,
     seguradora_anterior:   card.seguradora,
-    valor_anterior:        card.valor ? Number(card.valor) : null,
+    valor_anterior:        moedaParaNumero(card.valor),
     data_vencimento_anterior: card.dataRenovacao || null,
     data_prevista_contato: dataContato ? dataContato.toISOString().slice(0, 10) : null,
     status_prospeccao:     "FRIA",
@@ -879,7 +898,7 @@ function CardTile({ card, onClick, onDragStart }) {
         </div>
       )}
       <div className="flex justify-between items-center mt-1.5">
-        <span className="text-xs font-semibold text-emerald-600">{fmtBRL(card.valor)}</span>
+        <span className="text-xs font-semibold text-emerald-600">{card.valor ? `R$ ${card.valor}` : "—"}</span>
         <Chip days={days} status={card.status} />
       </div>
       {pending > 0 && (
@@ -1080,8 +1099,8 @@ function PainelSinistros({ cards, onCard }) {
   );
 }
     if (data.apolice?.vigenciaFim) updates.dataRenovacao = data.apolice.vigenciaFim;
-    if (!d.valor && data.financeiro?.premioTotal) updates.valor = parseBRLlocal(data.financeiro.premioTotal);
-    if (!d.premioLiquido && data.financeiro?.premioLiquido) updates.premioLiquido = parseBRLlocal(data.financeiro.premioLiquido);
+    if (!d.valor && data.financeiro?.premioTotal) updates.valor = numeroParaMoeda(parseBRLlocal(data.financeiro.premioTotal));
+    if (!d.premioLiquido && data.financeiro?.premioLiquido) updates.premioLiquido = numeroParaMoeda(parseBRLlocal(data.financeiro.premioLiquido));
     if (!d.seguradora && data.apolice?.seguradora) updates.seguradora = data.apolice.seguradora;
     if (!d.proposta && data.apolice?.numeroProposta) updates.proposta = data.apolice.numeroProposta;
     if (!d.apolice && data.apolice?.numeroApolice) updates.apolice = data.apolice.numeroApolice;
@@ -1180,7 +1199,7 @@ function PainelSinistros({ cards, onCard }) {
     const ciclo = {
       data_renovacao: d.dataRenovacao,
       seguradora:     d.seguradora,
-      valor:          d.valor,
+      valor:          moedaParaNumero(d.valor),
       proposta:       d.proposta,
       apolice:        d.apolice,
       situacao:       d.etiquetaSituacao,
@@ -1329,13 +1348,13 @@ function PainelSinistros({ cards, onCard }) {
             </div>
             <div>
               <label className={lbl}>Prêmio (R$){d.etiquetaSituacao === "Renovação Congênere" ? " *" : ""}</label>
-              <input type="number" className={`${inp} ${d.etiquetaSituacao === "Renovação Congênere" ? "border-amber-300" : ""}`}
-                value={d.valor || ""} onChange={e => set("valor", e.target.value)}
-                placeholder={d.etiquetaSituacao === "Renovação Congênere" ? "Valor do ano anterior" : ""} />
+              <input inputMode="numeric" className={`${inp} ${d.etiquetaSituacao === "Renovação Congênere" ? "border-amber-300" : ""}`}
+                value={d.valor || ""} onChange={e => set("valor", maskMoeda(e.target.value))}
+                placeholder={d.etiquetaSituacao === "Renovação Congênere" ? "Valor do ano anterior" : "0,00"} />
             </div>
             <div>
               <label className={lbl}>Prêmio líquido (R$)</label>
-              <input type="number" className={inp} value={d.premioLiquido || ""} onChange={e => set("premioLiquido", e.target.value)} placeholder="Base da comissão" />
+              <input inputMode="numeric" className={inp} value={d.premioLiquido || ""} onChange={e => set("premioLiquido", maskMoeda(e.target.value))} placeholder="Base da comissão" />
             </div>
             <div>
               <label className={lbl}>Comissão (%)</label>
@@ -1344,7 +1363,7 @@ function PainelSinistros({ cards, onCard }) {
             <div>
               <label className={lbl}>Comissão (R$)</label>
               <input className={`${inp} bg-slate-50 text-slate-600`} disabled
-                value={d.premioLiquido && d.percentualComissao ? fmtBRL(Number(d.premioLiquido) * Number(d.percentualComissao) / 100) : "—"} />
+                value={moedaParaNumero(d.premioLiquido) && d.percentualComissao ? fmtBRL(moedaParaNumero(d.premioLiquido) * Number(d.percentualComissao) / 100) : "—"} />
             </div>
             <div>
               <label className={lbl}>Nº da proposta</label>
@@ -2152,7 +2171,7 @@ function AddModal({ initialStage, onClose, onAdd }) {
             </div>
             <div>
               <label className={lbl}>Prêmio (R$)</label>
-              <input type="number" className={inp} value={d.valor || ""} onChange={e => set("valor", e.target.value)} />
+              <input inputMode="numeric" className={inp} value={d.valor || ""} onChange={e => set("valor", maskMoeda(e.target.value))} placeholder="0,00" />
             </div>
           </div>
           <div>
@@ -2205,7 +2224,7 @@ function ApoliceRow({ card, onClick }) {
         </div>
         <div className="text-xs text-slate-400 mt-0.5">
           {card.dataRenovacao && `Renov. ${card.dataRenovacao}`}
-          {card.valor ? ` · ${fmtBRL(card.valor)}` : ""}
+          {card.valor ? ` · R$ ${card.valor}` : ""}
         </div>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
