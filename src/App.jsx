@@ -110,6 +110,26 @@ const numeroParaMoeda = (v) => {
   return Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+// Consulta ViaCEP (gratuito, sem chave). Retorna {logradouro, bairro, cidade, uf} ou null.
+async function buscaCEP(cep) {
+  const limpo = String(cep || "").replace(/\D/g, "");
+  if (limpo.length !== 8) return null;
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${limpo}/json/`);
+    const data = await res.json();
+    if (data.erro) return null;
+    return {
+      logradouro: data.logradouro || "",
+      bairro: data.bairro || "",
+      cidade: data.localidade || "",
+      uf: data.uf || "",
+    };
+  } catch {
+    return null;
+  }
+}
+const maskCEP = (v) => String(v || "").replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d{1,3})/, "$1-$2");
+
 const maskPhone = (v) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
   if (d.length <= 10)
@@ -1274,10 +1294,21 @@ function PainelSinistros({ cards, onCard }) {
               <label className={lbl}>E-mail</label>
               <input className={inp} value={d.email || ""} onChange={e => set("email", e.target.value)} />
             </div>
-            <div className="col-span-2">
-              <label className={lbl}>Endereço</label>
-              <input className={inp} value={d.endereco || ""} onChange={e => set("endereco", e.target.value)}
-                placeholder="Rua, número, bairro, cidade, UF" />
+            <div className="col-span-2 grid grid-cols-3 gap-4">
+              <div>
+                <label className={lbl}>CEP</label>
+                <input className={inp} placeholder="00000-000" value={d.cepBusca || ""}
+                  onChange={e => set("cepBusca", maskCEP(e.target.value))}
+                  onBlur={async e => {
+                    const r = await buscaCEP(e.target.value);
+                    if (r) set("endereco", `${r.logradouro} - ${r.bairro}, ${r.cidade}/${r.uf}`);
+                  }} />
+              </div>
+              <div className="col-span-2">
+                <label className={lbl}>Endereço</label>
+                <input className={inp} value={d.endereco || ""} onChange={e => set("endereco", e.target.value)}
+                  placeholder="Rua, número, bairro, cidade, UF" />
+              </div>
             </div>
             <div>
               <label className={lbl}>Responsável</label>
@@ -1523,7 +1554,16 @@ function PainelSinistros({ cards, onCard }) {
                 </div>
                 <div>
                   <label className={lbl}>CEP</label>
-                  <input className={inp} placeholder="00000-000" value={d.imovelCep || ""} onChange={e => set("imovelCep", e.target.value)} />
+                  <input className={inp} placeholder="00000-000" value={d.imovelCep || ""}
+                    onChange={e => set("imovelCep", maskCEP(e.target.value))}
+                    onBlur={async e => {
+                      const r = await buscaCEP(e.target.value);
+                      if (r) setD(prev => ({ ...prev,
+                        imovelLogradouro: r.logradouro || prev.imovelLogradouro,
+                        imovelBairro: r.bairro || prev.imovelBairro,
+                        imovelCidade: r.cidade || prev.imovelCidade,
+                        imovelUf: r.uf || prev.imovelUf }));
+                    }} />
                 </div>
                 <div>
                   <label className={lbl}>Cidade</label>
