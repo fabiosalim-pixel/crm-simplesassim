@@ -1279,6 +1279,26 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
         updates.etiquetaSituacao = updates.etiquetaSituacao || d.etiquetaSituacao || "Renovação";
       }
       setD(prev => ({ ...prev, ...updates }));
+
+      // Sincroniza dados permanentes do segurado na tabela clientes (data nascimento + endereço)
+      const clienteId = d.clienteId;
+      if (clienteId) {
+        const clienteUpdates = {};
+        if (data.segurado?.dataNascimento) clienteUpdates.data_nascimento = data.segurado.dataNascimento;
+        if (data.endereco?.cep)         clienteUpdates.cep          = data.endereco.cep;
+        if (data.endereco?.logradouro)  clienteUpdates.logradouro   = data.endereco.logradouro;
+        if (data.endereco?.numero)      clienteUpdates.numero        = data.endereco.numero;
+        if (data.endereco?.complemento) clienteUpdates.complemento  = data.endereco.complemento;
+        if (data.endereco?.bairro)      clienteUpdates.bairro        = data.endereco.bairro;
+        if (data.endereco?.cidade)      clienteUpdates.cidade        = data.endereco.cidade;
+        if (data.endereco?.uf)          clienteUpdates.estado        = data.endereco.uf;
+        if (Object.keys(clienteUpdates).length > 0) {
+          supabase.from("clientes").update(clienteUpdates).eq("id", clienteId).then(({ error }) => {
+            if (error) console.error("Erro ao atualizar cliente:", error);
+          });
+        }
+      }
+
       const msg = updates.status === "transmitida"
         ? `✅ ${Object.keys(updates).length} campo(s) preenchido(s). Card movido para Proposta Transmitida. Revise e salve.`
         : `✅ ${Object.keys(updates).length} campo(s) preenchido(s) com dados do PDF. Revise e salve.`;
