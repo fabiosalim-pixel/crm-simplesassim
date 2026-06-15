@@ -3384,7 +3384,13 @@ export default function App() {
       </div>
 
       {view === "home" ? (
-        <Dashboard />
+        <Dashboard
+          onNavigate={(v) => setView(v)}
+          onFiltro={(f) => {
+            if (f.urgentes) setOnlyUrgentes(true);
+            if (f.renovar) setOnlyUrgentes(false);
+          }}
+        />
       ) : view === "segurados" ? (
         <Segurados />
       ) : view === "pipeline" ? (
