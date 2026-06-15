@@ -2933,6 +2933,7 @@ export default function App() {
   const [filterMonth, setFilterMonth] = useState("");
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [view, setView] = useState("pipeline");
+  const [onlyUrgentes, setOnlyUrgentes] = useState(false);
   const [prospeccoes, setProspeccoes] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -3084,7 +3085,8 @@ export default function App() {
     .filter(c => {
       const ms = !search || c.clienteNome?.toLowerCase().includes(search.toLowerCase()) || (c.cpfCnpj || "").includes(search);
       const mm = !filterMonth || (c.dataRenovacao || "").startsWith(filterMonth);
-      return ms && mm;
+      const mu = !onlyUrgentes || (() => { const dd = daysUntil(c.dataRenovacao); return dd !== null && dd <= 7 && c.status !== "emitida"; })();
+      return ms && mm && mu;
     })
     .sort((a, b) => {
       const da = a.dataRenovacao || "9999-99";
@@ -3176,9 +3178,10 @@ export default function App() {
             </button>
           </div>
           {urgentes > 0 && (
-            <div className="flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+            <button onClick={() => { setView("pipeline"); setOnlyUrgentes(true); }}
+              className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-colors cursor-pointer">
               <Bell size={11} /> {urgentes} urgente{urgentes !== 1 ? "s" : ""}
-            </div>
+            </button>
           )}
           {apolicesPendentes > 0 && (
             <div className="flex items-center gap-1.5 bg-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
@@ -3267,6 +3270,12 @@ export default function App() {
           <option value="">Todos os meses</option>
           {months.map(m => <option key={m.val} value={m.val}>{m.label}</option>)}
         </select>
+        {onlyUrgentes && (
+          <button onClick={() => setOnlyUrgentes(false)}
+            className="flex items-center gap-1.5 bg-red-100 border border-red-300 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-red-200 transition-colors">
+            <Bell size={11} /> Só urgentes (≤7 dias) <X size={12} className="ml-0.5" />
+          </button>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setImportModal(true)}
