@@ -155,6 +155,8 @@ function mapRow(r) {
     veiculo:       r.veiculo,
     dataRenovacao: r.data_renovacao,
     valor:         r.valor,
+    premioLiquido:      r.premio_liquido,
+    percentualComissao: r.percentual_comissao,
     status:        r.status_pipeline,
     responsavel:   r.responsavel,
     proposta:      r.proposta,
@@ -263,6 +265,8 @@ async function upsertCard(card) {
     veiculo:         card.veiculo,
     data_renovacao:  card.dataRenovacao || null,
     valor:           card.valor ? Number(card.valor) : null,
+    premio_liquido:      card.premioLiquido ? Number(card.premioLiquido) : null,
+    percentual_comissao: card.percentualComissao ? Number(card.percentualComissao) : null,
     status_pipeline: card.status,
     responsavel:     card.responsavel,
     proposta:        card.proposta,
@@ -1328,6 +1332,19 @@ function PainelSinistros({ cards, onCard }) {
               <input type="number" className={`${inp} ${d.etiquetaSituacao === "Renovação Congênere" ? "border-amber-300" : ""}`}
                 value={d.valor || ""} onChange={e => set("valor", e.target.value)}
                 placeholder={d.etiquetaSituacao === "Renovação Congênere" ? "Valor do ano anterior" : ""} />
+            </div>
+            <div>
+              <label className={lbl}>Prêmio líquido (R$)</label>
+              <input type="number" className={inp} value={d.premioLiquido || ""} onChange={e => set("premioLiquido", e.target.value)} placeholder="Base da comissão" />
+            </div>
+            <div>
+              <label className={lbl}>Comissão (%)</label>
+              <input type="number" className={inp} value={d.percentualComissao || ""} onChange={e => set("percentualComissao", e.target.value)} placeholder="Ex: 20" />
+            </div>
+            <div>
+              <label className={lbl}>Comissão (R$)</label>
+              <input className={`${inp} bg-slate-50 text-slate-600`} disabled
+                value={d.premioLiquido && d.percentualComissao ? fmtBRL(Number(d.premioLiquido) * Number(d.percentualComissao) / 100) : "—"} />
             </div>
             <div>
               <label className={lbl}>Nº da proposta</label>
