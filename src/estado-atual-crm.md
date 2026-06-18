@@ -102,6 +102,12 @@ Retorna: carteira_qtd, carteira_valor, premio_mes, comissao_mes,
 emitidas_mes, total_mes, taxa_renovacao, projecao_comissao_60d,
 perdidos_mes, urgentes_5d, sinistros_abertos, mix_carteira (array por ramo)
 
+**Fórmula de comissão (confirmada no código-fonte da função, 18/06/2026):**
+```sql
+premio_liquido * percentual_comissao / 100.0
+```
+`percentual_comissao` é guardado como número inteiro (`15` = 15%). Usada em três lugares dentro da função: `comissao_periodo`, `carteira_comissao` e `projecao_comissao_60d`. Como qualquer multiplicação com `NULL` em SQL resulta em `NULL`, e `SUM()` ignora `NULL` silenciosamente, um card sem `percentual_comissao` ou sem `premio_liquido` simplesmente **não entra na soma** — sem erro visível, só um número de comissão mais baixo do que deveria no Dashboard. É a razão pela qual esses dois campos passaram a ser obrigatórios em certas transições (ver Seção 7).
+
 ---
 
 ## SEÇÃO 4 — Componente Dashboard.jsx
@@ -208,6 +214,14 @@ Coluna fixa 256px à direita do Kanban, scroll próprio.
 - `handleArquivar`: `upsertCard` + `setCards(filter)`
 - `handleNaoRenovada`: arquiva + cria prospecção automática
 
+### Validação de comissão obrigatória — implementada em 18/06/2026
+No `handleSave` do App (~linha 3256), antes de chamar `upsertCard`:
+- Se o card está **entrando agora** no estágio `transmitida` ou `emitida` (ou seja, `updated.status` mudou para um desses E `anterior?.status` era diferente) → exige `premioLiquido` e `percentualComissao` preenchidos (não vazios).
+- Se algum estiver em branco, mostra `window.alert(...)` e `return` antes do `upsertCard` — nada é salvo.
+- **Não dispara** se o card já estava nesse estágio antes (edição de um card antigo/histórico não é bloqueada por falta de comissão).
+- **Não afeta** o fluxo de criação via "Importar PDF" (`handleAdd`, função separada) — usado para registrar apólices da concorrência ou imports em lote, que não precisam de comissão.
+- Motivo: o `percentual_comissao` é essencial para o cálculo de comissão no `dashboard_metrics()` (ver Seção 3) e ficava em branco silenciosamente quando a proposta era transmitida via "Extrair Dados".
+
 ### Import de PDF
 - Botão "Importar PDF" → `ImportModal`
 - Extrai dados via API Anthropic (claude-sonnet-4-6), endpoint `/api/extract-pdf` (`extract-pdf.js`)
@@ -215,6 +229,12 @@ Coluna fixa 256px à direita do Kanban, scroll próprio.
 - Cria card com `status_pipeline` e `etiqueta_situacao` adequados
 - Campo **Data de Nascimento** obrigatório na revisão quando há CPF (validado em `criarCard`, ~linha 2695): `<input type="date">` ligado a `form.autoNascimentoSegurado`, asterisco condicional via `isCNPJ()` — **corrigido em 18/06/2026** (o campo havia sido removido da tela de revisão e bloqueava o salvamento de qualquer produto não-Auto, ex: RC Profissional)
 - `parseBRL` (dentro do `ImportModal`, ~linha 2572): converte os valores financeiros extraídos do PDF para número, aceitando formato BR (vírgula decimal) OU US (ponto decimal) — a IA de extração varia o formato entre execuções — **corrigido em 18/06/2026** (ver Seção 8)
+
+### Extração de dados em card existente (`handleExtrairDados`, dentro do `Modal`)
+- Disparada pelo botão "Extrair" sobre um documento anexado (proposta, apólice ou endosso)
+- Preenche campos vazios do card a partir do PDF extraído (não sobrescreve o que já estava preenchido)
+- Se `tipo === "proposta"` e o card está em `cotacoes` → muda `d.status` para `transmitida` automaticamente (só no estado local do Modal; só persiste no clique em "Salvar", onde a validação de comissão da seção acima entra em ação)
+- Se `tipo === "apolice_endosso"` → calcula delta de prêmio líquido e registra em `endossos`
 
 ---
 
@@ -248,6 +268,16 @@ Existiam **três funções divergentes** de conversão de moeda no arquivo, toda
 **Commit:** `e6aeb71` — "fix: corrige parser de valores monetarios BR/US (data e financeiro) na importacao de PDF"
 
 **Registros corrompidos na base de teste** (Andreia Tavares de Lima, duplicatas de Layla Canholato Paschoetto) — identificados e removidos manualmente. Base de teste confirmada limpa em 18/06/2026.
+
+### Regressão corrigida: chamada órfã para `parseBRLlocal` (18/06/2026)
+Ao eliminar a função `parseBRLlocal` (fix acima), uma terceira chamada a ela passou batido — dentro do bloco `tipo === "apolice_endosso"` do `handleExtrairDados` (~linha 1268), usada para calcular o delta de prêmio líquido em endossos. Teria quebrado com `ReferenceError` na primeira extração de um endosso. Corrigida para chamar `moedaParaNumero` também.
+
+### Comissão obrigatória em Proposta Transmitida / Apólice Emitida (18/06/2026)
+Ver detalhes da implementação na Seção 7 ("Validação de comissão obrigatória"). Resumo da decisão de negócio:
+- `premio_liquido` e `percentual_comissao` passam a ser obrigatórios **apenas no momento em que o card entra** nos estágios `transmitida` ou `emitida` pelo fluxo normal do app (Modal + Salvar).
+- Cards que já estavam nesses estágios antes (histórico, apólices da concorrência importadas para referência) **não são bloqueados** ao serem editados depois — a trava só olha a transição, não o estado já salvo.
+- Imports diretos via SQL (migração Segfy) e via "Importar PDF" (`handleAdd`) não passam por essa validação — preservado de propósito, pois usados para registrar apólices que não geram comissão própria (ex: apólice atual do cliente com outro corretor).
+- **Commit:** `42cf643` — "feat: torna premio liquido e percentual de comissao obrigatorios ao avancar para Proposta Transmitida e Apolice Emitida"
 
 ---
 
