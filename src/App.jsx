@@ -3183,6 +3183,7 @@ export default function App() {
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [view, setView] = useState("pipeline");
   const [onlyUrgentes, setOnlyUrgentes] = useState(false);
+  const [onlySemComissao, setOnlySemComissao] = useState(false);
   const [prospeccoes, setProspeccoes] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -3345,7 +3346,8 @@ export default function App() {
       const ms = !search || c.clienteNome?.toLowerCase().includes(search.toLowerCase()) || (c.cpfCnpj || "").includes(search);
       const mm = !filterMonth || (c.dataRenovacao || "").startsWith(filterMonth);
       const mu = !onlyUrgentes || (() => { const dd = daysUntil(c.dataRenovacao); return dd !== null && dd <= 5 && c.status !== "emitida"; })();
-      return ms && mm && mu;
+      const mc = !onlySemComissao || (c.status === "emitida" && (!c.percentualComissao || !c.premioLiquido));
+      return ms && mm && mu && mc;
     })
     .sort((a, b) => {
       const da = a.dataRenovacao || "9999-99";
@@ -3552,8 +3554,9 @@ export default function App() {
         <Dashboard
           onNavigate={(v) => setView(v)}
           onFiltro={(f) => {
-            if (f.urgentes) setOnlyUrgentes(true);
-            if (f.renovar) setOnlyUrgentes(false);
+            if (f.urgentes) { setOnlyUrgentes(true); setOnlySemComissao(false); }
+            if (f.renovar) { setOnlyUrgentes(false); setOnlySemComissao(false); }
+            if (f.semComissao) { setOnlySemComissao(true); setOnlyUrgentes(false); }            
           }}
         />
       ) : view === "segurados" ? (

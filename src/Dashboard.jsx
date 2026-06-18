@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import {
   Briefcase, TrendingUp, DollarSign, Percent, CalendarClock,
   UserMinus, AlertTriangle, Bell, RefreshCw, ChevronRight,
-  Calendar, Users, RotateCcw, Gift, Clock
+  Calendar, Users, RotateCcw, Gift, Clock, AlertCircle, X, ArrowRight
 } from "lucide-react";
 
 const fmtBRL = (v) =>
@@ -25,7 +25,6 @@ const subDays = (d, n) => addDays(d, -n);
 
 const RAMO_CORES = ["#2563eb","#7c3aed","#f97316","#dc2626","#ca8a04","#059669","#0ea5e9","#db2777","#64748b"];
 
-// ── Gráfico rosca ─────────────────────────────────────────────────
 function Donut({ data }) {
   const total = data.reduce((s, d) => s + Number(d.apolices), 0);
   const r = 54, stroke = 20, C = 2 * Math.PI * r;
@@ -58,7 +57,6 @@ function Donut({ data }) {
   );
 }
 
-// ── Card clicável de produção ─────────────────────────────────────
 function CardProd({ icon: Icon, label, value, sub, color, onClick }) {
   return (
     <button onClick={onClick}
@@ -80,7 +78,6 @@ function CardProd({ icon: Icon, label, value, sub, color, onClick }) {
   );
 }
 
-// ── Card informativo (não clicável) ──────────────────────────────
 function CardInfo({ icon: Icon, label, value, sub, color }) {
   return (
     <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
@@ -98,9 +95,8 @@ function CardInfo({ icon: Icon, label, value, sub, color }) {
   );
 }
 
-// ── Seletor de período ────────────────────────────────────────────
 function SeletorPeriodo({ ini, fim, onChange }) {
-  const [modo, setModo] = useState("mes"); // mes | 15 | 30 | 90 | livre
+  const [modo, setModo] = useState("mes");
   const [dataIni, setDataIni] = useState(ini);
   const [dataFim, setDataFim] = useState(fim);
 
@@ -126,7 +122,7 @@ function SeletorPeriodo({ ini, fim, onChange }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {btn("mes", "Mês atual")}
+      {btn("mes", "Mes atual")}
       {btn("15", "15 dias")}
       {btn("30", "30 dias")}
       {btn("90", "90 dias")}
@@ -135,7 +131,7 @@ function SeletorPeriodo({ ini, fim, onChange }) {
       }`}>
         <input type="date" value={dataIni} onChange={e => setDataIni(e.target.value)}
           className="text-xs border-none outline-none bg-transparent text-slate-600 w-32" />
-        <span className="text-slate-400 text-xs">→</span>
+        <span className="text-slate-400 text-xs">-&gt;</span>
         <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)}
           className="text-xs border-none outline-none bg-transparent text-slate-600 w-32" />
         <button onClick={() => { setModo("livre"); aplicar("livre", dataIni, dataFim); }}
@@ -147,7 +143,6 @@ function SeletorPeriodo({ ini, fim, onChange }) {
   );
 }
 
-// ── Seletor de horizonte (para frente) ───────────────────────────
 function SeletorHorizonte({ dias, onChange }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -163,7 +158,6 @@ function SeletorHorizonte({ dias, onChange }) {
   );
 }
 
-// ── Seletor de aniversariantes ───────────────────────────────────
 function SeletorAniv({ modo, onChange }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -179,7 +173,75 @@ function SeletorAniv({ modo, onChange }) {
   );
 }
 
-// ── Dashboard principal ──────────────────────────────────────────
+function ModalSemComissao({ cards, loading, total, valorTotal, onClose, onVerKanban }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        <div className="flex items-start justify-between p-5 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+              <AlertCircle size={18} className="text-indigo-500" />
+              Apolices sem comissao cadastrada
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {total} {total === 1 ? "apolice" : "apolices"} &middot; {fmtBRL(valorTotal)} em premio
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {loading ? (
+            <div className="text-center text-slate-400 text-sm py-8">Carregando...</div>
+          ) : cards.length === 0 ? (
+            <div className="text-center text-slate-400 text-sm py-8">
+              Nenhuma apolice sem comissao. Tudo completo!
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {cards.map(c => (
+                <div key={c.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-colors">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-slate-800 truncate">{c.cliente_nome}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {c.tipo_seguro} &middot; {c.seguradora}
+                    </div>
+                  </div>
+                  <div className="text-right ml-4 flex-shrink-0">
+                    <div className="text-sm font-medium text-slate-700">{fmtBRL(c.valor)}</div>
+                    <div className="text-xs text-slate-400">vence {fmtData(c.data_renovacao)}</div>
+                  </div>
+                  <div className="ml-3 flex flex-col gap-1 flex-shrink-0">
+                    {!c.premio_liquido && (
+                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">sem premio liq.</span>
+                    )}
+                    {!c.percentual_comissao && (
+                      <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">sem % comissao</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between p-4 border-t border-slate-100 gap-3">
+          <button onClick={onClose}
+            className="text-sm text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg border border-slate-200 bg-white">
+            Fechar
+          </button>
+          <button onClick={onVerKanban}
+            className="flex items-center gap-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors">
+            Ver no Kanban <ArrowRight size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard({ onNavigate, onFiltro }) {
   const t = today();
   const [m, setM] = useState(null);
@@ -189,6 +251,9 @@ export default function Dashboard({ onNavigate, onFiltro }) {
   const [periodoFim, setPeriodoFim] = useState(t);
   const [renovarDias, setRenovarDias] = useState(30);
   const [modoAniv, setModoAniv] = useState("hoje");
+  const [modalSemComissao, setModalSemComissao] = useState(false);
+  const [semComissaoCards, setSemComissaoCards] = useState([]);
+  const [loadingSemComissao, setLoadingSemComissao] = useState(false);
 
   const carregar = useCallback(async (ini, fim, rdias) => {
     setLoading(true);
@@ -233,12 +298,32 @@ export default function Dashboard({ onNavigate, onFiltro }) {
     onNavigate("pipeline");
   };
 
+  const abrirSemComissao = async () => {
+    setModalSemComissao(true);
+    setLoadingSemComissao(true);
+    const { data } = await supabase
+      .from("renovacoes")
+      .select("id, cliente_nome, tipo_seguro, seguradora, data_renovacao, valor, percentual_comissao, premio_liquido")
+      .eq("status_pipeline", "emitida")
+      .gte("data_renovacao", today())
+      .or("percentual_comissao.is.null,premio_liquido.is.null")
+      .order("data_renovacao", { ascending: true });
+    setSemComissaoCards(data || []);
+    setLoadingSemComissao(false);
+  };
+
+  const verSemComissaoKanban = () => {
+    setModalSemComissao(false);
+    if (!onNavigate || !onFiltro) return;
+    onFiltro({ semComissao: true });
+    onNavigate("pipeline");
+  };
+
   const qtdAniv = modoAniv === "hoje" ? m?.aniv_hoje : modoAniv === "15" ? m?.aniv_15d : m?.aniv_30d;
 
   return (
     <div className="flex-1 overflow-y-auto p-5 space-y-5" style={{ background: "#F1F2F4" }}>
 
-      {/* Cabeçalho */}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-slate-800">Dashboard</h1>
         <button onClick={() => carregar(periodoIni, periodoFim, renovarDias)}
@@ -247,62 +332,59 @@ export default function Dashboard({ onNavigate, onFiltro }) {
         </button>
       </div>
 
-      {/* ── REGIÃO 1: PRODUÇÃO ── */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-slate-700">Produção</h2>
-            {m && <p className="text-xs text-slate-400 mt-0.5">{fmtData(m.periodo_inicio)} → {fmtData(m.periodo_fim)}</p>}
+            <h2 className="text-sm font-semibold text-slate-700">Producao</h2>
+            {m && <p className="text-xs text-slate-400 mt-0.5">{fmtData(m.periodo_inicio)} -&gt; {fmtData(m.periodo_fim)}</p>}
           </div>
           <SeletorPeriodo ini={periodoIni} fim={periodoFim} onChange={onPeriodo} />
         </div>
-
         {loading ? (
           <div className="text-center text-slate-400 text-sm py-6">Carregando...</div>
         ) : erro ? (
           <div className="text-center text-red-500 text-sm py-4">{erro}</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <CardProd icon={TrendingUp}  label="Apólices emitidas"  color="bg-emerald-100 text-emerald-600"
-              value={m.emitidas_periodo} sub="no período"
-              onClick={() => navProducao("emitida")} />
-            <CardProd icon={DollarSign}  label="Prêmio produzido"   color="bg-blue-100 text-blue-600"
-              value={fmtBRL(m.premio_periodo)} sub="no período"
-              onClick={() => navProducao("emitida")} />
-            <CardProd icon={Percent}     label="Comissões"          color="bg-amber-100 text-amber-600"
-              value={fmtBRL(m.comissao_periodo)} sub="no período"
-              onClick={() => navProducao("emitida")} />
-            <CardProd icon={RotateCcw}   label="Taxa de renovação"  color="bg-violet-100 text-violet-600"
+            <CardProd icon={TrendingUp}  label="Apolices emitidas"  color="bg-emerald-100 text-emerald-600"
+              value={m.emitidas_periodo} sub="no periodo" onClick={() => navProducao("emitida")} />
+            <CardProd icon={DollarSign}  label="Premio produzido"   color="bg-blue-100 text-blue-600"
+              value={fmtBRL(m.premio_periodo)} sub="no periodo" onClick={() => navProducao("emitida")} />
+            <CardProd icon={Percent}     label="Comissoes"          color="bg-amber-100 text-amber-600"
+              value={fmtBRL(m.comissao_periodo)} sub="no periodo" onClick={() => navProducao("emitida")} />
+            <CardProd icon={RotateCcw}   label="Taxa de renovacao"  color="bg-violet-100 text-violet-600"
               value={`${m.taxa_renovacao}%`} sub={`${m.emitidas_periodo} de ${m.total_periodo}`}
               onClick={() => navProducao("emitida")} />
             <CardProd icon={UserMinus}   label="Perdidos"           color="bg-red-100 text-red-600"
-              value={m.perdidas_periodo} sub="não renovados"
-              onClick={() => navProducao("nao_renovada")} />
-            <CardInfo icon={CalendarClock} label="Proj. comissão 60d" color="bg-sky-100 text-sky-600"
+              value={m.perdidas_periodo} sub="nao renovados" onClick={() => navProducao("nao_renovada")} />
+            <CardInfo icon={CalendarClock} label="Proj. comissao 60d" color="bg-sky-100 text-sky-600"
               value={fmtBRL(m.projecao_comissao_60d)} sub="estimativa" />
           </div>
         )}
       </div>
 
-      {/* ── REGIÃO 2: CARTEIRA + MIX ── */}
       {!loading && m && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
             <h2 className="text-sm font-semibold text-slate-700">Carteira atual</h2>
             <div className="grid grid-cols-2 gap-3">
-              <CardInfo icon={Briefcase}     label="Apólices vigentes"  color="bg-blue-100 text-blue-600"
+              <CardInfo icon={Briefcase}     label="Apolices vigentes"   color="bg-blue-100 text-blue-600"
                 value={`${m.carteira_qtd}`} sub={fmtBRL(m.carteira_valor)} />
-              <CardInfo icon={DollarSign}    label="Comissão da carteira" color="bg-amber-100 text-amber-600"
+              <CardInfo icon={DollarSign}    label="Comissao da carteira" color="bg-amber-100 text-amber-600"
                 value={fmtBRL(m.carteira_comissao)} sub="recorrente" />
-              <CardProd icon={AlertTriangle} label="Sinistros abertos"  color="bg-orange-100 text-orange-600"
-                value={m.sinistros_abertos} sub="em andamento"
-                onClick={() => navProducao("sinistros")} />
-              <CardProd icon={Bell}          label="Urgentes (≤5 dias)" color="bg-rose-100 text-rose-600"
+              <CardProd icon={AlertTriangle} label="Sinistros abertos"   color="bg-orange-100 text-orange-600"
+                value={m.sinistros_abertos} sub="em andamento" onClick={() => navProducao("sinistros")} />
+              <CardProd icon={Bell}          label="Urgentes (5 dias)"   color="bg-rose-100 text-rose-600"
                 value={m.urgentes_5d} sub="vencem em breve"
                 onClick={() => { onFiltro && onFiltro({ urgentes: true }); onNavigate && onNavigate("pipeline"); }} />
+              <div className="col-span-2">
+                <CardProd icon={AlertCircle} label="Sem comissao"        color="bg-indigo-100 text-indigo-600"
+                  value={m.sem_comissao_qtd ?? 0}
+                  sub={m.sem_comissao_qtd > 0 ? `${fmtBRL(m.sem_comissao_valor)} em premio` : "Tudo completo"}
+                  onClick={abrirSemComissao} />
+              </div>
             </div>
           </div>
-
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
             <h2 className="text-sm font-semibold text-slate-700">Mix de carteira por ramo</h2>
             <Donut data={m.mix_carteira || []} />
@@ -310,11 +392,8 @@ export default function Dashboard({ onNavigate, onFiltro }) {
         </div>
       )}
 
-      {/* ── REGIÕES 3 + 4: A RENOVAR + ANIVERSARIANTES ── */}
       {!loading && m && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-
-          {/* REGIÃO 3: A RENOVAR */}
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-sm font-semibold text-slate-700">A renovar</h2>
@@ -324,8 +403,8 @@ export default function Dashboard({ onNavigate, onFiltro }) {
               className="w-full flex items-center justify-between bg-violet-50 border border-violet-200 rounded-xl p-4 hover:bg-violet-100 transition-colors group">
               <div>
                 <div className="text-3xl font-bold text-violet-700">{m.a_renovar_qtd}</div>
-                <div className="text-xs text-violet-500 mt-0.5">apólices nos próximos {m.renovar_dias} dias</div>
-                <div className="text-xs text-slate-500 mt-1">{fmtBRL(m.a_renovar_premio)} em prêmio</div>
+                <div className="text-xs text-violet-500 mt-0.5">apolices nos proximos {m.renovar_dias} dias</div>
+                <div className="text-xs text-slate-500 mt-1">{fmtBRL(m.a_renovar_premio)} em premio</div>
               </div>
               <div className="flex flex-col items-end gap-1">
                 <Clock size={28} className="text-violet-300 group-hover:text-violet-500 transition-colors" />
@@ -333,8 +412,6 @@ export default function Dashboard({ onNavigate, onFiltro }) {
               </div>
             </button>
           </div>
-
-          {/* REGIÃO 4: ANIVERSARIANTES */}
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-sm font-semibold text-slate-700">Aniversariantes</h2>
@@ -345,9 +422,9 @@ export default function Dashboard({ onNavigate, onFiltro }) {
               <div>
                 <div className="text-3xl font-bold text-amber-600">{qtdAniv ?? 0}</div>
                 <div className="text-xs text-amber-500 mt-0.5">
-                  {modoAniv === "hoje" ? "fazem aniversário hoje" : `nos próximos ${modoAniv} dias`}
+                  {modoAniv === "hoje" ? "fazem aniversario hoje" : `nos proximos ${modoAniv} dias`}
                 </div>
-                <div className="text-xs text-slate-400 mt-1">Clique para ver e enviar parabéns</div>
+                <div className="text-xs text-slate-400 mt-1">Clique para ver e enviar parabens</div>
               </div>
               <div className="flex flex-col items-end gap-1">
                 <Gift size={28} className="text-amber-300 group-hover:text-amber-500 transition-colors" />
@@ -355,8 +432,18 @@ export default function Dashboard({ onNavigate, onFiltro }) {
               </div>
             </button>
           </div>
-
         </div>
+      )}
+
+      {modalSemComissao && (
+        <ModalSemComissao
+          cards={semComissaoCards}
+          loading={loadingSemComissao}
+          total={m?.sem_comissao_qtd ?? 0}
+          valorTotal={m?.sem_comissao_valor ?? 0}
+          onClose={() => setModalSemComissao(false)}
+          onVerKanban={verSemComissaoKanban}
+        />
       )}
 
     </div>
