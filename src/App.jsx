@@ -1265,7 +1265,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
       if (!d.enderecoUf && e.uf) updates.enderecoUf = e.uf;
     }
     if (tipo === "apolice_endosso" && data.financeiro?.premioLiquido) {
-      const delta = parseBRLlocal(data.financeiro.premioLiquido);
+      const delta = moedaParaNumero(data.financeiro.premioLiquido);
       if (delta) {
         const novoEndosso = {
           id: Math.random().toString(36).slice(2),
@@ -3255,6 +3255,16 @@ export default function App() {
 
   const handleSave = async (updated) => {
     const anterior = cards.find(c => c.id === updated.id);
+    const indoParaTransmitida = updated.status === "transmitida" && anterior?.status !== "transmitida";
+    const indoParaEmitida = updated.status === "emitida" && anterior?.status !== "emitida";
+    if (indoParaTransmitida || indoParaEmitida) {
+      const liquidoVazio = !updated.premioLiquido || String(updated.premioLiquido).trim() === "";
+      const percentualVazio = updated.percentualComissao === undefined || updated.percentualComissao === null || String(updated.percentualComissao).trim() === "";
+      if (liquidoVazio || percentualVazio) {
+        window.alert(`Prêmio líquido e percentual de comissão são obrigatórios para avançar para ${indoParaEmitida ? "Apólice Emitida" : "Proposta Transmitida"}. Preencha esses campos antes de salvar.`);
+        return;
+      }
+    }
     const recemArquivado = updated.arquivado && anterior && !anterior.arquivado;
     await upsertCard(updated);
     if (recemArquivado) {
