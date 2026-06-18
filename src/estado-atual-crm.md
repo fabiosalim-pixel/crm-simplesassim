@@ -1,6 +1,6 @@
 # Estado Atual — CRM Simples Assim
 
-> Atualizado em 15/06/2026 (sessão 3). Não editar manualmente.
+> Atualizado em 18/06/2026. Não editar manualmente.
 
 ---
 
@@ -22,10 +22,8 @@ GitHub: repositório `crm-simplesassim` (Windows, PowerShell).
 ## SEÇÃO 1 — Arquivos do projeto
 
 ### Componentes React ativos
-- `src/App.jsx` — componente principal (~3600 linhas), monolítico. Inclui `AniversariantesView`.
-  **⚠️ Lição (sessão 3):** `PainelSinistros` estava duplicado dentro do `handleExtrairDados` por bug de str_replace.
-  Verificação obrigatória: `grep -c "function PainelSinistros" App.jsx` deve retornar 1.
-- `src/Dashboard.jsx` — dashboard com 4 regiões, seletor de período, cards clicáveis (reescrito 15/06 sessão 2)
+- `src/App.jsx` — componente principal (~2900 linhas), monolítico
+- `src/Dashboard.jsx` — dashboard com 8 cards + gráfico rosca (mix de carteira)
 - `src/Segurados.jsx` — área do segurado com ficha completa
 - `src/supabase.js` — cliente Supabase
 
@@ -33,6 +31,11 @@ GitHub: repositório `crm-simplesassim` (Windows, PowerShell).
 - Vercel conectado ao GitHub (auto-deploy no push para main)
 - Quando o auto-deploy falhar: `npx vercel --prod` no PowerShell
 - Build local: `npm run build 2>&1 | Select-Object -Last 20`
+
+### Ambiente de desenvolvimento local
+- `npm run dev` → Vite puro (porta 5173) — **NÃO roda as serverless functions** (`/api/*`)
+- `npx vercel dev` → Vite + funções serverless (porta 3000) — necessário para testar Importação de PDF localmente
+- `.env` local (raiz do projeto) deve conter `ANTHROPIC_API_KEY` (sem prefixo `VITE_`, fica só no servidor) além das `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` — confirmar sempre para qual base (teste/produção) essas variáveis apontam antes de testar
 
 ---
 
@@ -56,36 +59,6 @@ Colunas principais confirmadas via CSV:
 - `auto_data_nascimento` (date), `auto_condutor`, `auto_cpf_condutor`
 - `auto_nascimento_condutor`, `auto_cep_pernoite`, `auto_tipo_utilizacao`, `auto_condutor_1825`
 - `auto_estado_civil`, `auto_nome_segurado`, `responsavel`
-- **`data_emissao`** (date, add 15/06 sessão 2) — data real de emissão/produção da apólice.
-  Gravada automaticamente no `upsertCard` quando `status = 'emitida'`. Marco de produção para o dashboard.
-
-### Ciclo de renovação (entendimento confirmado sessão 3)
-`data_renovacao` = vigência fim do **ciclo atual que está sendo trabalhado** (não do anterior).
-Ex: card em "Cotações e Leads" para Maria Julia RC Prof → `data_renovacao = 08/07/2027` (correto).
-A apólice anterior (2025→2026) é o card arquivado. O card novo trabalha o próximo ciclo.
-Ao extrair **proposta** de renovação, `vigenciaFim` da proposta = `data_renovacao` do card novo. ✅
-
-### Blocos estruturados por ramo (adicionados 15/06/2026)
-Substituem o antigo campo único "Veículo/Bem Segurado" (que sumiu para ramos com bloco
-próprio; vira "Bem segurado / descrição" texto livre só para ramos sem bloco).
-Cada bloco aparece condicionalmente conforme `tipo_seguro`. Arrays de ramos no topo do App.jsx:
-`RAMOS_IMOVEL`, `RAMOS_VIDA`, `RAMOS_EQUIP`, `RAMOS_VIAGEM`.
-
-- **Endereço do cliente** (estruturado, substitui `endereco` texto solto — este foi mantido por compat):
-  `endereco_cep`, `endereco_logradouro`, `endereco_numero`, `endereco_complemento`,
-  `endereco_bairro`, `endereco_cidade`, `endereco_uf` (todos text). ViaCEP no campo CEP.
-- **Imóvel** (EMPRESARIAL, RESIDENCIAL, CONDOMÍNIO, FIANÇA LOCATÍCIA, RC OBRAS, RISCO DE ENGENHARIA, RURAL):
-  `imovel_cep`, `imovel_logradouro`, `imovel_numero`, `imovel_complemento`, `imovel_bairro`,
-  `imovel_cidade`, `imovel_uf`, `imovel_atividade`, `imovel_tipo` (text), `imovel_valor_risco` (numeric). ViaCEP no CEP.
-- **Vida/Pessoas** (VIDA INDIVIDUAL, VIDA EM GRUPO, ACIDENTES PESSOAIS):
-  `vida_capital_morte`, `vida_capital_invalidez`, `vida_capital_funeral` (numeric),
-  `vida_beneficiarios` (jsonb: `[{id, nome, parentesco, cpf, percentual}]`). Validador soma % = 100.
-- **Equipamento** (BIKE, EQUIPAMENTOS PORTÁTEIS):
-  `equip_tipo`, `equip_marca`, `equip_modelo`, `equip_serie` (text),
-  `equip_data_aquisicao` (date), `equip_valor_aquisicao` (numeric).
-- **Viagem** (SEGURO VIAGEM):
-  `viagem_destino`, `viagem_origem`, `viagem_motivo`, `viagem_faixa_etaria` (text),
-  `viagem_data_ida`, `viagem_data_volta` (date). Contador de dias automático na UI.
 
 ### Tabela: `clientes`
 Colunas: id, nome, cpf_cnpj, tipo_pessoa, data_nascimento (date), profissao,
@@ -124,47 +97,19 @@ Cria novo card (INSERT) para renovações 30 dias antes do vencimento.
 - Exclui: Não Renovada, Cancelada, Recusada, Sem Negócio, Viagem, RC Obras
 - Agendada via pg_cron: job `reativar-renovacoes-diario`, `0 11 * * *` (08:00 Brasília)
 
-### `dashboard_metrics(p_inicio, p_fim, p_renovar_dias)` → jsonb
-**Versão 2 (15/06 sessão 2)** — parametrizada por período. Substitui versão sem parâmetros (dropada).
-Defaults: `p_inicio = início do mês corrente`, `p_fim = hoje`, `p_renovar_dias = 30`.
-
-Retorna 4 regiões separadas:
-- **Produção (período para trás):** `emitidas_periodo`, `premio_periodo`, `comissao_periodo`,
-  `perdidas_periodo`, `total_periodo`, `periodo_inicio`, `periodo_fim`. Usa `data_emissao`.
-- **Carteira (foto de agora):** `carteira_qtd`, `carteira_valor`, `carteira_comissao`, `mix_carteira`.
-- **A renovar (para frente):** `a_renovar_qtd`, `a_renovar_premio`, `renovar_dias`.
-- **Aniversariantes:** `aniv_hoje`, `aniv_15d`, `aniv_30d`. Lógica MM-DD (ignora ano).
-- **Foto geral:** `sinistros_abertos`, `urgentes_5d`.
-- **Compat. legada:** `premio_mes`, `comissao_mes`, `emitidas_mes`, `total_mes`, `taxa_renovacao`,
-  `perdidos_mes`, `projecao_comissao_60d` (mantidos para não quebrar código antigo).
-- **Correção 15/06 sessão 1:** `sinistros_abertos` filtra `arquivado = false`.
+### `dashboard_metrics()` → jsonb
+Retorna: carteira_qtd, carteira_valor, premio_mes, comissao_mes,
+emitidas_mes, total_mes, taxa_renovacao, projecao_comissao_60d,
+perdidos_mes, urgentes_5d, sinistros_abertos, mix_carteira (array por ramo)
 
 ---
 
-## SEÇÃO 4 — Componente Dashboard.jsx (reescrito 15/06 sessão 2)
+## SEÇÃO 4 — Componente Dashboard.jsx
 
-**4 regiões com seletor de período e cards clicáveis.**
-Chama `supabase.rpc('dashboard_metrics', { p_inicio, p_fim, p_renovar_dias })`.
-Recebe props `onNavigate(view)` e `onFiltro(filtro)` do App.jsx para drill-downs.
-
-### Região 1 — Produção (para trás)
-Seletor: Mês atual / 15 / 30 / 90 dias / intervalo livre (data início → fim).
-Cards clicáveis: Apólices emitidas, Prêmio produzido, Comissões, Taxa de renovação, Perdidos.
-Card informativo: Proj. comissão 60d.
-Drill-down → pipeline filtrado por status.
-
-### Região 2 — Carteira (foto de agora)
-Cards: Apólices vigentes, Comissão da carteira (informativos).
-Cards clicáveis: Sinistros abertos, Urgentes (≤5 dias).
-Gráfico rosca: Mix de carteira por ramo.
-
-### Região 3 — A renovar (para frente)
-Seletor de horizonte: 15 / 60 / 90 dias.
-Bloco clicável violeta: qtd de apólices + prêmio em jogo. Drill-down → pipeline.
-
-### Região 4 — Aniversariantes (para frente)
-Seletor: Hoje / 15 dias / 30 dias.
-Bloco clicável âmbar → tela `AniversariantesView` (view = "aniversariantes").
+8 cards de indicadores + gráfico rosca "Mix de Carteira por ramo".
+Chama `supabase.rpc('dashboard_metrics')`.
+Cards: Carteira ativa, Prêmio do mês, Comissão do mês, Taxa de renovação,
+Receita projetada 60d, Perdidos no mês, Sinistros abertos, Urgentes (≤5 dias).
 
 ---
 
@@ -259,58 +204,17 @@ Coluna fixa 256px à direita do Kanban, scroll próprio.
 7. crosselling — "Crosselling" (roxo claro)
 
 ### Fluxo de arquivamento
-- `handleSave`: card **NÃO fecha mais ao salvar** (mudança 15/06). Só fecha quando arquivado
-  ou no X. Mostra toast "X campo(s) atualizado(s) com sucesso" (some em 3,5s).
+- `handleSave`: se `updated.arquivado && !anterior.arquivado` → remove da lista (some sem F5)
 - `handleArquivar`: `upsertCard` + `setCards(filter)`
 - `handleNaoRenovada`: arquiva + cria prospecção automática
 
-### Campos financeiros (App.jsx, estado 15/06/2026)
-- Prêmio (`valor`) e Prêmio líquido (`premioLiquido`) usam **máscara de moeda BR** (texto "1.583,00").
-  Funções: `maskMoeda` (formata), `moedaParaNumero` (salvar), `numeroParaMoeda` (carregar do banco).
-- Comissão (%) → campo `percentualComissao`. Comissão (R$) calculada e exibida (read-only) = líquido × %.
-- `fmtBRL` corrigido com `maximumFractionDigits: 2` (arredonda em 2 casas).
-
-### Endereço (App.jsx + extract-pdf.js, 15/06/2026)
-- Função `buscaCEP(cep)` → ViaCEP (`https://viacep.com.br/ws/CEP/json/`), gratuito, sem chave, CORS ok.
-  Dispara no `onBlur`. Máscara `maskCEP`. Usado no endereço do cliente e no bloco Imóvel.
-- `extract-pdf.js`: agora extrai endereço do segurado (PASSO 6 + objeto `endereco` no JSON).
-  `handleExtrairDados` preenche `endereco_*` (fill-blank-only).
-
-### Import de PDF / handleExtrairDados (App.jsx, estado sessão 3)
-- Endpoint backend `/api/extract-pdf` (extract-pdf.js) — modelo `claude-haiku-4-5-20251001`
-- Retorna JSON com `segurado` (incl. `dataNascimento`), `endereco`, `apolice`, `veiculo`, `financeiro`
-- **Mudança automática de status (add sessão 3):** ao extrair uma **proposta** com card em `cotacoes`,
-  o status avança automaticamente para `transmitida` com `transmitida_em = now()`.
-- **Sincronização com `clientes` (add sessão 3):** após extrair PDF, atualiza diretamente a tabela
-  `clientes` com `data_nascimento` e campos de endereço (`cep`, `logradouro`, `numero`, `complemento`,
-  `bairro`, `cidade`, `estado`). Fill-blank-only — não sobrescreve campos já preenchidos.
-- Backfill executado em teste e produção (sessão 3): clientes existentes atualizados com dados dos cards.
+### Import de PDF
+- Botão "Importar PDF" → `ImportModal`
+- Extrai dados via API Anthropic (claude-sonnet-4-6), endpoint `/api/extract-pdf` (`extract-pdf.js`)
 - `findOrCreateCliente`: busca por `cpf_cnpj_norm` com norm robusta (últimos 14/11 dígitos)
-- Backup do endpoint antigo: `api/extract-pdf.js.bak`
-
-### AniversariantesView (add 15/06 sessão 2, dentro do App.jsx)
-Tela dedicada acessada via `view = "aniversariantes"` (clique no bloco âmbar do dashboard).
-- Seletor: Hoje / Próximos 15 dias / Próximos 30 dias
-- Busca por nome
-- Lista: avatar inicial, nome clicável (→ Segurados), data de aniversário + idade, e-mail
-- **Botão WhatsApp** — `wa.me/55NUM?text=mensagem pronta de parabéns` (sem API, link direto)
-- **Botão E-mail** — `mailto:` com assunto e mensagem pronta (sem backend)
-- Lógica de filtro: compara MM-DD do `data_nascimento` (ignora ano), correto para qualquer faixa etária
-- Ponte para etapa 2 de comunicação (automação via Resend virá depois)
-
-### Bug corrigido (sessão 3) — PainelSinistros duplicado
-`PainelSinistros` estava inserido dentro do `handleExtrairDados` por bug de str_replace anterior.
-Causava: `SN_STATUS_COR_PILL` fora de escopo, `onExtrairDados` retornando `() => {}` no Modal.
-Fix: removido o duplicado, função restaurada. Verificação: `grep -c "function PainelSinistros" App.jsx` = 1.
-
-### Badge "urgente" (topo) e critério de urgência
-- Badge "X urgente(s)" é **clicável** (15/06): leva ao pipeline + ativa filtro `onlyUrgentes`.
-  Chip vermelho "Só urgentes (≤5 dias)" com X para limpar.
-- Critério unificado em **≤5 dias** (badge, filtro e card do dashboard). Bordas dos cards individuais
-  mantêm gradiente próprio (vermelho ≤2, amarelo ≤7).
-
-### Canais de origem (etiqueta_canal)
-Array `CANAIS`: Google, Indicação, Site, **Cliente da Corretora**, **Outros/Não informado** (2 últimos add 15/06).
+- Cria card com `status_pipeline` e `etiqueta_situacao` adequados
+- Campo **Data de Nascimento** obrigatório na revisão quando há CPF (validado em `criarCard`, ~linha 2695): `<input type="date">` ligado a `form.autoNascimentoSegurado`, asterisco condicional via `isCNPJ()` — **corrigido em 18/06/2026** (o campo havia sido removido da tela de revisão e bloqueava o salvamento de qualquer produto não-Auto, ex: RC Profissional)
+- `parseBRL` (dentro do `ImportModal`, ~linha 2572): converte os valores financeiros extraídos do PDF para número, aceitando formato BR (vírgula decimal) OU US (ponto decimal) — a IA de extração varia o formato entre execuções — **corrigido em 18/06/2026** (ver Seção 8)
 
 ---
 
@@ -330,6 +234,21 @@ UPDATE clientes SET cpf_cnpj_norm = norm_doc(cpf_cnpj) WHERE ...;
 UPDATE clientes SET tipo_pessoa = CASE ... WHERE coalesce(tipo_pessoa,'') IN ('','?') ...;
 ```
 
+### Bug do parser de valores monetários — corrigido em 18/06/2026
+Existiam **três funções divergentes** de conversão de moeda no arquivo, todas com a mesma falha: tratavam o caractere "." sempre como separador de milhar, mesmo quando era o separador decimal.
+
+- `parseBRL` (dentro do `ImportModal`, ~linha 2572) — usada na criação de card via importação de PDF
+- `moedaParaNumero` (função **global**, ~linha 104) — usada em **todos** os campos de dinheiro do sistema (inputs mascarados via `maskMoeda` / `numeroParaMoeda`)
+- `parseBRLlocal` (dentro do `Modal` de edição de card, ~linha 1244) — usada na extração de PDF dentro de um card já existente ("Extrair Dados")
+
+**Sintoma observado:** ao importar um PDF, o valor aparecia correto na criação do card (ex: R$ 755,82), mas mudava sozinho depois do arquivamento automático (ex: R$ 755,82 → R$ 75.582,00). Causa: o fluxo de arquivamento reprocessava o valor — que já era um número JS (`755.82`) — através da `moedaParaNumero` antiga. Como `String(755.82)` em JS sempre usa ponto (`"755.82"`), a função antiga removia esse ponto como se fosse separador de milhar, resultando em `75582`.
+
+**Correção:** as três funções foram unificadas pela mesma lógica robusta — detecta automaticamente qual separador (vírgula ou ponto) é o decimal, olhando qual aparece **por último** na string, funcionando tanto para o formato BR quanto US. `parseBRLlocal` foi eliminada e `handleExtrairDados` passou a chamar `moedaParaNumero` diretamente, evitando duplicidade de lógica.
+
+**Commit:** `e6aeb71` — "fix: corrige parser de valores monetarios BR/US (data e financeiro) na importacao de PDF"
+
+**Registros corrompidos na base de teste** (Andreia Tavares de Lima, duplicatas de Layla Canholato Paschoetto) — identificados e removidos manualmente. Base de teste confirmada limpa em 18/06/2026.
+
 ---
 
 ## SEÇÃO 9 — Backlog mapeado (Asana)
@@ -339,14 +258,11 @@ Tarefas criadas no Asana com contexto técnico:
 2. **10/jul** — E-mail de aviso na reativação automática (Resend + Edge Function)
 3. **15/jul** — Frente 4: paridade de campos com Segfy (vigência início, parcelamento, observações)
 4. **30/jul** — Opção B: campo `linha_apolice` para encadeamento robusto de ciclos
-5. **30/jun** — Visual do CRM (Home, cards, layout de Renovações e Prospecções) — gid 1215699702329897
 
 ### Pendentes não criados no Asana
-- ~~Entrega 4 do módulo sinistros: validar `sinistros_abertos`~~ ✅ FEITO 15/06 sessão 1
-- ~~Visual do CRM~~ → criado no Asana (item 5 acima)
-- **E-mail automático de aniversário** via Resend — próximo passo da etapa 2 de comunicação
-- **WhatsApp em massa / campanha** — avaliar integração futura (Twilio/Z-API)
-- **Drill-down de sinistros** no dashboard (botão "Sinistros abertos" ainda não tem tela dedicada)
+- Entrega 4 do módulo sinistros: validar `sinistros_abertos` na `dashboard_metrics()`
+- Ponto 1 do dia 14/06: visual do CRM (Home, cards, layout de Renovações e Prospecções)
+- Ambiente de demonstração para corretor terceiro testar o CRM — bloqueado pelo limite de 2 projetos gratuitos no Supabase (por conta, não por organização). Decisão adiada: focar em testar na base de teste antes de subir ~30 propostas reais de julho em produção.
 
 ---
 
@@ -360,23 +276,7 @@ Tarefas criadas no Asana com contexto técnico:
 - **crypto.randomUUID()** para IDs (não usar custom generators)
 - **.env no Windows** — usar `Set-Content` no PowerShell (Notepad salva como .env.txt)
 - **Asana free/Basic** — não expõe custom fields via API (priority não pode ser setada programaticamente)
-- **Blocos por ramo = colunas estruturadas com prefixo** (15/06) — escolhido sobre campo genérico de texto.
-  Incremental: novo ramo de natureza diferente → adiciona bloco sem refazer. Evolução futura possível:
-  mover blocos para jsonb quando a tabela ficar muito larga (não agora).
-- **ViaCEP** (não API Correios, que é paga) — gratuito, sem chave, CORS liberado, chamado do frontend.
-- **Múltiplos carros do mesmo cliente** = múltiplos cards (não um card com vários veículos). Confirmado.
-- **Verificação obrigatória pré-entrega App.jsx (add sessão 3):**
-  1. `grep -c "function PainelSinistros" App.jsx` = 1
-  2. Integridade mapRow: `comm -23` entre campos do original e do novo
-  3. Compilação limpa: esbuild sem ERROR/WARNING
-- **Dashboard híbrido** (15/06 sessão 2): drill-downs reaproveitam telas existentes (Renovações/Segurados);
-  tela dedicada criada só para Aniversariantes (gatilho de ação de comunicação).
-- **`data_emissao`** = marco de produção (não `arquivado_em`, que pode ter outros motivos).
-  Backfill: `arquivado_em` → `atualizado_em` como fallback. Gravada automaticamente ao emitir.
-- **Aniversariantes** = tela de relacionamento, não de renovação. Gatilho de WhatsApp/e-mail.
-  WhatsApp via link `wa.me` (sem API). E-mail via `mailto:` (sem backend). Automação via Resend no futuro.
-- **Período do dashboard**: produção = para trás (o que foi vendido); a renovar = para frente (esforço futuro).
-  Dois seletores independentes, cada um na sua região. Aniversariantes = para frente (quem vai fazer aniversário).
+- **Parsing de moeda** — usar sempre uma única função compartilhada (`moedaParaNumero`) capaz de detectar automaticamente o separador decimal (vírgula ou ponto); nunca assumir que "." é sempre separador de milhar, pois valores já numéricos (JS) se representam com ponto decimal nativo
 
 ---
 
@@ -386,43 +286,8 @@ Tarefas criadas no Asana com contexto técnico:
 - Sem explicações teóricas — resultado executável direto
 - SQL: validar na teste primeiro, depois produção
 - Componentes React: Claude gera arquivo em outputs/, usuário baixa e sobrescreve em src/ (não usar Cowork para evitar sobrescrita)
+- Edições em App.jsx: confirmar linhas antes/depois da edição; usuário cola manualmente no VS Code e envia print para validação antes de salvar
 - Commit por terminal PowerShell: `git add .` → `git commit -m "..."` → `git push` (separados, não com &&)
 - Deploy manual quando auto-deploy falhar: `npx vercel --prod`
 - Build local para verificar erros: `npm run build 2>&1 | Select-Object -First 20`
-
----
-
-## SEÇÃO 12 — Atualização 17/06/2026: Integração Site→CRM e correções críticas
-
-### Nova função/trigger: processar_lead_site()
-AFTER INSERT ON public.leads (TESTE e PRODUÇÃO). Mapeia automaticamente todo lead novo
-do site para um card em renovacoes (Cotações e Leads). Traduz tipo_seguro do site
-("Seguro Auto" etc.) para a convenção do CRM (AUTOMÓVEL/RESIDENCIAL/VIAGEM/VIDA/
-EMPRESARIAL/OUTROS). Para Auto + fluxo "novo": mapeia placa/modelo/ano/chassi/
-cpf_condutor/estado_civil_condutor/cep_pernoite/tipo_utilizacao/condutor_1825.
-Blindado com BEGIN/EXCEPTION — erro de mapeamento nunca bloqueia o INSERT do lead.
-
-### ACHADO CRÍTICO #1 (corrigido): CRM lia base de teste, não produção
-Variáveis VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY na Vercel (projeto crm-simplesassim)
-apontavam para ijlwdshwmsgkvsdjxfad (teste) em vez de mrxfgvotcmtdmuzcajin (produção).
-Corrigido + redeploy sem cache. Usuário de login recriado em produção (Authentication
-estava vazio). LIÇÃO: checar periodicamente se o ambiente publicado aponta pro projeto
-certo — não havia alerta visual disso.
-
-### ACHADO CRÍTICO #2 (corrigido): schema da produção incompleto
-Produção estava sem 4 colunas que a teste já tinha: vida_capital_morte,
-vida_capital_invalidez, vida_capital_funeral, vida_beneficiarios (bloco Vida).
-Causava falha silenciosa ao salvar QUALQUER card (erro PGRST204, mascarado por
-atualização otimista da UI). Corrigido com ALTER TABLE + NOTIFY pgrst reload schema.
-LIÇÃO: ao adicionar coluna nova em um ambiente, replicar no outro imediatamente —
-não foi feito systematicamente até agora.
-
-### Paridade teste/produção restabelecida
-Teste não tinha as tabelas `seguradoras` e `usuarios` (só produção tinha). Criadas na
-teste com a mesma estrutura + RLS + as 42 seguradoras copiadas. Funções confirmadas
-idênticas nos dois ambientes (dashboard_metrics, enriquecer_cliente, norm_doc,
-reativar_renovacoes, processar_lead_site).
-
-### Card "Jose Ribamar" (produção)
-Mantido permanentemente por decisão do Salim — atualizado com dados do seu falecido
-pai, como homenagem. Não excluir.
+- Teste local da Importação de PDF: usar `npx vercel dev` (porta 3000), não `npm run dev` (porta 5173, sem funções serverless)
