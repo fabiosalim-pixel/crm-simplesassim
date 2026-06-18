@@ -98,10 +98,21 @@ const maskMoeda = (v) => {
   const n = (parseInt(dig, 10) / 100);
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
-// Converte "1.583,00" -> 1583.00 (numero)
+// Converte "1.583,00" -> 1583.00 (numero) — aceita vírgula OU ponto como decimal
 const moedaParaNumero = (s) => {
   if (s === null || s === undefined || s === "") return null;
-  const n = parseFloat(String(s).replace(/\./g, "").replace(",", "."));
+  let str = String(s).trim().replace(/[^\d.,-]/g, "");
+  const lastComma = str.lastIndexOf(",");
+  const lastDot = str.lastIndexOf(".");
+  const sepPos = Math.max(lastComma, lastDot);
+  let n;
+  if (sepPos === -1) {
+    n = parseFloat(str);
+  } else {
+    const intPart = str.slice(0, sepPos).replace(/[.,]/g, "");
+    const decPart = str.slice(sepPos + 1).replace(/[.,]/g, "");
+    n = parseFloat(intPart + "." + decPart);
+  }
   return isNaN(n) ? null : n;
 };
 // Numero do banco -> "1.583,00" para exibir no input
@@ -1230,12 +1241,6 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
 
   const handleExtrairDados = (data, tipo) => {
     const updates = {};
-    const parseBRLlocal = (s) => {
-      if (!s) return null;
-      const n = parseFloat(String(s).replace(/\./g, "").replace(",", "."));
-      return isNaN(n) ? null : n;
-    };
-
     const SN_STATUS_COR_PILL = {
       "Aberto":                "bg-red-100 text-red-700",
       "Documentação":          "bg-amber-100 text-amber-700",
@@ -1244,8 +1249,8 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
     };
 
     if (data.apolice?.vigenciaFim) updates.dataRenovacao = data.apolice.vigenciaFim;
-    if (!d.valor && data.financeiro?.premioTotal) updates.valor = numeroParaMoeda(parseBRLlocal(data.financeiro.premioTotal));
-    if (!d.premioLiquido && data.financeiro?.premioLiquido) updates.premioLiquido = numeroParaMoeda(parseBRLlocal(data.financeiro.premioLiquido));
+    if (!d.valor && data.financeiro?.premioTotal) updates.valor = numeroParaMoeda(moedaParaNumero(data.financeiro.premioTotal));
+    if (!d.premioLiquido && data.financeiro?.premioLiquido) updates.premioLiquido = numeroParaMoeda(moedaParaNumero(data.financeiro.premioLiquido));
     if (!d.seguradora && data.apolice?.seguradora) updates.seguradora = data.apolice.seguradora;
     if (!d.proposta && data.apolice?.numeroProposta) updates.proposta = data.apolice.numeroProposta;
     if (!d.apolice && data.apolice?.numeroApolice) updates.apolice = data.apolice.numeroApolice;
@@ -2571,10 +2576,20 @@ function ClienteModal({ clienteId, onClose, onAbrirCard }) {
 // ── Importação de PDF ────────────────────────────────────────
 function parseBRL(s) {
   if (!s) return null;
-  const n = parseFloat(String(s).replace(/\./g, "").replace(",", "."));
+  let str = String(s).trim().replace(/[^\d.,-]/g, "");
+  const lastComma = str.lastIndexOf(",");
+  const lastDot = str.lastIndexOf(".");
+  const sepPos = Math.max(lastComma, lastDot);
+  let n;
+  if (sepPos === -1) {
+    n = parseFloat(str);
+  } else {
+    const intPart = str.slice(0, sepPos).replace(/[.,]/g, "");
+    const decPart = str.slice(sepPos + 1).replace(/[.,]/g, "");
+    n = parseFloat(intPart + "." + decPart);
+  }
   return isNaN(n) ? null : n;
 }
-
 function mapPagamento(s) {
   if (!s) return "";
   const sl = s.toLowerCase();
@@ -2887,6 +2902,10 @@ function ImportModal({ onClose, onAdd }) {
                     <label className={lbl}>CPF / CNPJ</label>
                     <input className={inp} value={form.cpfCnpj} onChange={e => setF("cpfCnpj", e.target.value)} />
                   </div>
+                  <div>
+  <label className={lbl}>Data de Nascimento {form.cpfCnpj && !isCNPJ(form.cpfCnpj) ? "*" : ""}</label>
+  <input type="date" className={inp} value={form.autoNascimentoSegurado || ""} onChange={e => setF("autoNascimentoSegurado", e.target.value)} />
+</div>
                   <div>
                     <label className={lbl}>Telefone</label>
                     <input className={inp} value={form.telefone} onChange={e => setF("telefone", e.target.value)} />
