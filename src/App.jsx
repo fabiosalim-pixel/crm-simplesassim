@@ -419,6 +419,18 @@ auto_combustivel:      card.autoCombustivel || null,
   return error;
 }
 
+function faltaComissaoParaAvancar(card, novoStatus, statusAnterior) {
+  const indoParaTransmitida = novoStatus === "transmitida" && statusAnterior !== "transmitida";
+  const indoParaEmitida = novoStatus === "emitida" && statusAnterior !== "emitida";
+  if (!indoParaTransmitida && !indoParaEmitida) return null;
+  const liquidoVazio = !card.premioLiquido || String(card.premioLiquido).trim() === "";
+  const percentualVazio = card.percentualComissao === undefined || card.percentualComissao === null || String(card.percentualComissao).trim() === "";
+  if (liquidoVazio || percentualVazio) {
+    return `Prêmio líquido e percentual de comissão são obrigatórios para avançar para ${indoParaEmitida ? "Apólice Emitida" : "Proposta Transmitida"}. Preencha esses campos antes de continuar.`;
+  }
+  return null;
+}
+
 async function deleteCard(id) {
   const { error } = await supabase.from("renovacoes").delete().eq("id", id);
   if (error) console.error("Erro ao deletar:", error);
@@ -3363,6 +3375,8 @@ export default function App() {
   const handleDrop = async (cardId, newStatus) => {
     const card = cards.find(c => c.id === cardId);
     if (!card || card.status === newStatus) return;
+    const msgComissao = faltaComissaoParaAvancar(card, newStatus, card.status);
+    if (msgComissao) { window.alert(msgComissao); return; }
     const updated = {
       ...card, status: newStatus,
       transmitidaEm: newStatus === "transmitida" && !card.transmitidaEm ? new Date().toISOString() : (card.transmitidaEm || null),
@@ -3377,16 +3391,8 @@ export default function App() {
 
   const handleSave = async (updated) => {
     const anterior = cards.find(c => c.id === updated.id);
-    const indoParaTransmitida = updated.status === "transmitida" && anterior?.status !== "transmitida";
-    const indoParaEmitida = updated.status === "emitida" && anterior?.status !== "emitida";
-    if (indoParaTransmitida || indoParaEmitida) {
-      const liquidoVazio = !updated.premioLiquido || String(updated.premioLiquido).trim() === "";
-      const percentualVazio = updated.percentualComissao === undefined || updated.percentualComissao === null || String(updated.percentualComissao).trim() === "";
-      if (liquidoVazio || percentualVazio) {
-        window.alert(`Prêmio líquido e percentual de comissão são obrigatórios para avançar para ${indoParaEmitida ? "Apólice Emitida" : "Proposta Transmitida"}. Preencha esses campos antes de salvar.`);
-        return;
-      }
-    }
+    const msgComissao = faltaComissaoParaAvancar(updated, updated.status, anterior?.status);
+    if (msgComissao) { window.alert(msgComissao); return; }
     const recemArquivado = updated.arquivado && anterior && !anterior.arquivado;
     const err = await upsertCard(updated);
     if (err) { window.alert("Não foi possível salvar: " + err.message); return; }
@@ -3504,12 +3510,17 @@ export default function App() {
     if (!card) return;
     const novoStatus = (card.status === "transmitida" || card.status === "vistoria" || card.status === "boleto")
       ? "emitida" : card.status;
+    const msgComissao = faltaComissaoParaAvancar(card, novoStatus, card.status);
+    if (msgComissao) { window.alert(msgComissao); return; }
+    const dataEmissao = novoStatus === "emitida" ? (card.dataEmissao || new Date().toISOString().slice(0, 10)) : card.dataEmissao;
+    const patch = { status_pipeline: novoStatus, apolice_anexada: true };
+    if (novoStatus === "emitida") patch.data_emissao = dataEmissao;
     // UPDATE direto — evita falha silenciosa do upsertCard por colunas novas
     const { error } = await supabase.from("renovacoes")
-      .update({ status_pipeline: novoStatus, apolice_anexada: true })
+      .update(patch)
       .eq("id", cardId);
     if (error) { console.error("Erro ao mover card:", error); alert("Erro ao mover card: " + error.message); return; }
-    const updated = { ...card, apoliceAnexada: true, status: novoStatus };
+    const updated = { ...card, apoliceAnexada: true, status: novoStatus, dataEmissao };
     setCards(prev => prev.map(c => c.id === cardId ? updated : c));
     setSelected(updated);
   };
