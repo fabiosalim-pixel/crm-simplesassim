@@ -2233,7 +2233,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
 }
 
 function AddModal({ initialStage, onClose, onAdd }) {
-  const [d, setD] = useState({ status: "cotacoes", tipoSeguro: "AUTOMÓVEL", followUps: [], dataRenovacao: new Date().toISOString().slice(0,10) });
+  const [d, setD] = useState({ status: "cotacoes", tipoSeguro: "", followUps: [], dataRenovacao: new Date().toISOString().slice(0,10) });
   const [saving, setSaving] = useState(false);
   const [errs, setErrs] = useState({});
   const [busca, setBusca] = useState("");
@@ -2369,6 +2369,7 @@ function AddModal({ initialStage, onClose, onAdd }) {
             <div>
               <label className={lbl}>Produto</label>
               <select className={inp} value={d.tipoSeguro} onChange={e => set("tipoSeguro", e.target.value)}>
+                <option value="">Selecione</option>
                 {["ACIDENTES PESSOAIS","AUTOMÓVEL","AUXÍLIO FUNERAL","BIKE","CAPITALIZAÇÃO",
                   "CONDOMÍNIO","CONSÓRCIO","DENTAL","EMPRESARIAL","EQUIPAMENTOS PORTÁTEIS",
                   "FIANÇA LOCATÍCIA","PET","PREVIDÊNCIA","RC OBRAS","RC PROFISSIONAL",
@@ -2610,7 +2611,7 @@ function ImportModal({ onClose, onAdd }) {
   const [tipoDoc, setTipoDoc] = useState("proposta");
   const [form, setForm] = useState({
     clienteNome: "", cpfCnpj: "", telefone: "", email: "",
-    seguradora: "", tipoSeguro: "AUTOMÓVEL", proposta: "", apolice: "",
+    seguradora: "", tipoSeguro: "", proposta: "", apolice: "",
     dataRenovacao: "", etiquetaSituacao: "", etiquetaPagamento: "", etiquetaCanal: "",
     autoPlaca: "", autoModelo: "", autoAnoFab: "", autoAnoMod: "",
     autoChassi: "", autoCepPernoite: "",
@@ -2668,7 +2669,7 @@ function ImportModal({ onClose, onAdd }) {
         telefone:                d.segurado?.telefone || "",
         email:                   d.segurado?.email || "",
         seguradora:              d.apolice?.seguradora || "",
-        tipoSeguro:              temVeiculo ? "AUTOMÓVEL" : "AUTOMÓVEL",
+        tipoSeguro:              temVeiculo ? "AUTOMÓVEL" : "",
         proposta:                d.apolice?.numeroProposta || "",
         apolice:                 d.apolice?.numeroApolice || "",
         dataRenovacao:           d.apolice?.vigenciaFim || "",
@@ -2930,6 +2931,7 @@ function ImportModal({ onClose, onAdd }) {
                   <div>
                     <label className={lbl}>Produto</label>
                     <select className={inp} value={form.tipoSeguro} onChange={e => setF("tipoSeguro", e.target.value)}>
+                      <option value="">Selecione</option>
                       {produtos.map(p => <option key={p}>{p}</option>)}
                     </select>
                   </div>
