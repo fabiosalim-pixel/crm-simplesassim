@@ -2610,18 +2610,20 @@ function ImportModal({ onClose, onAdd }) {
   const [saving, setSaving] = useState(false);
   const [tipoDoc, setTipoDoc] = useState("proposta");
   const [form, setForm] = useState({
-    clienteNome: "", cpfCnpj: "", telefone: "", email: "",
-    seguradora: "", tipoSeguro: "", proposta: "", apolice: "",
-    dataRenovacao: "", etiquetaSituacao: "", etiquetaPagamento: "", etiquetaCanal: "",
-    autoPlaca: "", autoModelo: "", autoAnoFab: "", autoAnoMod: "",
-    autoChassi: "", autoCepPernoite: "",
-    autoNomeSegurado: "", autoCpfSegurado: "", autoNascimentoSegurado: "", autoEstadoCivil: "",
-    autoCondutor: "", autoCpfCondutor: "", autoNascimentoCondutor: "", autoEstadoCivilCondutor: "",
-    autoTipoUtilizacao: "Particular", autoCondutor1825: false,
-    condutorDiferente: false,
-    valor: "", status: "transmitida",
-    arquivado: false, arquivadoEm: null,
-  });
+  clienteNome: "", cpfCnpj: "", telefone: "", email: "",
+  enderecoCep: "", enderecoLogradouro: "", enderecoNumero: "", enderecoComplemento: "",
+  enderecoBairro: "", enderecoCidade: "", enderecoUf: "",
+  seguradora: "", tipoSeguro: "", proposta: "", apolice: "",
+  dataRenovacao: "", dataEmissao: "", etiquetaSituacao: "", etiquetaPagamento: "", etiquetaCanal: "",
+  autoPlaca: "", autoModelo: "", autoAnoFab: "", autoAnoMod: "",
+  autoChassi: "", autoCepPernoite: "", autoClasseBonus: "",
+  autoNomeSegurado: "", autoCpfSegurado: "", autoNascimentoSegurado: "", autoEstadoCivil: "",
+  autoCondutor: "", autoCpfCondutor: "", autoNascimentoCondutor: "", autoEstadoCivilCondutor: "",
+  autoTipoUtilizacao: "Particular", autoCondutor1825: false,
+  condutorDiferente: false,
+  valor: "", premioLiquido: "", status: "transmitida",
+  arquivado: false, arquivadoEm: null,
+});
 
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -2663,16 +2665,24 @@ function ImportModal({ onClose, onAdd }) {
       const importSituacao = !minhaCorretora ? "Renovação Congênere"
         : (d.apolice?.tipoOperacao || "Renovação");
 
-      setForm({
+      setForm({        
         clienteNome:             (d.segurado?.nome || "").toUpperCase(),
         cpfCnpj:                 d.segurado?.cpfCnpj || "",
         telefone:                d.segurado?.telefone || "",
         email:                   d.segurado?.email || "",
+        enderecoCep:             d.endereco?.cep ? maskCEP(d.endereco.cep) : "",
+        enderecoLogradouro:      d.endereco?.logradouro || "",
+        enderecoNumero:          d.endereco?.numero || "",
+        enderecoComplemento:     d.endereco?.complemento || "",
+        enderecoBairro:         d.endereco?.bairro || "",
+        enderecoCidade:         d.endereco?.cidade || "",
+        enderecoUf:          d.endereco?.uf || "",
         seguradora:              d.apolice?.seguradora || "",
         tipoSeguro:              temVeiculo ? "AUTOMÓVEL" : "",
         proposta:                d.apolice?.numeroProposta || "",
         apolice:                 d.apolice?.numeroApolice || "",
         dataRenovacao:           d.apolice?.vigenciaFim || "",
+        dataEmissao:             d.apolice?.dataEmissao || "",
         etiquetaSituacao:        importSituacao,
         etiquetaPagamento:       mapPagamento(d.financeiro?.formaPagamento),
         etiquetaCanal:           "",
@@ -2682,9 +2692,8 @@ function ImportModal({ onClose, onAdd }) {
         autoAnoMod:              d.veiculo?.anoMod || "",
         autoChassi:              d.veiculo?.chassi || "",
         autoCepPernoite:         d.veiculo?.cepPernoite || "",
+        autoClasseBonus:         d.apolice?.classeBonus || "",
         autoNomeSegurado:        (d.segurado?.nome || "").toUpperCase(),
-        autoCpfSegurado:         d.segurado?.cpfCnpj || "",
-        autoNascimentoSegurado:  d.segurado?.dataNascimento || "",
         autoCondutor:            (d.veiculo?.condutorNome || "").toUpperCase(),
         autoCpfCondutor:         d.veiculo?.condutorCpf || "",
         autoNascimentoCondutor:  d.veiculo?.condutorNascimento || "",
@@ -2694,6 +2703,7 @@ function ImportModal({ onClose, onAdd }) {
         autoCondutor1825:        d.veiculo?.condutor1825anos || false,
         condutorDiferente:       !!(d.veiculo?.condutorNome && (d.veiculo?.condutorNome||"").toUpperCase() !== (d.segurado?.nome||"").toUpperCase()),
         valor:                   d.financeiro?.premioTotal || "",
+        premioLiquido:            d.financeiro?.premioLiquido || "",
         status:                  importStatus,
         arquivado:               arquivarImport,
         arquivadoEm:             arquivarImport ? new Date().toISOString() : null,
@@ -2745,20 +2755,29 @@ function ImportModal({ onClose, onAdd }) {
         email:    form.email,
       });
       const card = {
-        id:                genId(),
-        clienteId,
-        clienteNome:       form.clienteNome,
-        cpfCnpj:           form.cpfCnpj,
-        telefone:          form.telefone,
-        email:             form.email,
-        seguradora:        form.seguradora,
-        tipoSeguro:        form.tipoSeguro,
-        proposta:          form.proposta,
-        apolice:           form.apolice,
-        dataRenovacao:     form.dataRenovacao || null,
-        etiquetaSituacao:  form.etiquetaSituacao || null,
-        etiquetaPagamento: form.etiquetaPagamento || null,
-        autoPlaca:         form.autoPlaca,
+  id:                genId(),
+  clienteId,
+  clienteNome:       form.clienteNome,
+  cpfCnpj:           form.cpfCnpj,
+  telefone:          form.telefone,
+  email:             form.email,
+  enderecoCep:         form.enderecoCep || null,
+  enderecoLogradouro:  form.enderecoLogradouro || null,
+  enderecoNumero:      form.enderecoNumero || null,
+  enderecoComplemento: form.enderecoComplemento || null,
+  enderecoBairro:      form.enderecoBairro || null,
+  enderecoCidade:      form.enderecoCidade || null,
+  enderecoUf:          form.enderecoUf || null,
+  seguradora:        form.seguradora,
+  tipoSeguro:        form.tipoSeguro,
+  proposta:          form.proposta,
+  apolice:           form.apolice,
+  dataRenovacao:     form.dataRenovacao || null,
+  dataEmissao:       form.dataEmissao || null,
+  etiquetaSituacao:  form.etiquetaSituacao || null,
+  etiquetaPagamento: form.etiquetaPagamento || null,
+  autoPlaca:         form.autoPlaca,
+  autoClasseBonus:   form.autoClasseBonus || null,
         autoModelo:        form.autoModelo,
         autoAnoFab:        form.autoAnoFab,
         autoAnoMod:        form.autoAnoMod,
@@ -2776,8 +2795,9 @@ function ImportModal({ onClose, onAdd }) {
         autoEstadoCivil:          form.autoEstadoCivil || null,
         autoEstadoCivilCondutor:  form.condutorDiferente ? (form.autoEstadoCivilCondutor || null) : (form.autoEstadoCivil || null),
         etiquetaCanal:            form.etiquetaCanal || null,
-        valor:                    parseBRL(form.valor),
-        status:            form.status || "transmitida",
+       valor:                    parseBRL(form.valor),
+premioLiquido:            parseBRL(form.premioLiquido),
+status:            form.status || "transmitida",
         followUps:         [],
         sinistros:         [],
         historicoCiclos:   [],
@@ -2917,6 +2937,39 @@ function ImportModal({ onClose, onAdd }) {
                   </div>
                 </div>
               </div>
+              <div>
+  <p className={`${lbl} mb-3`}>📍 Endereço do segurado</p>
+  <div className="grid grid-cols-2 gap-3">
+    <div>
+      <label className={lbl}>CEP</label>
+      <input className={inp} placeholder="00000-000" value={form.enderecoCep} onChange={e => setF("enderecoCep", maskCEP(e.target.value))} />
+    </div>
+    <div>
+      <label className={lbl}>Logradouro</label>
+      <input className={inp} placeholder="Rua, avenida, quadra..." value={form.enderecoLogradouro} onChange={e => setF("enderecoLogradouro", e.target.value)} />
+    </div>
+    <div>
+      <label className={lbl}>Número</label>
+      <input className={inp} value={form.enderecoNumero} onChange={e => setF("enderecoNumero", e.target.value)} />
+    </div>
+    <div>
+      <label className={lbl}>Complemento</label>
+      <input className={inp} value={form.enderecoComplemento} onChange={e => setF("enderecoComplemento", e.target.value)} />
+    </div>
+    <div>
+      <label className={lbl}>Bairro</label>
+      <input className={inp} value={form.enderecoBairro} onChange={e => setF("enderecoBairro", e.target.value)} />
+    </div>
+    <div>
+      <label className={lbl}>Cidade</label>
+      <input className={inp} value={form.enderecoCidade} onChange={e => setF("enderecoCidade", e.target.value)} />
+    </div>
+    <div>
+      <label className={lbl}>UF</label>
+      <input className={inp} maxLength={2} placeholder="DF" value={form.enderecoUf} onChange={e => setF("enderecoUf", e.target.value.toUpperCase())} />
+    </div>
+  </div>
+</div>
 
               <div>
                 <p className={`${lbl} mb-3`}>Dados da apólice</p>
@@ -2983,15 +3036,19 @@ function ImportModal({ onClose, onAdd }) {
                       <input className={inp} value={form.autoAnoFab} onChange={e => setF("autoAnoFab", e.target.value)} />
                     </div>
                     <div>
-                      <label className={lbl}>Ano modelo</label>
-                      <input className={inp} value={form.autoAnoMod} onChange={e => setF("autoAnoMod", e.target.value)} />
-                    </div>
-                    {form.autoChassi && (
-                      <div className="col-span-2">
-                        <label className={lbl}>Chassi</label>
-                        <input className={inp} value={form.autoChassi} onChange={e => setF("autoChassi", e.target.value.toUpperCase())} />
-                      </div>
-                    )}
+  <label className={lbl}>Ano modelo</label>
+  <input className={inp} value={form.autoAnoMod} onChange={e => setF("autoAnoMod", e.target.value)} />
+</div>
+<div>
+  <label className={lbl}>Classe de bônus</label>
+  <input className={inp} placeholder="0 a 10" value={form.autoClasseBonus} onChange={e => setF("autoClasseBonus", e.target.value)} />
+</div>
+{form.autoChassi && (
+  <div className="col-span-2">
+    <label className={lbl}>Chassi</label>
+    <input className={inp} value={form.autoChassi} onChange={e => setF("autoChassi", e.target.value.toUpperCase())} />
+  </div>
+)}
                   </div>
 
                   <div className="border-t border-blue-100 pt-4 mt-2">
@@ -3081,21 +3138,25 @@ function ImportModal({ onClose, onAdd }) {
               )}
 
               <div>
-                <p className={`${lbl} mb-3`}>Financeiro</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={lbl}>Prêmio total (R$)</label>
-                    <input className={inp} placeholder="Ex: 1.481,68" value={form.valor} onChange={e => setF("valor", e.target.value)} />
-                  </div>
-                  <div>
-                    <label className={lbl}>Forma de pagamento</label>
-                    <select className={inp} value={form.etiquetaPagamento} onChange={e => setF("etiquetaPagamento", e.target.value)}>
-                      <option value="">Selecione</option>
-                      {PAGAMENTOS.map(p => <option key={p}>{p}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
+  <p className={`${lbl} mb-3`}>Financeiro</p>
+  <div className="grid grid-cols-2 gap-3">
+    <div>
+      <label className={lbl}>Prêmio total (R$)</label>
+      <input className={inp} placeholder="Ex: 1.481,68" value={form.valor} onChange={e => setF("valor", e.target.value)} />
+    </div>
+    <div>
+      <label className={lbl}>Prêmio líquido (R$)</label>
+      <input className={inp} placeholder="Base da comissão" value={form.premioLiquido} onChange={e => setF("premioLiquido", e.target.value)} />
+    </div>
+    <div>
+      <label className={lbl}>Forma de pagamento</label>
+      <select className={inp} value={form.etiquetaPagamento} onChange={e => setF("etiquetaPagamento", e.target.value)}>
+        <option value="">Selecione</option>
+        {PAGAMENTOS.map(p => <option key={p}>{p}</option>)}
+      </select>
+    </div>
+  </div>
+</div>
 
               {erro && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{erro}</p>}
             </div>
