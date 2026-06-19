@@ -213,10 +213,13 @@ function mapRow(r) {
     seguradora:    r.seguradora,
     veiculo:       r.veiculo,
     dataRenovacao: r.data_renovacao,
+vigenciaInicio: r.vigencia_inicio,
     valor:         numeroParaMoeda(r.valor),
-    premioLiquido:      numeroParaMoeda(r.premio_liquido),
-    percentualComissao: r.percentual_comissao,
-    status:        r.status_pipeline,
+premioLiquido:      numeroParaMoeda(r.premio_liquido),
+numeroParcelas:     r.numero_parcelas,
+valorParcela:       numeroParaMoeda(r.valor_parcela),
+vencimentoPrimeiraParcela: r.vencimento_primeira_parcela,
+percentualComissao: r.percentual_comissao,    status:        r.status_pipeline,
     responsavel:   r.responsavel,
     proposta:      r.proposta,
     apolice:       r.apolice_nova,
@@ -243,6 +246,8 @@ function mapRow(r) {
     autoAnoFab:         r.auto_ano_fab,
     autoAnoMod:         r.auto_ano_mod,
     autoChassi:         r.auto_chassi,
+autoZeroKm:         r.auto_zero_km || false,
+autoCombustivel:    r.auto_combustivel,
     arquivado:        r.arquivado || false,
     arquivadoEm:      r.arquivado_em,
     dataEmissao:      r.data_emissao || null,
@@ -331,9 +336,13 @@ async function upsertCard(card) {
     seguradora:      card.seguradora,
     veiculo:         card.veiculo,
     data_renovacao:  card.dataRenovacao || null,
+vigencia_inicio: card.vigenciaInicio || null,
     valor:           moedaParaNumero(card.valor),
-    premio_liquido:      moedaParaNumero(card.premioLiquido),
-    percentual_comissao: card.percentualComissao ? Number(card.percentualComissao) : null,
+premio_liquido:      moedaParaNumero(card.premioLiquido),
+numero_parcelas:      card.numeroParcelas ? Number(card.numeroParcelas) : null,
+valor_parcela:        moedaParaNumero(card.valorParcela),
+vencimento_primeira_parcela: card.vencimentoPrimeiraParcela || null,
+percentual_comissao: card.percentualComissao ? Number(card.percentualComissao) : null,
     status_pipeline: card.status,
     responsavel:     card.responsavel,
     proposta:        card.proposta,
@@ -362,6 +371,8 @@ async function upsertCard(card) {
     auto_ano_fab:          card.autoAnoFab ? Number(card.autoAnoFab) : null,
     auto_ano_mod:          card.autoAnoMod ? Number(card.autoAnoMod) : null,
     auto_chassi:           card.autoChassi || null,
+auto_zero_km:          card.autoZeroKm || false,
+auto_combustivel:      card.autoCombustivel || null,
     arquivado:        card.arquivado || false,
     arquivado_em:     card.arquivadoEm || null,
     data_emissao:     card.dataEmissao || (card.status === 'emitida' ? new Date().toISOString().slice(0, 10) : null),
@@ -2614,14 +2625,15 @@ function ImportModal({ onClose, onAdd }) {
   enderecoCep: "", enderecoLogradouro: "", enderecoNumero: "", enderecoComplemento: "",
   enderecoBairro: "", enderecoCidade: "", enderecoUf: "",
   seguradora: "", tipoSeguro: "", proposta: "", apolice: "",
-  dataRenovacao: "", dataEmissao: "", etiquetaSituacao: "", etiquetaPagamento: "", etiquetaCanal: "",
+  dataRenovacao: "", dataEmissao: "", vigenciaInicio: "", etiquetaSituacao: "", etiquetaPagamento: "", etiquetaCanal: "",
   autoPlaca: "", autoModelo: "", autoAnoFab: "", autoAnoMod: "",
-  autoChassi: "", autoCepPernoite: "", autoClasseBonus: "",
+  autoChassi: "", autoCepPernoite: "", autoClasseBonus: "", autoZeroKm: false, autoCombustivel: "",
   autoNomeSegurado: "", autoCpfSegurado: "", autoNascimentoSegurado: "", autoEstadoCivil: "",
   autoCondutor: "", autoCpfCondutor: "", autoNascimentoCondutor: "", autoEstadoCivilCondutor: "",
   autoTipoUtilizacao: "Particular", autoCondutor1825: false,
   condutorDiferente: false,
-  valor: "", premioLiquido: "", status: "transmitida",
+  valor: "", premioLiquido: "", numeroParcelas: "", valorParcela: "", vencimentoPrimeiraParcela: "",
+status: "transmitida",
   arquivado: false, arquivadoEm: null,
 });
 
@@ -2681,8 +2693,9 @@ function ImportModal({ onClose, onAdd }) {
         tipoSeguro:              temVeiculo ? "AUTOMÓVEL" : "",
         proposta:                d.apolice?.numeroProposta || "",
         apolice:                 d.apolice?.numeroApolice || "",
-        dataRenovacao:           d.apolice?.vigenciaFim || "",
-        dataEmissao:             d.apolice?.dataEmissao || "",
+dataRenovacao:           d.apolice?.vigenciaFim || "",
+dataEmissao:             d.apolice?.dataEmissao || "",
+vigenciaInicio:          d.apolice?.vigenciaInicio || "",
         etiquetaSituacao:        importSituacao,
         etiquetaPagamento:       mapPagamento(d.financeiro?.formaPagamento),
         etiquetaCanal:           "",
@@ -2691,8 +2704,10 @@ function ImportModal({ onClose, onAdd }) {
         autoAnoFab:              d.veiculo?.anoFab || "",
         autoAnoMod:              d.veiculo?.anoMod || "",
         autoChassi:              d.veiculo?.chassi || "",
-        autoCepPernoite:         d.veiculo?.cepPernoite || "",
-        autoClasseBonus:         d.apolice?.classeBonus || "",
+autoCepPernoite:         d.veiculo?.cepPernoite || "",
+autoClasseBonus:         d.apolice?.classeBonus || "",
+autoZeroKm:              d.veiculo?.zeroKm || false,
+autoCombustivel:         d.veiculo?.combustivel || "",
         autoNomeSegurado:        (d.segurado?.nome || "").toUpperCase(),
         autoCondutor:            (d.veiculo?.condutorNome || "").toUpperCase(),
         autoCpfCondutor:         d.veiculo?.condutorCpf || "",
@@ -2702,8 +2717,11 @@ function ImportModal({ onClose, onAdd }) {
         autoTipoUtilizacao:      d.veiculo?.tipoUtilizacao || "Particular",
         autoCondutor1825:        d.veiculo?.condutor1825anos || false,
         condutorDiferente:       !!(d.veiculo?.condutorNome && (d.veiculo?.condutorNome||"").toUpperCase() !== (d.segurado?.nome||"").toUpperCase()),
-        valor:                   d.financeiro?.premioTotal || "",
-        premioLiquido:            d.financeiro?.premioLiquido || "",
+valor:                   d.financeiro?.premioTotal || "",
+premioLiquido:           d.financeiro?.premioLiquido || "",
+numeroParcelas:          d.financeiro?.numeroParcelas || "",
+valorParcela:            d.financeiro?.valorParcela || "",
+vencimentoPrimeiraParcela: d.financeiro?.vencimentoPrimeiraParcela || "",
         status:                  importStatus,
         arquivado:               arquivarImport,
         arquivadoEm:             arquivarImport ? new Date().toISOString() : null,
@@ -2772,12 +2790,15 @@ function ImportModal({ onClose, onAdd }) {
   tipoSeguro:        form.tipoSeguro,
   proposta:          form.proposta,
   apolice:           form.apolice,
-  dataRenovacao:     form.dataRenovacao || null,
-  dataEmissao:       form.dataEmissao || null,
+dataRenovacao:     form.dataRenovacao || null,
+dataEmissao:       form.dataEmissao || null,
+vigenciaInicio:    form.vigenciaInicio || null,
   etiquetaSituacao:  form.etiquetaSituacao || null,
   etiquetaPagamento: form.etiquetaPagamento || null,
   autoPlaca:         form.autoPlaca,
   autoClasseBonus:   form.autoClasseBonus || null,
+autoZeroKm:        form.autoZeroKm || false,
+autoCombustivel:   form.autoCombustivel || null,
         autoModelo:        form.autoModelo,
         autoAnoFab:        form.autoAnoFab,
         autoAnoMod:        form.autoAnoMod,
@@ -2797,6 +2818,9 @@ function ImportModal({ onClose, onAdd }) {
         etiquetaCanal:            form.etiquetaCanal || null,
        valor:                    parseBRL(form.valor),
 premioLiquido:            parseBRL(form.premioLiquido),
+numeroParcelas:           form.numeroParcelas || null,
+valorParcela:             parseBRL(form.valorParcela),
+vencimentoPrimeiraParcela: form.vencimentoPrimeiraParcela || null,
 status:            form.status || "transmitida",
         followUps:         [],
         sinistros:         [],
@@ -2997,10 +3021,14 @@ status:            form.status || "transmitida",
                     <input className={inp} value={form.apolice} onChange={e => setF("apolice", e.target.value)} />
                   </div>
                   <div>
-                    <label className={lbl}>Vigência fim (data renovação)</label>
-                    <input type="date" className={inp} value={form.dataRenovacao} onChange={e => setF("dataRenovacao", e.target.value)} />
-                  </div>
-                  <div>
+<div>
+  <label className={lbl}>Vigência início</label>
+  <input type="date" className={inp} value={form.vigenciaInicio} onChange={e => setF("vigenciaInicio", e.target.value)} />
+</div>
+<div>
+  <label className={lbl}>Vigência fim (data renovação)</label>
+  <input type="date" className={inp} value={form.dataRenovacao} onChange={e => setF("dataRenovacao", e.target.value)} />
+</div>
                     <label className={lbl}>Situação</label>
                     <select className={inp} value={form.etiquetaSituacao} onChange={e => setF("etiquetaSituacao", e.target.value)}>
                       <option value="">Selecione</option>
@@ -3027,10 +3055,18 @@ status:            form.status || "transmitida",
                       <label className={lbl}>Placa</label>
                       <input className={inp} value={form.autoPlaca} onChange={e => setF("autoPlaca", e.target.value.toUpperCase())} />
                     </div>
-                    <div>
-                      <label className={lbl}>Modelo</label>
-                      <input className={inp} value={form.autoModelo} onChange={e => setF("autoModelo", e.target.value)} />
-                    </div>
+<div>
+  <label className={lbl}>Modelo</label>
+  <input className={inp} value={form.autoModelo} onChange={e => setF("autoModelo", e.target.value)} />
+</div>
+<div>
+  <label className={lbl}>Combustível</label>
+  <input className={inp} placeholder="Flex, Gasolina..." value={form.autoCombustivel} onChange={e => setF("autoCombustivel", e.target.value)} />
+</div>
+<div className="flex items-center gap-2 mt-1">
+  <input type="checkbox" id="imp-zerokm" checked={form.autoZeroKm || false} onChange={e => setF("autoZeroKm", e.target.checked)} className="w-4 h-4 accent-indigo-600" />
+  <label htmlFor="imp-zerokm" className="text-sm text-slate-700 cursor-pointer">Veículo Zero KM</label>
+</div>
                     <div>
                       <label className={lbl}>Ano fabricação</label>
                       <input className={inp} value={form.autoAnoFab} onChange={e => setF("autoAnoFab", e.target.value)} />
@@ -3148,13 +3184,25 @@ status:            form.status || "transmitida",
       <label className={lbl}>Prêmio líquido (R$)</label>
       <input className={inp} placeholder="Base da comissão" value={form.premioLiquido} onChange={e => setF("premioLiquido", e.target.value)} />
     </div>
-    <div>
-      <label className={lbl}>Forma de pagamento</label>
-      <select className={inp} value={form.etiquetaPagamento} onChange={e => setF("etiquetaPagamento", e.target.value)}>
-        <option value="">Selecione</option>
-        {PAGAMENTOS.map(p => <option key={p}>{p}</option>)}
-      </select>
-    </div>
+<div>
+  <label className={lbl}>Forma de pagamento</label>
+  <select className={inp} value={form.etiquetaPagamento} onChange={e => setF("etiquetaPagamento", e.target.value)}>
+    <option value="">Selecione</option>
+    {PAGAMENTOS.map(p => <option key={p}>{p}</option>)}
+  </select>
+</div>
+<div>
+  <label className={lbl}>Nº de parcelas</label>
+  <input className={inp} value={form.numeroParcelas} onChange={e => setF("numeroParcelas", e.target.value)} />
+</div>
+<div>
+  <label className={lbl}>Valor da parcela (R$)</label>
+  <input className={inp} value={form.valorParcela} onChange={e => setF("valorParcela", e.target.value)} />
+</div>
+<div>
+  <label className={lbl}>Vencimento 1ª parcela</label>
+  <input type="date" className={inp} value={form.vencimentoPrimeiraParcela} onChange={e => setF("vencimentoPrimeiraParcela", e.target.value)} />
+</div>
   </div>
 </div>
 
