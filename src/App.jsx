@@ -723,10 +723,10 @@ function AniversariantesView({ onVerCliente }) {
   };
 
   const msgWhatsApp = (c) =>
-    encodeURIComponent(`Olá ${c.nome.split(" ")[0]}, tudo bem? 🎂 A equipe da Simples Assim deseja um feliz aniversário! Que este novo ano seja repleto de realizações. Um abraço!`);
+    encodeURIComponent(`Olá ${(c.nome || "").split(" ")[0]}, tudo bem? 🎂 A equipe da Simples Assim deseja um feliz aniversário! Que este novo ano seja repleto de realizações. Um abraço!`);
 
   const msgEmail = (c) =>
-    encodeURIComponent(`Feliz Aniversário, ${c.nome.split(" ")[0]}! 🎉 A equipe Simples Assim deseja um dia muito especial e um novo ano repleto de conquistas. Um abraço!`);
+    encodeURIComponent(`Feliz Aniversário, ${(c.nome || "").split(" ")[0]}! 🎉 A equipe Simples Assim deseja um dia muito especial e um novo ano repleto de conquistas. Um abraço!`);
 
   const visiveis = clientes.filter(c =>
     !busca || c.nome?.toLowerCase().includes(busca.toLowerCase())
@@ -2602,22 +2602,7 @@ function ClienteModal({ clienteId, onClose, onAbrirCard }) {
 }
 
 // ── Importação de PDF ────────────────────────────────────────
-function parseBRL(s) {
-  if (!s) return null;
-  let str = String(s).trim().replace(/[^\d.,-]/g, "");
-  const lastComma = str.lastIndexOf(",");
-  const lastDot = str.lastIndexOf(".");
-  const sepPos = Math.max(lastComma, lastDot);
-  let n;
-  if (sepPos === -1) {
-    n = parseFloat(str);
-  } else {
-    const intPart = str.slice(0, sepPos).replace(/[.,]/g, "");
-    const decPart = str.slice(sepPos + 1).replace(/[.,]/g, "");
-    n = parseFloat(intPart + "." + decPart);
-  }
-  return isNaN(n) ? null : n;
-}
+
 function mapPagamento(s) {
   if (!s) return "";
   const sl = s.toLowerCase();
@@ -2835,10 +2820,10 @@ autoCombustivel:   form.autoCombustivel || null,
         autoEstadoCivil:          form.autoEstadoCivil || null,
         autoEstadoCivilCondutor:  form.condutorDiferente ? (form.autoEstadoCivilCondutor || null) : (form.autoEstadoCivil || null),
         etiquetaCanal:            form.etiquetaCanal || null,
-       valor:                    parseBRL(form.valor),
-premioLiquido:            parseBRL(form.premioLiquido),
+       valor:                    moedaParaNumero(form.valor),
+premioLiquido:            moedaParaNumero(form.premioLiquido),
 numeroParcelas:           form.numeroParcelas || null,
-valorParcela:             parseBRL(form.valorParcela),
+valorParcela:             moedaParaNumero(form.valorParcela),
 vencimentoPrimeiraParcela: form.vencimentoPrimeiraParcela || null,
 status:            form.status || "transmitida",
         followUps:         [],
