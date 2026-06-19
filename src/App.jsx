@@ -561,8 +561,8 @@ async function findOrCreateCliente({ nome, cpfCnpj, telefone, email }) {
   if (normCpf) {
     const { data: existing } = await supabase
       .from("clientes").select("id")
-      .eq("cpf_cnpj_norm", normCpf).maybeSingle();
-    if (existing) return existing.id;
+      .eq("cpf_cnpj_norm", normCpf).limit(1);
+    if (existing && existing.length) return existing[0].id;
   }
   const id = genId();
   const tipoPessoa = normCpf.length === 11 ? "PF" : normCpf.length === 14 ? "PJ" : "?";
