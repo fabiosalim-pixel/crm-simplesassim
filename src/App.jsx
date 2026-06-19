@@ -1272,7 +1272,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
       "Em Regulação":          "bg-violet-100 text-violet-700",
     };
 
-    if (data.apolice?.vigenciaFim) updates.dataRenovacao = data.apolice.vigenciaFim;
+    if (!d.dataRenovacao && data.apolice?.vigenciaFim) updates.dataRenovacao = data.apolice.vigenciaFim;
     if (!d.valor && data.financeiro?.premioTotal) updates.valor = numeroParaMoeda(moedaParaNumero(data.financeiro.premioTotal));
     if (!d.premioLiquido && data.financeiro?.premioLiquido) updates.premioLiquido = numeroParaMoeda(moedaParaNumero(data.financeiro.premioLiquido));
     if (!d.seguradora && data.apolice?.seguradora) updates.seguradora = data.apolice.seguradora;
