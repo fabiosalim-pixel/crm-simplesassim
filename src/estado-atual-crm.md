@@ -1,6 +1,6 @@
 # Estado Atual — CRM Simples Assim
 
-> Atualizado em 18/06/2026. Não editar manualmente.
+> Atualizado em 19/06/2026. Não editar manualmente.
 
 ---
 
@@ -22,7 +22,7 @@ GitHub: repositório `crm-simplesassim` (Windows, PowerShell).
 ## SEÇÃO 1 — Arquivos do projeto
 
 ### Componentes React ativos
-- `src/App.jsx` — componente principal (~2900 linhas), monolítico
+- `src/App.jsx` — componente principal (~3.300 linhas), monolítico
 - `src/Dashboard.jsx` — dashboard rico em 4 regiões (Produção com seletor de período, Carteira atual + Mix por ramo, A renovar, Aniversariantes), com cards clicáveis que navegam pro Kanban filtrado + card "Sem comissão" que abre modal com lista detalhada
 - `src/Segurados.jsx` — área do segurado com ficha completa
 - `src/supabase.js` — cliente Supabase
@@ -61,6 +61,7 @@ Colunas principais confirmadas via CSV:
 - `auto_estado_civil`, `auto_nome_segurado`, `responsavel`
 - `endereco_cep`, `endereco_logradouro`, `endereco_numero`, `endereco_complemento`, `endereco_bairro`, `endereco_cidade`, `endereco_uf` — já existiam no schema, mas não eram preenchidos pela importação de PDF até 18/06/2026
 - `vigencia_inicio` (date), `numero_parcelas` (integer), `valor_parcela` (numeric), `vencimento_primeira_parcela` (date), `auto_zero_km` (boolean), `auto_combustivel` (text) — **colunas novas, criadas em 18/06/2026** (teste e produção) para capturar dados secundários extraídos do PDF e evitar pagar duas vezes pela mesma extração de IA (ver Seção 7)
+- `data_emissao` (date) — usada pela CTE `prod` do `dashboard_metrics` (produção do mês). Card emitida sem `data_emissao` **não conta** no prêmio/comissão do mês (ver Seção 3 e N4 na Seção 9)
 
 ### Tabela: `clientes`
 Colunas: id, nome, cpf_cnpj, tipo_pessoa, data_nascimento (date), profissao,
@@ -82,14 +83,15 @@ prospeccoes, follow_ups, usuarios
 ## SEÇÃO 3 — Funções SQL instaladas (PRODUÇÃO e TESTE)
 
 ### `norm_doc(p text) → text`
-Normalização robusta de CPF/CNPJ: remove não-dígitos, mantém últimos 14 (CNPJ) ou 11 (CPF).
-Evita duplicação de cadastro por zero extra na frente do CNPJ.
+Normalização robusta de CPF/CNPJ. Definição real (confirmada em 19/06/2026):
+remove não-dígitos e, **se tiver mais de 14 dígitos, mantém os últimos 14**; caso contrário mantém como está. **Não corta para 11** — um CPF de 12–13 dígitos permanece com 12–13. Evita duplicação de cadastro por zero extra na frente do CNPJ. O front (`findOrCreateCliente`) faz exatamente o mesmo (`>14 → slice(-14)`), então não há divergência.
 
 ### `enriquecer_cliente()` + trigger `trg_enriquecer_cliente`
 Trigger AFTER INSERT OR UPDATE em `renovacoes`.
 Preenche campos VAZIOS do cadastro de clientes (fill-blank-only, nunca sobrescreve):
 - nome, cpf_cnpj, cpf_cnpj_norm, tipo_pessoa (inferido dos dígitos), telefone, email
 - data_nascimento (copia de auto_nascimento_segurado quando CPF/nome do segurado bate com o titular)
+- **Não** sincroniza endereço — por isso o `handleExtrairDados` faz esse sync à parte (ver Seção 7, agora fill-blank)
 
 ### `reativar_renovacoes()`
 Cria novo card (INSERT) para renovações 30 dias antes do vencimento.
@@ -102,13 +104,20 @@ Cria novo card (INSERT) para renovações 30 dias antes do vencimento.
 ### `dashboard_metrics(p_inicio date, p_fim date, p_renovar_dias integer)` → jsonb
 Parametrizada (período de produção, janela de "a renovar"). Retorna, agrupado em jsonb: dados de Produção (período), Carteira (foto de agora), A renovar (horizonte), Aniversariantes, foto geral (sinistros, urgentes, **sem_comissao_qtd/valor**) e bloco de compatibilidade com nomes antigos do Dashboard (premio_mes, comissao_mes, etc.)
 
-**`sem_comissao_qtd` / `sem_comissao_valor`** — adicionados em 18/06/2026. Contam apólices da carteira ativa (`status_pipeline = 'emitida' AND data_renovacao >= hoje`) com `percentual_comissao` OU `premio_liquido` em branco. Alimenta o card clicável "Sem comissão" no Dashboard.
+**`sem_comissao_qtd` / `sem_comissao_valor`** — adicionados em 18/06/2026. Contam apólices da carteira ativa (`status_pipeline = 'emitida' AND data_renovacao >= hoje`) com `percentual_comissao` OU `premio_liquido` em branco. Alimenta o card clicável "Sem comissão" no Dashboard. (Não filtra `arquivado` de propósito — ver decisão N1 na Seção 10.)
 
-**Fórmula de comissão (confirmada no código-fonte da função, 18/06/2026):**
+**Fórmula de comissão (confirmada no código-fonte da função, 18/06 e 19/06/2026):**
 ```sql
 premio_liquido * percentual_comissao / 100.0
 ```
 `percentual_comissao` é guardado como número inteiro (`15` = 15%). Usada em três lugares dentro da função: `comissao_periodo`, `carteira_comissao` e `projecao_comissao_60d`. Como qualquer multiplicação com `NULL` em SQL resulta em `NULL`, e `SUM()` ignora `NULL` silenciosamente, um card sem `percentual_comissao` ou sem `premio_liquido` simplesmente **não entra na soma** — sem erro visível, só um número de comissão mais baixo do que deveria no Dashboard. É a razão pela qual esses dois campos passaram a ser obrigatórios em certas transições (ver Seção 7).
+
+**Perdidos no mês e Taxa de renovação — corrigidos em 19/06/2026 (N5/N6):**
+Antes, ambos eram calculados dentro da CTE `prod` (que filtra `status_pipeline = 'emitida' AND data_emissao BETWEEN ini/fim`):
+- `perdidas_periodo` contava "Não Renovada" ali dentro — mas card "Não Renovada" nunca é emitida → resultado **sempre ~0**.
+- `total_periodo` era `count FILTER (mes_referencia IS NOT NULL)` no mesmo conjunto emitida → praticamente igual a `emitidas_periodo` → `taxa_renovacao` **sempre ~100%**.
+
+Correção: criada CTE `perdidas` separada que conta "Não Renovada" por `arquivado_em` no período (independente do filtro de emitida). Passou a valer `total = emitidas + perdidas` e `taxa = round(100 × emitidas / (emitidas + perdidas), 1)`. Comissão, prêmio, carteira e projeção **inalterados**. Aplicado em teste e produção. Definição da taxa endossada pelo corretor (ver Seção 10).
 
 ---
 
@@ -116,7 +125,7 @@ premio_liquido * percentual_comissao / 100.0
 
 **Restaurado em 18/06/2026** após ter sido temporariamente sobrescrito por uma versão simplificada de 8 cards (commit `f670817` recuperado via `git show`). A versão correta tem 4 regiões:
 
-1. **Produção** — seletor de período (Mês atual / 15 / 30 / 90 dias / livre). Cards clicáveis: Apólices emitidas, Prêmio produzido, Comissões, Taxa de renovação, Perdidos (navegam pro Kanban filtrado por status/data via `onNavigate`/`onFiltro`). Card informativo (não clicável): Proj. comissão 60d.
+1. **Produção** — seletor de período (Mês atual / 15 / 30 / 90 dias / livre). Cards clicáveis: Apólices emitidas, Prêmio produzido, Comissões, Taxa de renovação, Perdidos (navegam pro Kanban filtrado por status/data via `onNavigate`/`onFiltro`). Card informativo (não clicável): Proj. comissão 60d. (Taxa de renovação e Perdidos passaram a mostrar valor real a partir de 19/06 — ver Seção 3.)
 2. **Carteira atual** — Apólices vigentes, Comissão da carteira (informativos), Sinistros abertos e Urgentes (≤5 dias) clicáveis, e o card **"Sem comissão"** (clicável) ao lado do gráfico Mix de carteira por ramo.
 3. **A renovar** — seletor de horizonte (15/60/90d), card clicável grande mostrando quantidade e prêmio.
 4. **Aniversariantes** — seletor (Hoje/15/30 dias), card clicável que leva pra `AniversariantesView`.
@@ -162,7 +171,7 @@ Seções em ordem:
 - `fmtFone(v)`: aceita 10 dígitos (fixo) e 11 (celular), formata (DD) XXXXX-XXXX
 - `fmtData(d)`: date → DD/MM/AAAA
 - `fmtBRL(v)`: número → R$ X.XXX,XX
-- `norm_doc` robusta no `findOrCreateCliente`: mantém últimos 14/11 dígitos
+- `norm_doc` robusta no `findOrCreateCliente`: mantém últimos 14 dígitos quando passa de 14 (idêntico ao `norm_doc` do banco)
 
 ---
 
@@ -218,55 +227,62 @@ Coluna fixa 256px à direita do Kanban, scroll próprio.
 6. emitida — "Apólice Emitida" (verde)
 7. crosselling — "Crosselling" (roxo claro)
 
-### Fluxo de arquivamento
+### Fluxo de arquivamento e save seguro
 - `handleSave`: se `updated.arquivado && !anterior.arquivado` → remove da lista (some sem F5)
 - `handleArquivar`: `upsertCard` + `setCards(filter)`
 - `handleNaoRenovada`: arquiva + cria prospecção automática
+- **Save seguro (19/06/2026, C1):** `upsertCard` agora **retorna o erro** do banco, e todos os handlers acima (+ `handleAdd`, `handleDrop`, `handleDesarquivar`) checam esse erro **antes** de mexer na UI. Se o banco recusar, mostra o erro real e não remove/move o card. O `handleDrop` reverte a posição do card se o save falhar.
 
-### Validação de comissão obrigatória — implementada em 18/06/2026
-No `handleSave` do App (~linha 3256), antes de chamar `upsertCard`:
-- Se o card está **entrando agora** no estágio `transmitida` ou `emitida` (ou seja, `updated.status` mudou para um desses E `anterior?.status` era diferente) → exige `premioLiquido` e `percentualComissao` preenchidos (não vazios).
-- Se algum estiver em branco, mostra `window.alert(...)` e `return` antes do `upsertCard` — nada é salvo.
-- **Não dispara** se o card já estava nesse estágio antes (edição de um card antigo/histórico não é bloqueada por falta de comissão).
-- **Não afeta** o fluxo de criação via "Importar PDF" (`handleAdd`, função separada) — usado para registrar apólices da concorrência ou imports em lote, que não precisam de comissão.
-- Motivo: o `percentual_comissao` é essencial para o cálculo de comissão no `dashboard_metrics()` (ver Seção 3) e ficava em branco silenciosamente quando a proposta era transmitida via "Extrair Dados".
+### Validação de comissão obrigatória — implementada em 18/06/2026, unificada em 19/06/2026 (M1)
+Em 18/06 a trava existia só no `handleSave`. Em 19/06 a regra foi extraída para uma função única **`faltaComissaoParaAvancar(card, novoStatus, statusAnterior)`** e aplicada em **todos** os caminhos que promovem um card:
+- `handleSave` (Modal + Salvar)
+- `handleDrop` (arrastar no Kanban) — **bloqueia e reverte** o card pra coluna de origem se faltar comissão
+- `handleApoliceAnexada` (anexar apólice que promove pra "emitida")
+
+Regra: se o card está **entrando agora** no estágio `transmitida` ou `emitida` (status mudou para um desses E o anterior era diferente) → exige `premioLiquido` e `percentualComissao` preenchidos. Se faltar, alerta e não salva.
+- **Não dispara** se o card já estava nesse estágio (edição de card antigo/histórico não é bloqueada).
+- **Não afeta** a criação via "Importar PDF" (`handleAdd`) — usado pra registrar apólices da concorrência/imports em lote, sem comissão própria.
+- Motivo: `percentual_comissao` é essencial pro cálculo no `dashboard_metrics()` (ver Seção 3) e ficava em branco silenciosamente.
+- **Commits:** `42cf643` (18/06) + correções de 19/06.
 
 ### Import de PDF
 - Botão "Importar PDF" → `ImportModal`
 - Extrai dados via API Anthropic (claude-sonnet-4-6), endpoint `/api/extract-pdf` (`extract-pdf.js`)
-- `findOrCreateCliente`: busca por `cpf_cnpj_norm` com norm robusta (últimos 14/11 dígitos)
+- `findOrCreateCliente`: busca por `cpf_cnpj_norm` (norm robusta idêntica ao `norm_doc`). **Em 19/06 (B2):** trocado `.maybeSingle()` por `.limit(1)` pegando o primeiro — antes lançava erro se já houvesse >1 cliente com o mesmo norm, fazendo o card perder o `cliente_id`.
 - Cria card com `status_pipeline` e `etiqueta_situacao` adequados
-- Campo **Data de Nascimento** obrigatório na revisão quando há CPF (validado em `criarCard`, ~linha 2695): `<input type="date">` ligado a `form.autoNascimentoSegurado`, asterisco condicional via `isCNPJ()` — **corrigido em 18/06/2026** (o campo havia sido removido da tela de revisão e bloqueava o salvamento de qualquer produto não-Auto, ex: RC Profissional)
-- `parseBRL` (dentro do `ImportModal`, ~linha 2572): converte os valores financeiros extraídos do PDF para número, aceitando formato BR (vírgula decimal) OU US (ponto decimal) — a IA de extração varia o formato entre execuções — **corrigido em 18/06/2026** (ver Seção 8)
-- **Produto** (`tipoSeguro`) inicia em branco ("Selecione") em vez de fixo em "AUTOMÓVEL" — **corrigido em 18/06/2026**, tanto no `AddModal` (Novo card) quanto no `ImportModal` (estado inicial + condição que sempre retornava "AUTOMÓVEL" independente do PDF ter dados de veículo ou não)
-- **Canal de origem** na tela de revisão agora usa a lista compartilhada `CANAIS` (5 opções: Google, Indicação, Site, Cliente da Corretora, Outros/Não informado) em vez de uma lista hardcoded incompleta com só 3 — **corrigido em 18/06/2026**
+- Campo **Data de Nascimento** obrigatório na revisão quando há CPF (validado em `criarCard`, ~linha 2695): `<input type="date">` ligado a `form.autoNascimentoSegurado`, asterisco condicional via `isCNPJ()` — **corrigido em 18/06/2026**
+- **Inputs de valor na revisão (Prêmio total, Prêmio líquido, Valor da parcela): `maskMoeda` aplicada no `onChange` — corrigido em 19/06/2026 (M3).** Antes eram crus; um valor sem centavos (ex.: "2.500") era lido como 2,5 pelo parser de último separador. A máscara força o formato "X.XXX,XX" com centavos.
+- `parseBRL` (que existia dentro do `ImportModal`): **eliminado em 19/06/2026 (B3)** — era idêntico ao `moedaParaNumero`; as 3 chamadas no `criarCard` (`valor`, `premioLiquido`, `valorParcela`) passaram a usar `moedaParaNumero`, o conversor único.
+- **Produto** (`tipoSeguro`) inicia em branco ("Selecione") em vez de fixo em "AUTOMÓVEL" — **corrigido em 18/06/2026**, tanto no `AddModal` quanto no `ImportModal`
+- **Canal de origem** na revisão usa a lista compartilhada `CANAIS` (5 opções) em vez de uma lista hardcoded de 3 — **corrigido em 18/06/2026**
 
 #### Captura completa em uma única extração — implementado em 18/06/2026
-Motivação: evitar pagar duas vezes pela IA (uma na importação, outra ao usar "Extrair" dentro do card já criado) por causa de campos que a IA já extrai mas o fluxo descartava. Mapeados em `processarPDF` (estado do `form`), exibidos na tela de revisão e persistidos em `criarCard`:
+Motivação: evitar pagar duas vezes pela IA por causa de campos que ela já extrai mas o fluxo descartava. Mapeados em `processarPDF`, exibidos na revisão e persistidos em `criarCard`:
 
 **Críticos (campos que já existiam no schema, só não eram capturados):**
 - Endereço completo do segurado (`d.endereco.*` → `enderecoCep/Logradouro/Numero/Complemento/Bairro/Cidade/Uf`)
-- Prêmio líquido (`d.financeiro.premioLiquido` → `premioLiquido`) — essencial pois é um dos campos exigidos pela validação de comissão obrigatória (Seção 7, abaixo)
-- Data de emissão (`d.apolice.dataEmissao` → `dataEmissao`) — sem isso, `upsertCard` defaultava pra "hoje" quando status='emitida', inflando artificialmente as métricas de produção do mês no Dashboard pra qualquer apólice histórica importada
+- Prêmio líquido (`d.financeiro.premioLiquido` → `premioLiquido`) — exigido pela validação de comissão obrigatória
+- Data de emissão (`d.apolice.dataEmissao` → `dataEmissao`) — sem isso, `upsertCard` defaultava pra "hoje" quando status='emitida', inflando as métricas de produção do mês
 - Classe de bônus (`d.apolice.classeBonus` → `autoClasseBonus`)
 
 **Secundários (exigiram colunas novas no banco, ver Seção 2):**
 - Vigência início (`d.apolice.vigenciaInicio` → `vigenciaInicio`)
 - Zero KM e combustível do veículo (`d.veiculo.zeroKm/combustivel` → `autoZeroKm`/`autoCombustivel`)
-- Número de parcelas, valor da parcela, vencimento da 1ª parcela (`d.financeiro.numeroParcelas/valorParcela/vencimentoPrimeiraParcela`)
+- Número de parcelas, valor da parcela, vencimento da 1ª parcela
 
 IOF foi avaliado e **descartado** de propósito (decisão do corretor).
 
 #### Forma de pagamento → move automaticamente pra "Boleto/Débito" — implementado em 18/06/2026
-Quando a forma de pagamento mapeada (`mapPagamento()`) for "Boleto", "Débito em Conta" ou "Link de Pagamento", o card que iria pra `transmitida` é desviado direto pra `boleto` em vez disso. Implementado em dois pontos:
+Quando a forma de pagamento mapeada (`mapPagamento()`) for "Boleto", "Débito em Conta" ou "Link de Pagamento", o card que iria pra `transmitida` é desviado direto pra `boleto`. Implementado em dois pontos:
 - **`ImportModal` (`processarPDF`)**: `importStatus` calculado normalmente, depois sobrescrito pra `"boleto"` se bater a condição.
-- **`handleExtrairDados` (Modal de card existente)**: a forma de pagamento agora também é capturada aqui (`updates.etiquetaPagamento`, gap que não existia antes), e a transição automática pra `transmitida` (quando `tipo === "proposta" && d.status === "cotacoes"`) decide entre `"boleto"` ou `"transmitida"` com a mesma lista de formas de pagamento.
+- **`handleExtrairDados` (Modal de card existente)**: a forma de pagamento também é capturada aqui (`updates.etiquetaPagamento`), e a transição automática pra `transmitida` decide entre `"boleto"` ou `"transmitida"` com a mesma lista.
 
 ### Extração de dados em card existente (`handleExtrairDados`, dentro do `Modal`)
 - Disparada pelo botão "Extrair" sobre um documento anexado (proposta, apólice ou endosso)
-- Preenche campos vazios do card a partir do PDF extraído (não sobrescreve o que já estava preenchido)
-- Se `tipo === "proposta"` e o card está em `cotacoes` → muda `d.status` para `transmitida` automaticamente (só no estado local do Modal; só persiste no clique em "Salvar", onde a validação de comissão da seção acima entra em ação)
-- Se `tipo === "apolice_endosso"` → calcula delta de prêmio líquido e registra em `endossos`
+- Preenche **campos vazios** do card a partir do PDF extraído (fill-blank). **Corrigido em 19/06/2026 (N2):** a `dataRenovacao` era a única linha que sobrescrevia incondicionalmente — agora também é fill-blank (`if (!d.dataRenovacao && ...)`), pra não carimbar por cima de uma vigência corrigida à mão (reimport/endosso).
+- **Sync da tabela `clientes` — corrigido em 19/06/2026 (N3):** antes gravava `data_nascimento`/endereço sempre que o PDF trazia valor (sobrescrevendo dado bom) e gravava o `cep` cru. Agora **busca o cliente atual e só preenche os campos vazios**, com `maskCEP` no cep — alinhado ao fill-blank do trigger `enriquecer_cliente`.
+- Se `tipo === "proposta"` e o card está em `cotacoes` → muda `d.status` para `transmitida` (ou `boleto`) automaticamente (só no estado local do Modal; só persiste no "Salvar", onde a validação de comissão acima entra em ação)
+- Se `tipo === "apolice_endosso"` → calcula delta de prêmio líquido (via `moedaParaNumero`) e registra em `endossos`
 
 ---
 
@@ -274,7 +290,7 @@ Quando a forma de pagamento mapeada (`mapPagamento()`) for "Boleto", "Débito em
 
 ### Anti-duplicidade de cadastro (duas camadas)
 - **Camada 1 (banco):** `norm_doc()` + trigger `enriquecer_cliente` — colapsam CNPJ com zero extra
-- **Camada 2 (App.jsx):** `findOrCreateCliente` normaliza com `slice(-14)` antes de buscar
+- **Camada 2 (App.jsx):** `findOrCreateCliente` normaliza com `slice(-14)` antes de buscar (idêntico ao `norm_doc`). Em 19/06 trocou `.maybeSingle()` por `.limit(1)` — ver Sessão 19/06 abaixo.
 
 ### Merge FOCALIZE executado
 CNPJ `021.672.740/0001-44` (15 dígitos, tipo ?) fundido com `21.672.740/0001-44` (PJ).
@@ -289,43 +305,44 @@ UPDATE clientes SET tipo_pessoa = CASE ... WHERE coalesce(tipo_pessoa,'') IN (''
 ### Bug do parser de valores monetários — corrigido em 18/06/2026
 Existiam **três funções divergentes** de conversão de moeda no arquivo, todas com a mesma falha: tratavam o caractere "." sempre como separador de milhar, mesmo quando era o separador decimal.
 
-- `parseBRL` (dentro do `ImportModal`, ~linha 2572) — usada na criação de card via importação de PDF
-- `moedaParaNumero` (função **global**, ~linha 104) — usada em **todos** os campos de dinheiro do sistema (inputs mascarados via `maskMoeda` / `numeroParaMoeda`)
-- `parseBRLlocal` (dentro do `Modal` de edição de card, ~linha 1244) — usada na extração de PDF dentro de um card já existente ("Extrair Dados")
+- `parseBRL` (dentro do `ImportModal`) — usada na criação de card via importação de PDF
+- `moedaParaNumero` (função **global**) — usada em **todos** os campos de dinheiro do sistema
+- `parseBRLlocal` (dentro do `Modal` de edição) — usada na extração de PDF dentro de um card existente
 
-**Sintoma observado:** ao importar um PDF, o valor aparecia correto na criação do card (ex: R$ 755,82), mas mudava sozinho depois do arquivamento automático (ex: R$ 755,82 → R$ 75.582,00). Causa: o fluxo de arquivamento reprocessava o valor — que já era um número JS (`755.82`) — através da `moedaParaNumero` antiga. Como `String(755.82)` em JS sempre usa ponto (`"755.82"`), a função antiga removia esse ponto como se fosse separador de milhar, resultando em `75582`.
+**Sintoma:** ao importar um PDF, o valor aparecia correto na criação (ex: R$ 755,82), mas mudava sozinho depois do arquivamento (ex: R$ 755,82 → R$ 75.582,00), porque o fluxo reprocessava o número JS (`755.82`) pela `moedaParaNumero` antiga, que removia o ponto como milhar.
 
-**Correção:** as três funções foram unificadas pela mesma lógica robusta — detecta automaticamente qual separador (vírgula ou ponto) é o decimal, olhando qual aparece **por último** na string, funcionando tanto para o formato BR quanto US. `parseBRLlocal` foi eliminada e `handleExtrairDados` passou a chamar `moedaParaNumero` diretamente, evitando duplicidade de lógica.
+**Correção:** as funções foram unificadas pela lógica robusta de último separador (detecta vírgula ou ponto como decimal). `parseBRLlocal` foi eliminada e `handleExtrairDados` passou a chamar `moedaParaNumero`. **Commit:** `e6aeb71`.
+*(Complemento 19/06 — B3: o último gêmeo, `parseBRL` do ImportModal, também foi eliminado; ver Sessão 19/06.)*
 
-**Commit:** `e6aeb71` — "fix: corrige parser de valores monetarios BR/US (data e financeiro) na importacao de PDF"
-
-**Registros corrompidos na base de teste** (Andreia Tavares de Lima, duplicatas de Layla Canholato Paschoetto) — identificados e removidos manualmente. Base de teste confirmada limpa em 18/06/2026.
+**Registros corrompidos na base de teste** (Andreia Tavares de Lima, duplicatas de Layla Canholato Paschoetto) — identificados e removidos. Base de teste confirmada limpa em 18/06/2026.
 
 ### Regressão corrigida: chamada órfã para `parseBRLlocal` (18/06/2026)
-Ao eliminar a função `parseBRLlocal` (fix acima), uma terceira chamada a ela passou batido — dentro do bloco `tipo === "apolice_endosso"` do `handleExtrairDados` (~linha 1268), usada para calcular o delta de prêmio líquido em endossos. Teria quebrado com `ReferenceError` na primeira extração de um endosso. Corrigida para chamar `moedaParaNumero` também.
-
-### Comissão obrigatória em Proposta Transmitida / Apólice Emitida (18/06/2026)
-Ver detalhes da implementação na Seção 7 ("Validação de comissão obrigatória"). Resumo da decisão de negócio:
-- `premio_liquido` e `percentual_comissao` passam a ser obrigatórios **apenas no momento em que o card entra** nos estágios `transmitida` ou `emitida` pelo fluxo normal do app (Modal + Salvar).
-- Cards que já estavam nesses estágios antes (histórico, apólices da concorrência importadas para referência) **não são bloqueados** ao serem editados depois — a trava só olha a transição, não o estado já salvo.
-- Imports diretos via SQL (migração Segfy) e via "Importar PDF" (`handleAdd`) não passam por essa validação — preservado de propósito, pois usados para registrar apólices que não geram comissão própria (ex: apólice atual do cliente com outro corretor).
-- **Commit:** `42cf643` — "feat: torna premio liquido e percentual de comissao obrigatorios ao avancar para Proposta Transmitida e Apolice Emitida"
+Ao eliminar `parseBRLlocal`, uma chamada passou batido dentro do bloco `tipo === "apolice_endosso"` do `handleExtrairDados`. Corrigida para chamar `moedaParaNumero`.
 
 ### Dashboard.jsx sobrescrito por engano e restaurado (18/06/2026)
-Ao gerar um novo `Dashboard.jsx` simplificado (8 cards) pra adicionar o card "Sem comissão", a versão rica de produção (4 regiões, commit `f670817`) foi sobrescrita sem querer. Recuperada via `git show f670817:src/Dashboard.jsx`. **Cuidado no Windows:** redirecionar a saída do `git show` direto pro arquivo via `>` no PowerShell corrompe acentos (BOM/encoding errado) — usar Node.js pra reescrever em UTF-8 sem BOM:
+Versão rica (4 regiões, commit `f670817`) sobrescrita por engano por uma simplificada. Recuperada via `git show f670817:src/Dashboard.jsx`. **Cuidado no Windows:** `>` no PowerShell corrompe acentos; usar Node.js pra reescrever em UTF-8 sem BOM:
 ```powershell
 node -e "const fs=require('fs');const {execSync}=require('child_process');const content=execSync('git show <hash>:<path>').toString('utf8');fs.writeFileSync('<path>',content,'utf8');"
 ```
-Card "Sem comissão" foi então readicionado por cima da versão rica recuperada (ver Seção 4).
 
 ### Regressões de sintaxe durante edições manuais (18/06/2026)
-Várias vezes durante as edições de hoje no `App.jsx`, copiar/colar manual no VS Code introduziu erros que só apareceram em runtime ou no overlay do Vite — todas identificadas e corrigidas antes do commit:
-- Declaração `const [form, setForm] = useState({...})` inteira apagada por acidente dentro do `ImportModal` → erro `setForm is not defined`
-- `const card = {` duplicada dentro do `criarCard`
-- Vírgula dupla e campos duplicados (`autoZeroKm`/`autoCombustivel` repetidos) em objetos literais
-- Campos perdendo capitalização correta (`autotipoUtilizacao` em vez de `autoTipoUtilizacao`) — quebra silenciosamente porque JS é case-sensitive, sem erro de sintaxe, só o campo fica `undefined`
+Copiar/colar manual introduziu erros (declaração de `useState` apagada, `const card` duplicada, vírgula dupla, capitalização errada como `autotipoUtilizacao`). **Lição:** conferir o print do trecho editado antes de salvar; atenção a capitalização e linhas duplicadas (não geram erro de build, falham em runtime ou silenciosamente).
 
-**Lição:** sempre conferir o print do trecho editado antes de salvar, e prestar atenção especial a capitalização e linhas duplicadas — esses dois tipos de erro não geram erro de build, só falham em runtime ou silenciosamente.
+### Sessão 19/06/2026 — Auditoria técnica (prompt 1) + integridade de dados (prompt 2)
+Origem: `auditoria-crm.md` (prompt 1) + relatório de integridade (prompt 2, rodado no Cowork). 11 correções aplicadas, todas commitadas (App.jsx) ou aplicadas nas duas bases (SQL).
+
+- **C1 — Fim do save silencioso.** `upsertCard` retorna o erro do banco; `handleAdd`, `handleDrop` (reverte), `handleSave`, `handleArquivar`, `handleDesarquivar`, `handleNaoRenovada` checam antes de tocar na UI. Antes, erro de banco era só `console.error` e a tela dizia "salvo"/removia o card — risco de perder dado sem aviso. (Detalhe na Seção 7.)
+- **M1 — Trava de comissão unificada.** `faltaComissaoParaAvancar` aplicada em handleSave + handleDrop (reverte) + handleApoliceAnexada. (Detalhe na Seção 7.)
+- **M2 — `data_emissao` no anexo.** `handleApoliceAnexada` (UPDATE direto) não gravava `data_emissao` ao promover pra "emitida"; a edição seguinte carimbava a data errada, distorcendo métricas por mês de emissão. Agora grava ao virar emitida.
+- **M3 — Máscara de moeda no ImportModal.** (Detalhe na Seção 7 — Import de PDF.)
+- **B2 — `findOrCreateCliente` tolera duplicado.** `.maybeSingle()` → `.limit(1)`. NOTA: a normalização do front **já era idêntica** ao `norm_doc` (que só faz `>14 → últimos 14`, nunca corta pra 11) — não havia a divergência que o relatório do prompt 2 supôs.
+- **N2 — `dataRenovacao` fill-blank** no `handleExtrairDados`. (Detalhe na Seção 7.)
+- **N3 — Sync de `clientes` fill-blank + `maskCEP`** no `handleExtrairDados`. (Detalhe na Seção 7.)
+- **B5 — Guarda de nome nulo:** `(c.nome || "").split(" ")[0]` nas mensagens de aniversário (WhatsApp/e-mail).
+- **B3 — `parseBRL` eliminado.** Estende a unificação de moeda de 18/06: o último gêmeo (`parseBRL` do ImportModal) saiu; `moedaParaNumero` é o conversor único de verdade.
+- **N5 / N6 — Perdidos no mês e Taxa de renovação (SQL `dashboard_metrics`).** (Detalhe na Seção 3.) Aplicado em teste e produção.
+
+**Confirmado correto (não mexer):** fórmula de comissão (`premio_liquido * percentual_comissao / 100.0`) nos 3 pontos; simetria `mapRow` ↔ `upsertCard` íntegra (diferem só em `criado_em`/`atualizado_em`, geridos pelo banco, e na coluna morta `apolice_id`).
 
 ---
 
@@ -337,12 +354,18 @@ Tarefas criadas no Asana com contexto técnico:
 3. **15/jul** — Frente 4: paridade de campos com Segfy (vigência início, parcelamento, observações)
 4. **30/jul** — Opção B: campo `linha_apolice` para encadeamento robusto de ciclos
 
+### Pós-julho / polimento (registrado no Asana 19/06 — não bloqueia migração)
+- **B1** — coluna morta `apolice_id` (`upsertCard` grava sempre `null`, nada popula `card.apoliceId`): remover a escrita ou documentar como reservada.
+- **B4** — `handleRecuperar`: setar `criadoEm` e formatar o `valor` do novo card (cosmético/transitório).
+- **N4 (operacional, atenção na migração)** — garantir `data_emissao` nas apólices que entrarem como "emitida" na migração das 30; a CTE `prod` do dashboard filtra `data_emissao BETWEEN ini/fim`, então emitida sem data **some** do prêmio/comissão do mês.
+- **Hardening** — expor `norm_doc` como RPC e chamar no front pra nunca divergir (hoje front e banco já são idênticos).
+
 ### Pendentes não criados no Asana
 - Entrega 4 do módulo sinistros: validar `sinistros_abertos` na `dashboard_metrics()`
 - Ponto 1 do dia 14/06: visual do CRM (Home, cards, layout de Renovações e Prospecções)
-- Ambiente de demonstração para corretor terceiro testar o CRM — bloqueado pelo limite de 2 projetos gratuitos no Supabase (por conta, não por organização). Decisão adiada: focar em testar na base de teste antes de subir ~30 propostas reais de julho em produção.
+- Ambiente de demonstração para corretor terceiro testar o CRM — bloqueado pelo limite de 2 projetos gratuitos no Supabase. Decisão adiada.
 - **Etiqueta de alerta no card do cliente** (sinalizando "sem comissão") — sugerido em 18/06, ainda não implementado
-- Mensagem de alerta pós-extração em `handleExtrairDados` ainda diz "Card movido para Proposta Transmitida" mesmo quando o destino é "Boleto/Débito" (cosmético, não bloqueia)
+- Mensagem de alerta pós-extração em `handleExtrairDados` ainda diz "Card movido para Proposta Transmitida" mesmo quando o destino é "Boleto/Débito" (cosmético)
 - Filtro `onlySemComissao` do Kanban não persiste ao navegar pra outra view — comportamento aceito por ora
 - IOF avaliado e descartado de propósito da captura de importação de PDF (decisão do corretor, 18/06)
 
@@ -358,7 +381,9 @@ Tarefas criadas no Asana com contexto técnico:
 - **crypto.randomUUID()** para IDs (não usar custom generators)
 - **.env no Windows** — usar `Set-Content` no PowerShell (Notepad salva como .env.txt)
 - **Asana free/Basic** — não expõe custom fields via API (priority não pode ser setada programaticamente)
-- **Parsing de moeda** — usar sempre uma única função compartilhada (`moedaParaNumero`) capaz de detectar automaticamente o separador decimal (vírgula ou ponto); nunca assumir que "." é sempre separador de milhar, pois valores já numéricos (JS) se representam com ponto decimal nativo
+- **Parsing de moeda** — usar sempre uma única função compartilhada (`moedaParaNumero`) com detecção automática do separador decimal; nunca assumir que "." é sempre milhar. `parseBRL` e `parseBRLlocal` foram eliminados (18/06 e 19/06); `moedaParaNumero` é a única função.
+- **Taxa de renovação** (19/06) = `round(100 × emitidas / (emitidas + perdidas), 1)` no período; "perdidas" = cards "Não Renovada" arquivados no período. Decisão de negócio endossada pelo corretor.
+- **"Sem comissão" sem filtro de `arquivado`** (revisado 19/06, N1) = **by-design**, consistente com a `carteira`: a apólice emitida é arquivada mas segue na carteira ativa enquanto vigente. NÃO adicionar filtro de arquivado sem decisão — quebraria a consistência com a carteira.
 
 ---
 
@@ -368,8 +393,8 @@ Tarefas criadas no Asana com contexto técnico:
 - Sem explicações teóricas — resultado executável direto
 - SQL: validar na teste primeiro, depois produção
 - Componentes React: Claude gera arquivo em outputs/, usuário baixa e sobrescreve em src/ (não usar Cowork para evitar sobrescrita)
-- Edições em App.jsx: confirmar linhas antes/depois da edição; usuário cola manualmente no VS Code e envia print para validação antes de salvar
+- Edições em App.jsx: patches entregues como pares Localizar/Substituir pro Ctrl+H (Regex off, Match Case on, conferir "1 de 1"); usuário cola/aplica no VS Code e valida o build antes do commit
 - Commit por terminal PowerShell: `git add .` → `git commit -m "..."` → `git push` (separados, não com &&)
 - Deploy manual quando auto-deploy falhar: `npx vercel --prod`
-- Build local para verificar erros: `npm run build 2>&1 | Select-Object -First 20`
+- Build local para verificar erros: `npm run build 2>&1 | Select-Object -Last 20` (o vermelho `RemoteException`/`NativeCommandError` após "built in ...ms" é cosmético do PowerShell; o aviso de chunk >500 kB também não bloqueia)
 - Teste local da Importação de PDF: usar `npx vercel dev` (porta 3000), não `npm run dev` (porta 5173, sem funções serverless)
