@@ -1265,6 +1265,7 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
     if (!d.seguradora && data.apolice?.seguradora) updates.seguradora = data.apolice.seguradora;
     if (!d.proposta && data.apolice?.numeroProposta) updates.proposta = data.apolice.numeroProposta;
     if (!d.apolice && data.apolice?.numeroApolice) updates.apolice = data.apolice.numeroApolice;
+if (!d.etiquetaPagamento && data.financeiro?.formaPagamento) updates.etiquetaPagamento = mapPagamento(data.financeiro.formaPagamento);
     if (data.endereco) {
       const e = data.endereco;
       if (!d.enderecoCep && e.cep) updates.enderecoCep = maskCEP(e.cep);
@@ -1289,11 +1290,13 @@ function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquivar, onN
     }
     if (Object.keys(updates).length > 0) {
       // Se for proposta e card ainda em cotações → avança para transmitida automaticamente
-      if (tipo === "proposta" && d.status === "cotacoes") {
-        updates.status = "transmitida";
-        updates.transmitidaEm = new Date().toISOString();
-        updates.etiquetaSituacao = updates.etiquetaSituacao || d.etiquetaSituacao || "Renovação";
-      }
+if (tipo === "proposta" && d.status === "cotacoes") {
+  const formaPag = updates.etiquetaPagamento || d.etiquetaPagamento;
+  const FORMAS_BOLETO = ["Boleto", "Débito em Conta", "Link de Pagamento"];
+  updates.status = FORMAS_BOLETO.includes(formaPag) ? "boleto" : "transmitida";
+  updates.transmitidaEm = new Date().toISOString();
+  updates.etiquetaSituacao = updates.etiquetaSituacao || d.etiquetaSituacao || "Renovação";
+}
       setD(prev => ({ ...prev, ...updates }));
 
       // Sincroniza dados permanentes do segurado na tabela clientes (data nascimento + endereço)
@@ -2669,13 +2672,16 @@ status: "transmitida",
       const daysLeft = vigFim ? Math.ceil((new Date(vigFim) - hoje) / 86400000) : null;
 
       // Roteamento por corretora + tipo + prazo
-      const isApoliceMinha = minhaCorretora && d.tipoDocumento === "apolice";
-      const arquivarImport = isApoliceMinha && daysLeft !== null && daysLeft > 30;
-      const importStatus = !minhaCorretora ? "cotacoes"
-        : isApoliceMinha && daysLeft !== null && daysLeft <= 30 ? "cotacoes"
-        : d.tipoDocumento === "apolice" ? "emitida" : "transmitida";
-      const importSituacao = !minhaCorretora ? "Renovação Congênere"
-        : (d.apolice?.tipoOperacao || "Renovação");
+const isApoliceMinha = minhaCorretora && d.tipoDocumento === "apolice";
+const arquivarImport = isApoliceMinha && daysLeft !== null && daysLeft > 30;
+const pagamentoMapeado = mapPagamento(d.financeiro?.formaPagamento);
+const FORMAS_BOLETO = ["Boleto", "Débito em Conta", "Link de Pagamento"];
+let importStatus = !minhaCorretora ? "cotacoes"
+  : isApoliceMinha && daysLeft !== null && daysLeft <= 30 ? "cotacoes"
+  : d.tipoDocumento === "apolice" ? "emitida" : "transmitida";
+if (importStatus === "transmitida" && FORMAS_BOLETO.includes(pagamentoMapeado)) importStatus = "boleto";
+const importSituacao = !minhaCorretora ? "Renovação Congênere"
+  : (d.apolice?.tipoOperacao || "Renovação");
 
       setForm({        
         clienteNome:             (d.segurado?.nome || "").toUpperCase(),
