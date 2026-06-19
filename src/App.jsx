@@ -3197,11 +3197,11 @@ status:            form.status || "transmitida",
   <div className="grid grid-cols-2 gap-3">
     <div>
       <label className={lbl}>Prêmio total (R$)</label>
-      <input className={inp} placeholder="Ex: 1.481,68" value={form.valor} onChange={e => setF("valor", e.target.value)} />
+      <input className={inp} placeholder="Ex: 1.481,68" value={form.valor} onChange={e => setF("valor", maskMoeda(e.target.value))} />
     </div>
     <div>
       <label className={lbl}>Prêmio líquido (R$)</label>
-      <input className={inp} placeholder="Base da comissão" value={form.premioLiquido} onChange={e => setF("premioLiquido", e.target.value)} />
+      <input className={inp} placeholder="Base da comissão" value={form.premioLiquido} onChange={e => setF("premioLiquido", maskMoeda(e.target.value))} />
     </div>
 <div>
   <label className={lbl}>Forma de pagamento</label>
@@ -3216,7 +3216,7 @@ status:            form.status || "transmitida",
 </div>
 <div>
   <label className={lbl}>Valor da parcela (R$)</label>
-  <input className={inp} value={form.valorParcela} onChange={e => setF("valorParcela", e.target.value)} />
+  <input className={inp} value={form.valorParcela} onChange={e => setF("valorParcela", maskMoeda(e.target.value))} />
 </div>
 <div>
   <label className={lbl}>Vencimento 1ª parcela</label>
