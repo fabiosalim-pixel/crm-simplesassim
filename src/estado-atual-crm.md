@@ -23,7 +23,7 @@ GitHub: repositório `crm-simplesassim` (Windows, PowerShell).
 
 ### Componentes React ativos
 - `src/App.jsx` — componente principal (~2900 linhas), monolítico
-- `src/Dashboard.jsx` — dashboard com 8 cards + gráfico rosca (mix de carteira)
+- `src/Dashboard.jsx` — dashboard rico em 4 regiões (Produção com seletor de período, Carteira atual + Mix por ramo, A renovar, Aniversariantes), com cards clicáveis que navegam pro Kanban filtrado + card "Sem comissão" que abre modal com lista detalhada
 - `src/Segurados.jsx` — área do segurado com ficha completa
 - `src/supabase.js` — cliente Supabase
 
@@ -59,6 +59,8 @@ Colunas principais confirmadas via CSV:
 - `auto_data_nascimento` (date), `auto_condutor`, `auto_cpf_condutor`
 - `auto_nascimento_condutor`, `auto_cep_pernoite`, `auto_tipo_utilizacao`, `auto_condutor_1825`
 - `auto_estado_civil`, `auto_nome_segurado`, `responsavel`
+- `endereco_cep`, `endereco_logradouro`, `endereco_numero`, `endereco_complemento`, `endereco_bairro`, `endereco_cidade`, `endereco_uf` — já existiam no schema, mas não eram preenchidos pela importação de PDF até 18/06/2026
+- `vigencia_inicio` (date), `numero_parcelas` (integer), `valor_parcela` (numeric), `vencimento_primeira_parcela` (date), `auto_zero_km` (boolean), `auto_combustivel` (text) — **colunas novas, criadas em 18/06/2026** (teste e produção) para capturar dados secundários extraídos do PDF e evitar pagar duas vezes pela mesma extração de IA (ver Seção 7)
 
 ### Tabela: `clientes`
 Colunas: id, nome, cpf_cnpj, tipo_pessoa, data_nascimento (date), profissao,
@@ -97,10 +99,10 @@ Cria novo card (INSERT) para renovações 30 dias antes do vencimento.
 - Exclui: Não Renovada, Cancelada, Recusada, Sem Negócio, Viagem, RC Obras
 - Agendada via pg_cron: job `reativar-renovacoes-diario`, `0 11 * * *` (08:00 Brasília)
 
-### `dashboard_metrics()` → jsonb
-Retorna: carteira_qtd, carteira_valor, premio_mes, comissao_mes,
-emitidas_mes, total_mes, taxa_renovacao, projecao_comissao_60d,
-perdidos_mes, urgentes_5d, sinistros_abertos, mix_carteira (array por ramo)
+### `dashboard_metrics(p_inicio date, p_fim date, p_renovar_dias integer)` → jsonb
+Parametrizada (período de produção, janela de "a renovar"). Retorna, agrupado em jsonb: dados de Produção (período), Carteira (foto de agora), A renovar (horizonte), Aniversariantes, foto geral (sinistros, urgentes, **sem_comissao_qtd/valor**) e bloco de compatibilidade com nomes antigos do Dashboard (premio_mes, comissao_mes, etc.)
+
+**`sem_comissao_qtd` / `sem_comissao_valor`** — adicionados em 18/06/2026. Contam apólices da carteira ativa (`status_pipeline = 'emitida' AND data_renovacao >= hoje`) com `percentual_comissao` OU `premio_liquido` em branco. Alimenta o card clicável "Sem comissão" no Dashboard.
 
 **Fórmula de comissão (confirmada no código-fonte da função, 18/06/2026):**
 ```sql
@@ -112,10 +114,17 @@ premio_liquido * percentual_comissao / 100.0
 
 ## SEÇÃO 4 — Componente Dashboard.jsx
 
-8 cards de indicadores + gráfico rosca "Mix de Carteira por ramo".
-Chama `supabase.rpc('dashboard_metrics')`.
-Cards: Carteira ativa, Prêmio do mês, Comissão do mês, Taxa de renovação,
-Receita projetada 60d, Perdidos no mês, Sinistros abertos, Urgentes (≤5 dias).
+**Restaurado em 18/06/2026** após ter sido temporariamente sobrescrito por uma versão simplificada de 8 cards (commit `f670817` recuperado via `git show`). A versão correta tem 4 regiões:
+
+1. **Produção** — seletor de período (Mês atual / 15 / 30 / 90 dias / livre). Cards clicáveis: Apólices emitidas, Prêmio produzido, Comissões, Taxa de renovação, Perdidos (navegam pro Kanban filtrado por status/data via `onNavigate`/`onFiltro`). Card informativo (não clicável): Proj. comissão 60d.
+2. **Carteira atual** — Apólices vigentes, Comissão da carteira (informativos), Sinistros abertos e Urgentes (≤5 dias) clicáveis, e o card **"Sem comissão"** (clicável) ao lado do gráfico Mix de carteira por ramo.
+3. **A renovar** — seletor de horizonte (15/60/90d), card clicável grande mostrando quantidade e prêmio.
+4. **Aniversariantes** — seletor (Hoje/15/30 dias), card clicável que leva pra `AniversariantesView`.
+
+### Card "Sem comissão" — implementado em 18/06/2026
+- Mostra `m.sem_comissao_qtd` e `m.sem_comissao_valor` (vem do `dashboard_metrics()`, ver Seção 3)
+- Ao clicar, abre `ModalSemComissao`: busca direto no Supabase (`renovacoes`, filtro `status_pipeline = 'emitida' AND data_renovacao >= hoje AND (percentual_comissao IS NULL OR premio_liquido IS NULL)`) e lista cliente, produto, seguradora, valor, vencimento e badges ("sem prêmio líq.", "sem % comissão")
+- Botão "Ver no Kanban" no modal chama `onFiltro({ semComissao: true })` → ativa `onlySemComissao` no App, que filtra o Kanban pra mostrar só essas apólices (filtro não persiste ao navegar pra outra view — comportamento aceito, não é bug)
 
 ---
 
@@ -229,6 +238,29 @@ No `handleSave` do App (~linha 3256), antes de chamar `upsertCard`:
 - Cria card com `status_pipeline` e `etiqueta_situacao` adequados
 - Campo **Data de Nascimento** obrigatório na revisão quando há CPF (validado em `criarCard`, ~linha 2695): `<input type="date">` ligado a `form.autoNascimentoSegurado`, asterisco condicional via `isCNPJ()` — **corrigido em 18/06/2026** (o campo havia sido removido da tela de revisão e bloqueava o salvamento de qualquer produto não-Auto, ex: RC Profissional)
 - `parseBRL` (dentro do `ImportModal`, ~linha 2572): converte os valores financeiros extraídos do PDF para número, aceitando formato BR (vírgula decimal) OU US (ponto decimal) — a IA de extração varia o formato entre execuções — **corrigido em 18/06/2026** (ver Seção 8)
+- **Produto** (`tipoSeguro`) inicia em branco ("Selecione") em vez de fixo em "AUTOMÓVEL" — **corrigido em 18/06/2026**, tanto no `AddModal` (Novo card) quanto no `ImportModal` (estado inicial + condição que sempre retornava "AUTOMÓVEL" independente do PDF ter dados de veículo ou não)
+- **Canal de origem** na tela de revisão agora usa a lista compartilhada `CANAIS` (5 opções: Google, Indicação, Site, Cliente da Corretora, Outros/Não informado) em vez de uma lista hardcoded incompleta com só 3 — **corrigido em 18/06/2026**
+
+#### Captura completa em uma única extração — implementado em 18/06/2026
+Motivação: evitar pagar duas vezes pela IA (uma na importação, outra ao usar "Extrair" dentro do card já criado) por causa de campos que a IA já extrai mas o fluxo descartava. Mapeados em `processarPDF` (estado do `form`), exibidos na tela de revisão e persistidos em `criarCard`:
+
+**Críticos (campos que já existiam no schema, só não eram capturados):**
+- Endereço completo do segurado (`d.endereco.*` → `enderecoCep/Logradouro/Numero/Complemento/Bairro/Cidade/Uf`)
+- Prêmio líquido (`d.financeiro.premioLiquido` → `premioLiquido`) — essencial pois é um dos campos exigidos pela validação de comissão obrigatória (Seção 7, abaixo)
+- Data de emissão (`d.apolice.dataEmissao` → `dataEmissao`) — sem isso, `upsertCard` defaultava pra "hoje" quando status='emitida', inflando artificialmente as métricas de produção do mês no Dashboard pra qualquer apólice histórica importada
+- Classe de bônus (`d.apolice.classeBonus` → `autoClasseBonus`)
+
+**Secundários (exigiram colunas novas no banco, ver Seção 2):**
+- Vigência início (`d.apolice.vigenciaInicio` → `vigenciaInicio`)
+- Zero KM e combustível do veículo (`d.veiculo.zeroKm/combustivel` → `autoZeroKm`/`autoCombustivel`)
+- Número de parcelas, valor da parcela, vencimento da 1ª parcela (`d.financeiro.numeroParcelas/valorParcela/vencimentoPrimeiraParcela`)
+
+IOF foi avaliado e **descartado** de propósito (decisão do corretor).
+
+#### Forma de pagamento → move automaticamente pra "Boleto/Débito" — implementado em 18/06/2026
+Quando a forma de pagamento mapeada (`mapPagamento()`) for "Boleto", "Débito em Conta" ou "Link de Pagamento", o card que iria pra `transmitida` é desviado direto pra `boleto` em vez disso. Implementado em dois pontos:
+- **`ImportModal` (`processarPDF`)**: `importStatus` calculado normalmente, depois sobrescrito pra `"boleto"` se bater a condição.
+- **`handleExtrairDados` (Modal de card existente)**: a forma de pagamento agora também é capturada aqui (`updates.etiquetaPagamento`, gap que não existia antes), e a transição automática pra `transmitida` (quando `tipo === "proposta" && d.status === "cotacoes"`) decide entre `"boleto"` ou `"transmitida"` com a mesma lista de formas de pagamento.
 
 ### Extração de dados em card existente (`handleExtrairDados`, dentro do `Modal`)
 - Disparada pelo botão "Extrair" sobre um documento anexado (proposta, apólice ou endosso)
@@ -279,6 +311,22 @@ Ver detalhes da implementação na Seção 7 ("Validação de comissão obrigat�
 - Imports diretos via SQL (migração Segfy) e via "Importar PDF" (`handleAdd`) não passam por essa validação — preservado de propósito, pois usados para registrar apólices que não geram comissão própria (ex: apólice atual do cliente com outro corretor).
 - **Commit:** `42cf643` — "feat: torna premio liquido e percentual de comissao obrigatorios ao avancar para Proposta Transmitida e Apolice Emitida"
 
+### Dashboard.jsx sobrescrito por engano e restaurado (18/06/2026)
+Ao gerar um novo `Dashboard.jsx` simplificado (8 cards) pra adicionar o card "Sem comissão", a versão rica de produção (4 regiões, commit `f670817`) foi sobrescrita sem querer. Recuperada via `git show f670817:src/Dashboard.jsx`. **Cuidado no Windows:** redirecionar a saída do `git show` direto pro arquivo via `>` no PowerShell corrompe acentos (BOM/encoding errado) — usar Node.js pra reescrever em UTF-8 sem BOM:
+```powershell
+node -e "const fs=require('fs');const {execSync}=require('child_process');const content=execSync('git show <hash>:<path>').toString('utf8');fs.writeFileSync('<path>',content,'utf8');"
+```
+Card "Sem comissão" foi então readicionado por cima da versão rica recuperada (ver Seção 4).
+
+### Regressões de sintaxe durante edições manuais (18/06/2026)
+Várias vezes durante as edições de hoje no `App.jsx`, copiar/colar manual no VS Code introduziu erros que só apareceram em runtime ou no overlay do Vite — todas identificadas e corrigidas antes do commit:
+- Declaração `const [form, setForm] = useState({...})` inteira apagada por acidente dentro do `ImportModal` → erro `setForm is not defined`
+- `const card = {` duplicada dentro do `criarCard`
+- Vírgula dupla e campos duplicados (`autoZeroKm`/`autoCombustivel` repetidos) em objetos literais
+- Campos perdendo capitalização correta (`autotipoUtilizacao` em vez de `autoTipoUtilizacao`) — quebra silenciosamente porque JS é case-sensitive, sem erro de sintaxe, só o campo fica `undefined`
+
+**Lição:** sempre conferir o print do trecho editado antes de salvar, e prestar atenção especial a capitalização e linhas duplicadas — esses dois tipos de erro não geram erro de build, só falham em runtime ou silenciosamente.
+
 ---
 
 ## SEÇÃO 9 — Backlog mapeado (Asana)
@@ -293,6 +341,10 @@ Tarefas criadas no Asana com contexto técnico:
 - Entrega 4 do módulo sinistros: validar `sinistros_abertos` na `dashboard_metrics()`
 - Ponto 1 do dia 14/06: visual do CRM (Home, cards, layout de Renovações e Prospecções)
 - Ambiente de demonstração para corretor terceiro testar o CRM — bloqueado pelo limite de 2 projetos gratuitos no Supabase (por conta, não por organização). Decisão adiada: focar em testar na base de teste antes de subir ~30 propostas reais de julho em produção.
+- **Etiqueta de alerta no card do cliente** (sinalizando "sem comissão") — sugerido em 18/06, ainda não implementado
+- Mensagem de alerta pós-extração em `handleExtrairDados` ainda diz "Card movido para Proposta Transmitida" mesmo quando o destino é "Boleto/Débito" (cosmético, não bloqueia)
+- Filtro `onlySemComissao` do Kanban não persiste ao navegar pra outra view — comportamento aceito por ora
+- IOF avaliado e descartado de propósito da captura de importação de PDF (decisão do corretor, 18/06)
 
 ---
 
