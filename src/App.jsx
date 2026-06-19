@@ -2960,9 +2960,7 @@ function ImportModal({ onClose, onAdd }) {
                     <label className={lbl}>Canal de origem</label>
                     <select className={inp} value={form.etiquetaCanal} onChange={e => setF("etiquetaCanal", e.target.value)}>
                       <option value="">Selecione</option>
-                      <option value="Google">Google</option>
-                      <option value="Indicação">Indicação</option>
-                      <option value="Site">Site</option>
+                      {CANAIS.map(c => <option key={c}>{c}</option>)}
                     </select>
                   </div>
                 </div>
