@@ -416,6 +416,7 @@ auto_combustivel:      card.autoCombustivel || null,
   };
   const { error } = await supabase.from("renovacoes").upsert(row);
   if (error) console.error("Erro ao salvar:", error);
+  return error;
 }
 
 async function deleteCard(id) {
@@ -3354,7 +3355,8 @@ export default function App() {
   };
 
   const handleAdd = async (card) => {
-    await upsertCard(card);
+    const err = await upsertCard(card);
+    if (err) { window.alert("Não foi possível salvar: " + err.message); return; }
     setCards(prev => [card, ...prev]);
   };
 
@@ -3366,7 +3368,11 @@ export default function App() {
       transmitidaEm: newStatus === "transmitida" && !card.transmitidaEm ? new Date().toISOString() : (card.transmitidaEm || null),
     };
     setCards(prev => prev.map(c => c.id === cardId ? updated : c));
-    await upsertCard(updated);
+    const err = await upsertCard(updated);
+    if (err) {
+      setCards(prev => prev.map(c => c.id === cardId ? card : c));
+      window.alert("Não foi possível mover o card: " + err.message);
+    }
   };
 
   const handleSave = async (updated) => {
@@ -3382,7 +3388,8 @@ export default function App() {
       }
     }
     const recemArquivado = updated.arquivado && anterior && !anterior.arquivado;
-    await upsertCard(updated);
+    const err = await upsertCard(updated);
+    if (err) { window.alert("Não foi possível salvar: " + err.message); return; }
     if (recemArquivado) {
       setCards(prev => prev.filter(c => c.id !== updated.id));
       setSelected(null);
@@ -3400,20 +3407,23 @@ export default function App() {
   };
 
   const handleArquivar = async (card) => {
-    await upsertCard(card);
+    const err = await upsertCard(card);
+    if (err) { window.alert("Não foi possível arquivar: " + err.message); return; }
     setCards(prev => prev.filter(c => c.id !== card.id));
     setSelected(null);
   };
 
   const handleDesarquivar = async (card) => {
-    await upsertCard(card);
+    const err = await upsertCard(card);
+    if (err) { window.alert("Não foi possível desarquivar: " + err.message); return; }
     setCards(prev => prev.filter(c => c.id !== card.id));
     setSelected(null);
   };
 
   const handleNaoRenovada = async (card) => {
     const updated = { ...card, etiquetaSituacao: "Não Renovada", arquivado: true, arquivadoEm: new Date().toISOString() };
-    await upsertCard(updated);
+    const err = await upsertCard(updated);
+    if (err) { window.alert("Não foi possível arquivar como Não Renovada: " + err.message); return; }
     await criarProspeccao(updated);
     setCards(prev => prev.filter(c => c.id !== card.id));
     setSelected(null);

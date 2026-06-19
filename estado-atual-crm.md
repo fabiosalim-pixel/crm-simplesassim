@@ -114,7 +114,7 @@ Cria novo card (INSERT) para renovações 30 dias antes do vencimento.
 - Exclui: Não Renovada, Cancelada, Recusada, Sem Negócio, Viagem, RC Obras
 - Agendada via pg_cron: job `reativar-renovacoes-diario`, `0 11 * * *` (08:00 Brasília)
 
-### `dashboard_metrics()` → jsonb
+### `dashboard_metrics(p_inicio date DEFAULT NULL, p_fim date DEFAULT NULL, p_renovar_dias integer DEFAULT 30)` → jsonb
 Retorna: carteira_qtd, carteira_valor, premio_mes, comissao_mes,
 emitidas_mes, total_mes, taxa_renovacao, projecao_comissao_60d,
 perdidos_mes, urgentes_5d, sinistros_abertos, mix_carteira (array por ramo)
