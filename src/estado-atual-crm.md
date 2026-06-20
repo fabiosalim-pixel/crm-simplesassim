@@ -398,3 +398,48 @@ Tarefas criadas no Asana com contexto técnico:
 - Deploy manual quando auto-deploy falhar: `npx vercel --prod`
 - Build local para verificar erros: `npm run build 2>&1 | Select-Object -Last 20` (o vermelho `RemoteException`/`NativeCommandError` após "built in ...ms" é cosmético do PowerShell; o aviso de chunk >500 kB também não bloqueia)
 - Teste local da Importação de PDF: usar `npx vercel dev` (porta 3000), não `npm run dev` (porta 5173, sem funções serverless)
+
+---
+
+## SEÇÃO 12 — Módulo de Comissões (Fase 0 — 19/06/2026)
+
+Origem: prompt 3 (gestão). Maior gargalo do corretor: comissão recebida vs. esperada,
+inadimplência e conciliação — hoje tudo manual/projetado, nunca confirmado.
+
+### Modelo de dados — "cronograma + razão" (regras de seguradora FORA do schema)
+- **`comissao_parcelas`** — cronograma ESPERADO. Uma linha por parcela de comissão:
+  `renovacao_id` (FK), `numero_parcela`, `valor_esperado`, `data_prevista`,
+  `status` (prevista/recebida/parcial/atrasada/estornada/cancelada).
+- **`comissao_movimentos`** — RAZÃO real (com sinal). `tipo` (credito/extra/estorno/
+  desconto_assessoria/debito_diverso/ajuste), `valor` (+/-), `data_movimento`,
+  `seguradora`, `extrato_ref`, `extrato_data`; liga a apólice (nulável) e à parcela.
+- Criadas nas DUAS bases (`comissoes_fase0_schema.sql`). **Não tocam em `renovacoes`.**
+- A regra da seguradora só GERA o cronograma — não entra no schema. Por isso o modelo
+  sobrevive aos ~6 meses de ajuste sem mudar de estrutura.
+
+### Regimes (distribuição da carteira) → como viram parcelas
+- Antecipado (60%): 1 parcela = comissão total.
+- Parcelado (25%): N parcelas = comissão ÷ N, datas seguindo os boletos.
+- Esgotamento (15%): parcelas conforme o prêmio é esgotado / cliente paga.
+
+### Validado com dado real (na teste)
+Maria Amélia (MAPFRE): comissão total R$ 545,07 (10% × 5.450,74), paga em 3× R$ 181,69
+nas 3 primeiras das 11 parcelas do cliente. Extrato 68594402 → parcela 1 recebida.
+SELECT de validação: esperado 545,07 = cronograma 545,07; recebido 181,69; saldo 363,38.
+- O "%comissão" do extrato (36,67%) é DERIVADO, não a taxa real (10%).
+- ISS/IRRF/INSS retidos vêm no NÍVEL DO EXTRATO (não por apólice) → movimento à parte.
+- Assessoria (BR INFINITE / LojaCorr) → `desconto_assessoria` / repasse no cronograma.
+
+### Decisões
+- `regime_comissao` fica FORA do schema por ora (cronograma manual na migração; campo
+  entra com o gerador automático na Fase 1+).
+- **RLS:** as 2 tabelas nascem sem policies — funcionam no SQL Editor/service role; antes
+  de a UI (chave anon) usar, aplicar as MESMAS policies de RLS da `renovacoes`.
+
+### Fases
+- Fase 0 (feita): modelo de dados nas 2 bases.
+- Migração julho: entrar o cronograma das 30 (inclui comissões em andamento de apólices antigas).
+- Fase 1: UI de lançamento manual + conciliação simples.
+- Fase 2: relatório esperado × recebido × saldo por mês/seguradora.
+- Fase 3: extração de extrato (PDF/CSV) por seguradora — SPIKE em 1 formato real antes.
+- Fase 4: relatórios e automações.
