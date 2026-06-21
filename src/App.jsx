@@ -554,7 +554,7 @@ async function searchClientes(q) {
   return data || [];
 }
 
-async function findOrCreateCliente({ nome, cpfCnpj, telefone, email }) {
+async function findOrCreateCliente({ nome, cpfCnpj, telefone, email, enderecoCep, enderecoLogradouro, enderecoNumero, enderecoComplemento, enderecoBairro, enderecoCidade, enderecoUf }) {
   // Normalização robusta: só dígitos; se vier com zero a mais, mantém os 14 últimos (CNPJ) / 11 (CPF)
   let normCpf = (cpfCnpj || "").replace(/\D/g, "");
   if (normCpf.length > 14) normCpf = normCpf.slice(-14);
@@ -574,6 +574,13 @@ async function findOrCreateCliente({ nome, cpfCnpj, telefone, email }) {
     telefone:      telefone || null,
     email:         email || null,
     tipo_pessoa:   normCpf ? tipoPessoa : "?",
+    cep:           enderecoCep || null,
+    logradouro:    enderecoLogradouro || null,
+    numero:        enderecoNumero || null,
+    complemento:   enderecoComplemento || null,
+    bairro:        enderecoBairro || null,
+    cidade:        enderecoCidade || null,
+    estado:        enderecoUf || null,
   });
   if (error) { console.error("Erro ao criar cliente:", error); return null; }
   return id;
@@ -2776,6 +2783,13 @@ vencimentoPrimeiraParcela: d.financeiro?.vencimentoPrimeiraParcela || "",
         cpfCnpj:  form.cpfCnpj,
         telefone: form.telefone,
         email:    form.email,
+        enderecoCep:         form.enderecoCep,
+        enderecoLogradouro:  form.enderecoLogradouro,
+        enderecoNumero:      form.enderecoNumero,
+        enderecoComplemento: form.enderecoComplemento,
+        enderecoBairro:      form.enderecoBairro,
+        enderecoCidade:      form.enderecoCidade,
+        enderecoUf:          form.enderecoUf,
       });
       const card = {
   id:                genId(),
