@@ -2640,7 +2640,7 @@ function ImportModal({ onClose, onAdd }) {
   autoCondutor: "", autoCpfCondutor: "", autoNascimentoCondutor: "", autoEstadoCivilCondutor: "",
   autoTipoUtilizacao: "Particular", autoCondutor1825: false,
   condutorDiferente: false,
-  valor: "", premioLiquido: "", numeroParcelas: "", valorParcela: "", vencimentoPrimeiraParcela: "",
+  valor: "", premioLiquido: "", percentualComissao: "", numeroParcelas: "", valorParcela: "", vencimentoPrimeiraParcela: "",
 status: "transmitida",
   arquivado: false, arquivadoEm: null,
 });
@@ -2837,6 +2837,7 @@ autoCombustivel:   form.autoCombustivel || null,
         etiquetaCanal:            form.etiquetaCanal || null,
        valor:                    moedaParaNumero(form.valor),
 premioLiquido:            moedaParaNumero(form.premioLiquido),
+percentualComissao:       form.percentualComissao ? form.percentualComissao.replace(",", ".") : null,
 numeroParcelas:           form.numeroParcelas || null,
 valorParcela:             moedaParaNumero(form.valorParcela),
 vencimentoPrimeiraParcela: form.vencimentoPrimeiraParcela || null,
@@ -3203,6 +3204,10 @@ status:            form.status || "transmitida",
       <label className={lbl}>Prêmio líquido (R$)</label>
       <input className={inp} placeholder="Base da comissão" value={form.premioLiquido} onChange={e => setF("premioLiquido", maskMoeda(e.target.value))} />
     </div>
+<div>
+  <label className={lbl}>% de comissão</label>
+  <input className={inp} placeholder="Ex: 20" inputMode="decimal" value={form.percentualComissao} onChange={e => setF("percentualComissao", e.target.value.replace(/[^0-9,]/g, ""))} />
+</div>
 <div>
   <label className={lbl}>Forma de pagamento</label>
   <select className={inp} value={form.etiquetaPagamento} onChange={e => setF("etiquetaPagamento", e.target.value)}>
