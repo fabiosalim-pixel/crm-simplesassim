@@ -114,3 +114,14 @@ export const maskPhone = (v) => {
     return d.replace(/(\d{2})(\d{4})(\d{0,4})/, (_, a, b, c) => `(${a}) ${b}${c ? "-" + c : ""}`);
   return d.replace(/(\d{2})(\d{5})(\d{0,4})/, (_, a, b, c) => `(${a}) ${b}${c ? "-" + c : ""}`);
 };
+
+export function mapPagamento(s) {
+  if (!s) return "";
+  const sl = s.toLowerCase();
+  if (sl.includes("boleto")) return "Boleto";
+  if (sl.includes("débito") || sl.includes("debito")) return "Débito em Conta";
+  if (sl.includes("cartão") || sl.includes("cartao") || sl.includes("crédito") || sl.includes("credito")) return "Cartão de Crédito";
+  if (sl.includes("pix")) return "PIX";
+  if (sl.includes("link")) return "Link de Pagamento";
+  return "";
+}
