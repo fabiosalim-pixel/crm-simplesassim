@@ -1,6 +1,6 @@
 # Estado Atual — CRM Simples Assim
 
-> Atualizado em 19/06/2026. Não editar manualmente.
+> Atualizado em 26/06/2026. Não editar manualmente.
 
 ---
 
@@ -21,8 +21,28 @@ GitHub: repositório `crm-simplesassim` (Windows, PowerShell).
 
 ## SEÇÃO 1 — Arquivos do projeto
 
+### Refatoração do `App.jsx` (26/06/2026)
+`App.jsx` era monolítico (~3.735 linhas). Dividido em 8 passos, cada um numa branch própria, validado com `npm run build` + checagem de sintaxe (esbuild) + checagem de variável não declarada (ESLint `no-undef`), testado numa URL de Preview isolada da Vercel, e só então mesclado na `main`. Zero mudança de comportamento — só reorganização. Resultado: **`App.jsx` caiu para 461 linhas (-88%)**, distribuído em 9 arquivos novos por responsabilidade:
+
+| Arquivo | Conteúdo | Linhas |
+|---|---|---|
+| `src/App.jsx` | Componente principal: estado global, handlers, composição das telas, pipeline Kanban | 461 |
+| `src/ModalCard.jsx` | Modal de edição de card — dados, automóvel/imóvel/vida/equip/viagem, sinistros, beneficiários, `handleExtrairDados` | 1.019 |
+| `src/ImportPDF.jsx` | `ImportModal` — importação de PDF via IA, detecção de duplicata, roteamento por status | 635 |
+| `src/ModaisCadastro.jsx` | `AddModal`, `ClienteModal`, `LoginScreen` | 372 |
+| `src/data.js` | Funções de acesso ao Supabase: `mapRow`, `loadCards`, `upsertCard`, `findOrCreateCliente`, etc. | 395 |
+| `src/Prospeccoes.jsx` | `AniversariantesView`, `ProspeccoesView` | 280 |
+| `src/PipelineUI.jsx` | `CardTile`, `Column`, `PainelSinistros`, `ApoliceRow` | 209 |
+| `src/DocumentosEndossos.jsx` | `DocsSection`, `EndossoSection` (abas do Modal) | 234 |
+| `src/utils.js` | Funções puras: formatação, máscaras, `mapPagamento` | 116 |
+| `src/constants.js` | `STAGES`, `PROSP_STAGES`, `DOC_TIPOS`, listas de ramos, cores de etiqueta | 68 |
+
+**Achado durante a refatoração (não corrigido, registrado pra decisão futura):** existe uma `SN_STATUS_COR_PILL` duplicada dentro do `handleExtrairDados` em `ModalCard.jsx` — declarada mas nunca usada nesse escopo (código morto, sobra de copy-paste antigo). Inofensivo, mas candidato a limpeza numa próxima sessão.
+
+**Prática a partir de agora:** com `App.jsx` em 461 linhas, patches via Ctrl+H voltam a ser viáveis pra ele. Pros arquivos extraídos maiores (`ModalCard.jsx`, `ImportPDF.jsx`), o método continua sendo arquivo completo via download/sobrescrita, igual já era praticado.
+
 ### Componentes React ativos
-- `src/App.jsx` — componente principal (~3.300 linhas), monolítico
+- `src/App.jsx` — ver tabela acima
 - `src/Dashboard.jsx` — dashboard rico em 4 regiões (Produção com seletor de período, Carteira atual + Mix por ramo, A renovar, Aniversariantes), com cards clicáveis que navegam pro Kanban filtrado + card "Sem comissão" que abre modal com lista detalhada
 - `src/Segurados.jsx` — área do segurado com ficha completa
 - `src/supabase.js` — cliente Supabase
@@ -175,7 +195,7 @@ Seções em ordem:
 
 ---
 
-## SEÇÃO 6 — Módulo Sinistros (App.jsx, estado 14/06/2026)
+## SEÇÃO 6 — Módulo Sinistros (estado 14/06/2026; localização de arquivo atualizada em 26/06/2026)
 
 ### Objeto sinistro (jsonb dentro de `renovacoes.sinistros`)
 ```js
@@ -200,7 +220,7 @@ Seções em ordem:
 3. **Painel na ficha do Segurado** — sinistros abertos do cliente, toggle encerrados
 4. **Painel fixo à direita do Kanban** — `PainelSinistros`, sempre visível, clicável
 
-### Funções no Modal (App.jsx)
+### Funções no Modal (agora em `src/ModalCard.jsx`)
 - `SN_STATUS` — array dos 5 status
 - `SN_DOCS` — array dos 6 documentos do checklist
 - `addSinistro()` — cria novo objeto e adiciona ao array
@@ -210,13 +230,13 @@ Seções em ordem:
 - `toggleDocSinistro(sinId, doc)` — marca/desmarca documento no checklist
 - `snContatoForm` — estado dos formulários de contato por sinistro
 
-### PainelSinistros (componente autônomo antes de `function Column`)
+### PainelSinistros (agora em `src/PipelineUI.jsx`, junto com `Column`)
 Lê `cards.flatMap(c => c.sinistros.filter(s => s.status !== "Encerrado"))`.
 Coluna fixa 256px à direita do Kanban, scroll próprio.
 
 ---
 
-## SEÇÃO 7 — Pipeline Kanban (App.jsx)
+## SEÇÃO 7 — Pipeline Kanban (App.jsx + ModalCard.jsx + ImportPDF.jsx desde 26/06/2026)
 
 ### STAGES (etapas)
 1. cotacoes — "Cotações e Leads" (azul)
@@ -245,7 +265,7 @@ Regra: se o card está **entrando agora** no estágio `transmitida` ou `emitida`
 - Motivo: `percentual_comissao` é essencial pro cálculo no `dashboard_metrics()` (ver Seção 3) e ficava em branco silenciosamente.
 - **Commits:** `42cf643` (18/06) + correções de 19/06.
 
-### Import de PDF
+### Import de PDF (`ImportModal`, em `src/ImportPDF.jsx` desde 26/06/2026)
 - Botão "Importar PDF" → `ImportModal`
 - Extrai dados via API Anthropic (claude-sonnet-4-6), endpoint `/api/extract-pdf` (`extract-pdf.js`)
 - `findOrCreateCliente`: busca por `cpf_cnpj_norm` (norm robusta idêntica ao `norm_doc`). **Em 19/06 (B2):** trocado `.maybeSingle()` por `.limit(1)` pegando o primeiro — antes lançava erro se já houvesse >1 cliente com o mesmo norm, fazendo o card perder o `cliente_id`.
@@ -277,7 +297,7 @@ Quando a forma de pagamento mapeada (`mapPagamento()`) for "Boleto", "Débito em
 - **`ImportModal` (`processarPDF`)**: `importStatus` calculado normalmente, depois sobrescrito pra `"boleto"` se bater a condição.
 - **`handleExtrairDados` (Modal de card existente)**: a forma de pagamento também é capturada aqui (`updates.etiquetaPagamento`), e a transição automática pra `transmitida` decide entre `"boleto"` ou `"transmitida"` com a mesma lista.
 
-### Extração de dados em card existente (`handleExtrairDados`, dentro do `Modal`)
+### Extração de dados em card existente (`handleExtrairDados`, dentro do `Modal` — agora em `src/ModalCard.jsx`)
 - Disparada pelo botão "Extrair" sobre um documento anexado (proposta, apólice ou endosso)
 - Preenche **campos vazios** do card a partir do PDF extraído (fill-blank). **Corrigido em 19/06/2026 (N2):** a `dataRenovacao` era a única linha que sobrescrevia incondicionalmente — agora também é fill-blank (`if (!d.dataRenovacao && ...)`), pra não carimbar por cima de uma vigência corrigida à mão (reimport/endosso).
 - **Sync da tabela `clientes` — corrigido em 19/06/2026 (N3):** antes gravava `data_nascimento`/endereço sempre que o PDF trazia valor (sobrescrevendo dado bom) e gravava o `cep` cru. Agora **busca o cliente atual e só preenche os campos vazios**, com `maskCEP` no cep — alinhado ao fill-blank do trigger `enriquecer_cliente`.
@@ -290,7 +310,7 @@ Quando a forma de pagamento mapeada (`mapPagamento()`) for "Boleto", "Débito em
 
 ### Anti-duplicidade de cadastro (duas camadas)
 - **Camada 1 (banco):** `norm_doc()` + trigger `enriquecer_cliente` — colapsam CNPJ com zero extra
-- **Camada 2 (App.jsx):** `findOrCreateCliente` normaliza com `slice(-14)` antes de buscar (idêntico ao `norm_doc`). Em 19/06 trocou `.maybeSingle()` por `.limit(1)` — ver Sessão 19/06 abaixo.
+- **Camada 2 (`src/data.js` desde 26/06/2026, era App.jsx):** `findOrCreateCliente` normaliza com `slice(-14)` antes de buscar (idêntico ao `norm_doc`). Em 19/06 trocou `.maybeSingle()` por `.limit(1)` — ver Sessão 19/06 abaixo.
 
 ### Merge FOCALIZE executado
 CNPJ `021.672.740/0001-44` (15 dígitos, tipo ?) fundido com `21.672.740/0001-44` (PJ).
