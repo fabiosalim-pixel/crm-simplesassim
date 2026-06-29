@@ -325,7 +325,7 @@ export default function Dashboard({ onNavigate, onFiltro }) {
     <div className="space-y-5">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-slate-800">Dashboard</h1>
+        <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">Dashboard</h1>
         <button onClick={() => carregar(periodoIni, periodoFim, renovarDias)}
           className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white">
           <RefreshCw size={12} /> Atualizar
