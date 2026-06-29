@@ -647,7 +647,7 @@ export default function Segurados() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-bold text-slate-800">
+        <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">
           Segurados <span className="text-slate-400 font-normal text-sm">({clientes.length})</span>
         </h1>
       </div>
