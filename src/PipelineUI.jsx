@@ -30,14 +30,14 @@ function CardTile({ card, onClick, onDragStart }) {
       draggable
       onDragStart={e => { e.dataTransfer.setData("cardId", card.id); e.dataTransfer.effectAllowed = "move"; if (onDragStart) onDragStart(card.id); }}
       onClick={() => onClick(card)}
-      className={`bg-white rounded-xl p-2.5 mb-1.5 cursor-grab active:cursor-grabbing hover:bg-slate-50 transition-colors border ${apoliceAlert ? "border-red-400 border-2" : vistoriaAlert ? "border-orange-400 border-2" : boletoAlert ? "border-yellow-500 border-2" : urgent ? "border-l-4 border-l-red-500 border-slate-200" : warn ? "border-l-4 border-l-yellow-400 border-slate-200" : "border-slate-200"}`}
+      className={`bg-white dark:bg-slate-800 rounded-xl p-2.5 mb-1.5 cursor-grab active:cursor-grabbing hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border ${apoliceAlert ? "border-red-400 border-2" : vistoriaAlert ? "border-orange-400 border-2" : boletoAlert ? "border-yellow-500 border-2" : urgent ? "border-l-4 border-l-red-500 border-slate-200 dark:border-slate-700" : warn ? "border-l-4 border-l-yellow-400 border-slate-200 dark:border-slate-700" : "border-slate-200 dark:border-slate-700"}`}
       style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
       <div className="flex justify-between items-start gap-1">
-        <span className="font-semibold text-slate-800 text-sm leading-snug flex-1">{card.clienteNome}</span>
+        <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm leading-snug flex-1">{card.clienteNome}</span>
         {card.etiquetaSegfy && <Tag size={10} className="text-blue-400 mt-0.5 flex-shrink-0" />}
       </div>
-      <div className="text-xs text-slate-400 mt-0.5">{card.tipoSeguro}{card.seguradora ? ` · ${card.seguradora}` : ""}</div>
-      {card.veiculo && card.veiculo !== "—" && <div className="text-xs text-slate-400 truncate">{card.veiculo}</div>}
+      <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{card.tipoSeguro}{card.seguradora ? ` · ${card.seguradora}` : ""}</div>
+      {card.veiculo && card.veiculo !== "—" && <div className="text-xs text-slate-400 dark:text-slate-500 truncate">{card.veiculo}</div>}
       {(card.etiquetaSituacao || card.etiquetaPagamento || card.etiquetaCanal) && (
         <div className="flex flex-wrap gap-1 mt-1.5">
           <TagChip label={card.etiquetaSituacao}  corMap={SITUACAO_COR} />
@@ -46,7 +46,7 @@ function CardTile({ card, onClick, onDragStart }) {
         </div>
       )}
       <div className="flex justify-between items-center mt-1.5">
-        <span className="text-xs font-semibold text-emerald-600">{card.valor ? `R$ ${card.valor}` : "—"}</span>
+        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{card.valor ? `R$ ${card.valor}` : "—"}</span>
         <Chip days={days} status={card.status} />
       </div>
       {pending > 0 && (
@@ -109,31 +109,31 @@ export function PainelSinistros({ cards, onCard }) {
   ).sort((a, b) => (a.dataOcorrencia || "").localeCompare(b.dataOcorrencia || ""));
 
   return (
-    <div className="w-64 flex-shrink-0 border-l border-slate-200 bg-slate-50 overflow-y-auto flex flex-col">
-      <div className="px-3 py-2.5 border-b border-slate-200 flex items-center gap-2 bg-white sticky top-0">
+    <div className="w-64 flex-shrink-0 border-l border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 overflow-y-auto flex flex-col">
+      <div className="px-3 py-2.5 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 bg-white dark:bg-slate-800 sticky top-0">
         <AlertTriangle size={13} className="text-red-500 flex-shrink-0" />
-        <span className="text-xs font-semibold text-slate-700">Sinistros abertos</span>
+        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Sinistros abertos</span>
         {itens.length > 0 && (
           <span className="ml-auto text-xs bg-red-100 text-red-700 font-bold px-1.5 py-0.5 rounded-full">{itens.length}</span>
         )}
       </div>
       {itens.length === 0 ? (
-        <div className="text-xs text-slate-400 text-center py-8 px-3">Nenhum sinistro aberto.</div>
+        <div className="text-xs text-slate-400 dark:text-slate-500 text-center py-8 px-3">Nenhum sinistro aberto.</div>
       ) : (
         <div className="p-2 space-y-2">
           {itens.map(s => (
             <div key={s.id}
               onClick={() => onCard(s.card)}
-              className="bg-white rounded-lg border border-slate-200 p-2.5 cursor-pointer hover:border-red-300 hover:shadow-sm transition-all">
+              className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 cursor-pointer hover:border-red-300 hover:shadow-sm transition-all">
               <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                <span className="text-xs font-semibold text-slate-700">{s.tipo}</span>
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{s.tipo}</span>
                 <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${SN_STATUS_COR_PILL[s.status] || "bg-slate-100 text-slate-500"}`}>{s.status}</span>
               </div>
-              <div className="text-xs text-slate-600 font-medium truncate">{s.card.clienteNome}</div>
-              <div className="text-xs text-slate-400 truncate">{s.card.tipoSeguro} · {s.card.seguradora}</div>
-              {s.protocolo && <div className="text-xs text-slate-400 mt-0.5">Prot: {s.protocolo}</div>}
+              <div className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate">{s.card.clienteNome}</div>
+              <div className="text-xs text-slate-400 dark:text-slate-500 truncate">{s.card.tipoSeguro} · {s.card.seguradora}</div>
+              {s.protocolo && <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Prot: {s.protocolo}</div>}
               {s.dataPrevistaResolucao && (
-                <div className="text-xs text-slate-400 mt-0.5">
+                <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                   Previsão: {new Date(s.dataPrevistaResolucao + "T00:00:00").toLocaleDateString("pt-BR")}
                 </div>
               )}
@@ -166,10 +166,10 @@ export function Column({ stage, cards, onCard, onAdd, onDrop }) {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`flex-1 p-2 min-h-40 overflow-y-auto transition-colors ${isDragOver ? "bg-blue-50 ring-2 ring-blue-300 ring-inset" : "bg-white"}`}
+        className={`flex-1 p-2 min-h-40 overflow-y-auto transition-colors ${isDragOver ? "bg-blue-50 dark:bg-slate-700 ring-2 ring-blue-300 dark:ring-blue-600 ring-inset" : "bg-white dark:bg-slate-800"}`}
         style={{ maxHeight: "calc(100vh - 185px)" }}>
         {cards.map(c => <CardTile key={c.id} card={c} onClick={onCard} />)}
-        <button onClick={() => onAdd(stage.id)} className="w-full text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors mt-0.5">
+        <button onClick={() => onAdd(stage.id)} className="w-full text-xs text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 flex items-center gap-1 py-1.5 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors mt-0.5">
           <Plus size={12} /> Adicionar card
         </button>
       </div>

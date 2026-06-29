@@ -1,12 +1,12 @@
 // ── Constantes do Pipeline (Kanban) ──────────────────────────────
 export const STAGES = [
-  { id: "cotacoes",    label: "Cotações e Leads",        short: "Cotações",    badge: "bg-blue-600",    bg: "bg-blue-50",    border: "border-blue-300" },
-  { id: "enviada",     label: "Enviada ao Cliente",       short: "Enviada",     badge: "bg-violet-600",  bg: "bg-violet-50",  border: "border-violet-300" },
-  { id: "transmitida", label: "Proposta Transmitida",     short: "Transmitida", badge: "bg-orange-500",  bg: "bg-orange-50",  border: "border-orange-300" },
-  { id: "vistoria",    label: "Vistoria / Pend. Emissão", short: "Vistoria",    badge: "bg-red-500",     bg: "bg-red-50",     border: "border-red-300",    optional: true },
-  { id: "boleto",      label: "Boleto / Débito",          short: "Pagamento",   badge: "bg-yellow-600",  bg: "bg-yellow-50",  border: "border-yellow-300", optional: true },
-  { id: "emitida",      label: "Apólice Emitida",          short: "Emitida",     badge: "bg-emerald-600", bg: "bg-emerald-50",  border: "border-emerald-300" },
-  { id: "crosselling",  label: "Crosselling",              short: "Crosselling", badge: "bg-purple-600",  bg: "bg-purple-50",   border: "border-purple-300" },
+  { id: "cotacoes",    label: "Cotações e Leads",        short: "Cotações",    badge: "bg-slate-500",    bg: "bg-slate-50",    border: "border-slate-200" },
+  { id: "enviada",     label: "Enviada ao Cliente",       short: "Enviada",     badge: "bg-slate-600",    bg: "bg-slate-50",    border: "border-slate-300" },
+  { id: "transmitida", label: "Proposta Transmitida",     short: "Transmitida", badge: "bg-slate-700",    bg: "bg-slate-100",   border: "border-slate-300" },
+  { id: "vistoria",    label: "Vistoria / Pend. Emissão", short: "Vistoria",    badge: "bg-amber-600",    bg: "bg-amber-50",    border: "border-amber-300",  optional: true },
+  { id: "boleto",      label: "Boleto / Débito",          short: "Pagamento",   badge: "bg-amber-700",    bg: "bg-amber-50",    border: "border-amber-300",  optional: true },
+  { id: "emitida",      label: "Apólice Emitida",          short: "Emitida",     badge: "bg-emerald-700",  bg: "bg-emerald-50",   border: "border-emerald-300" },
+  { id: "crosselling",  label: "Crosselling",              short: "Crosselling", badge: "bg-[#0F2044]",    bg: "bg-slate-50",     border: "border-slate-300" },
 ];
 
 export const PROSP_STAGES = [
