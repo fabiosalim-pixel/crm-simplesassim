@@ -443,7 +443,7 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
   const oportunidades = universo.filter((r) => !ramosCliente.has(norm(r)));
 
   return (
-    <div className="flex-1 overflow-y-auto p-5" style={{ background: "#F1F2F4" }}>
+    <div>
       <button onClick={onBack} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
         <ChevronLeft size={16} /> Voltar para a lista
       </button>
@@ -645,7 +645,7 @@ export default function Segurados() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-5" style={{ background: "#F1F2F4" }}>
+    <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-bold text-slate-800">
           Segurados <span className="text-slate-400 font-normal text-sm">({clientes.length})</span>

@@ -322,7 +322,7 @@ export default function Dashboard({ onNavigate, onFiltro }) {
   const qtdAniv = modoAniv === "hoje" ? m?.aniv_hoje : modoAniv === "15" ? m?.aniv_15d : m?.aniv_30d;
 
   return (
-    <div className="flex-1 overflow-y-auto p-5 space-y-5" style={{ background: "#F1F2F4" }}>
+    <div className="space-y-5">
 
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-slate-800">Dashboard</h1>

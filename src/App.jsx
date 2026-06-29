@@ -432,11 +432,11 @@ export default function App() {
         <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
       ) : view === "documentos" ? (
         <div className="max-w-2xl">
-          <h1 className="text-lg font-bold text-slate-800 mb-1">Documentos</h1>
+          <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">Documentos</h1>
           <p className="text-sm text-slate-500 mb-5">
             Importação automática de propostas, apólices e endossos via IA.
           </p>
-          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-8 text-center">
+          <div className="bg-painel dark:bg-painel-dark rounded-xl border border-borda dark:border-borda-dark shadow-sm p-8 text-center">
             <Upload size={32} className="text-blue-500 mx-auto mb-3" />
             <p className="text-sm text-slate-600 mb-4 max-w-sm mx-auto">
               Envie um PDF de proposta, apólice ou endosso. Os dados são extraídos
@@ -450,7 +450,7 @@ export default function App() {
         </div>
       ) : (
         <div className="flex flex-col h-full">
-          <div className="bg-white border-b border-slate-200 px-5 py-2 flex items-center gap-2.5 flex-shrink-0">
+          <div className="bg-painel dark:bg-painel-dark border-b border-borda dark:border-borda-dark px-5 py-2 flex items-center gap-2.5 flex-shrink-0">
             <button onClick={() => setMostrarArquivados(prev => !prev)}
               title={mostrarArquivados ? "Voltar ao pipeline" : "Ver apólices arquivadas"}
               className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border transition-colors ${mostrarArquivados ? "bg-amber-100 border-amber-300 text-amber-700 font-semibold" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
