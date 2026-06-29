@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase";
-import { Shield, Plus, X, ChevronRight, ChevronLeft, Bell, Search, Save, Tag, Filter, AlertTriangle, Paperclip, Download, Trash2, Upload, Archive, Clock, Ban, Users, RotateCcw, Home } from "lucide-react";
+import { Shield, Plus, X, ChevronRight, ChevronLeft, Bell, Search, Save, Tag, Filter, AlertTriangle, Paperclip, Download, Trash2, Upload, Archive, Clock, Ban, RotateCcw } from "lucide-react";
+import { Layout } from "./Layout";
 import Dashboard from "./Dashboard";
 import Segurados from "./Segurados";
 import {
@@ -43,6 +44,9 @@ export default function App() {
   const [view, setView] = useState("pipeline");
   const [onlyUrgentes, setOnlyUrgentes] = useState(false);
   const [onlySemComissao, setOnlySemComissao] = useState(false);
+  const [onlyComSinistro, setOnlyComSinistro] = useState(false);
+  const [filterStatus, setFilterStatus] = useState(null);
+  const [filterPeriodo, setFilterPeriodo] = useState(null);
   const [prospeccoes, setProspeccoes] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -50,6 +54,7 @@ export default function App() {
   const [clienteModal, setClienteModal] = useState(null);
   const [importModal, setImportModal] = useState(false);
   const [toast, setToast] = useState(null);
+  const [theme, setTheme] = useState(() => localStorage.getItem("crm-theme") || "light");
   const searchRef = useRef(null);
 
   const showToast = (msg) => {
@@ -76,6 +81,11 @@ export default function App() {
     }, 250);
     return () => clearTimeout(t);
   }, [searchQuery]);
+
+  // Persistência do tema claro/escuro
+  useEffect(() => {
+    localStorage.setItem("crm-theme", theme);
+  }, [theme]);
 
   // Fechar dropdown ao clicar fora
   // Auth session
@@ -209,7 +219,10 @@ export default function App() {
       const mm = !filterMonth || (c.dataRenovacao || "").startsWith(filterMonth);
       const mu = !onlyUrgentes || (() => { const dd = daysUntil(c.dataRenovacao); return dd !== null && dd <= 5 && c.status !== "emitida"; })();
       const mc = !onlySemComissao || (c.status === "emitida" && (!c.percentualComissao || !c.premioLiquido));
-      return ms && mm && mu && mc;
+      const msin = !onlyComSinistro || (c.sinistros || []).some(s => s.status !== "Encerrado");
+      const mst = !filterStatus || c.status === filterStatus;
+      const mp = !filterPeriodo || (c.dataEmissao && c.dataEmissao >= filterPeriodo.ini && c.dataEmissao <= filterPeriodo.fim);
+      return ms && mm && mu && mc && msin && mst && mp;
     })
     .sort((a, b) => {
       const da = a.dataRenovacao || "9999-99";
@@ -278,173 +291,215 @@ export default function App() {
     </div>
   );
 
-  return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: "#F1F2F4" }}>
-      <header className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <Shield size={20} className="text-amber-400" />
-          <span className="font-bold text-base tracking-tight">CRM Renovações</span>
-          <span className="text-slate-500 text-xs ml-1">Simples Assim</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="bg-slate-800 rounded-lg flex items-center p-0.5 gap-0.5">
-            <button onClick={() => setView("home")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === "home" ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
-              <Home size={12} /> Home
-            </button>
-            <button onClick={() => setView("segurados")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === "segurados" ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
-              <Users size={12} /> Segurados
-            </button>
-            <button onClick={() => setView("pipeline")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === "pipeline" ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
-              <Shield size={12} /> Renovações
-            </button>
-            <button onClick={() => setView("prospeccoes")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === "prospeccoes" ? "bg-white text-slate-900" : "text-slate-400 hover:text-white"}`}>
-              <Users size={12} /> Prospecções
-            </button>
-          </div>
-          {urgentes > 0 && (
-            <button onClick={() => { setView("pipeline"); setOnlyUrgentes(true); }}
-              className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-colors cursor-pointer">
-              <Bell size={11} /> {urgentes} urgente{urgentes !== 1 ? "s" : ""}
-            </button>
-          )}
-          {apolicesPendentes > 0 && (
-            <div className="flex items-center gap-1.5 bg-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-              <Paperclip size={11} /> {apolicesPendentes} apólice{apolicesPendentes !== 1 ? "s" : ""} pendente{apolicesPendentes !== 1 ? "s" : ""}
-            </div>
-          )}
-          {vistoriasPendentes > 0 && (
-            <div className="flex items-center gap-1.5 bg-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-              <AlertTriangle size={11} /> {vistoriasPendentes} vistoria{vistoriasPendentes !== 1 ? "s" : ""} pendente{vistoriasPendentes !== 1 ? "s" : ""}
-            </div>
-          )}
-          {boletosPendentes > 0 && (
-            <div className="flex items-center gap-1.5 bg-yellow-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-              <Bell size={11} /> {boletosPendentes} boleto{boletosPendentes !== 1 ? "s" : ""} vencendo
-            </div>
-          )}
-          <div className="text-slate-400 text-xs">{cards.length} cards · {cards.filter(c => c.status === "emitida").length} emitidas</div>
-          <button onClick={() => supabase.auth.signOut()}
-            className="text-slate-500 hover:text-slate-300 text-xs px-2 py-1 rounded transition-colors" title="Sair">
-            Sair
-          </button>
-        </div>
-      </header>
+  const userName = session?.user?.email
+    ? session.user.email.split("@")[0].replace(/^(.)/, (c) => c.toUpperCase())
+    : "Administrador";
 
-      <div className="bg-white border-b border-slate-200 px-5 py-2 flex items-center gap-2.5 flex-shrink-0">
-        <div className="relative" ref={searchRef}>
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
-          <input
-            className="pl-8 pr-8 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 w-72"
-            placeholder="Buscar cliente, CPF, placa..."
-            value={searchQuery}
-            onChange={e => { setSearchQuery(e.target.value); setSearch(e.target.value); }}
-            onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
-            onKeyDown={e => e.key === "Escape" && (setSearchOpen(false), setSearchQuery(""), setSearch(""))}
-          />
-          {searchQuery && (
-            <button onClick={() => { setSearchQuery(""); setSearch(""); setSearchOpen(false); }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
-              <X size={13} />
-            </button>
-          )}
-          {searchOpen && (
-            <div className="absolute top-full left-0 mt-1 w-96 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden">
-              <div className="px-3 py-2 border-b bg-slate-50">
-                <span className="text-xs text-slate-400 font-medium">{searchResults.length} resultado{searchResults.length !== 1 ? "s" : ""}</span>
-              </div>
-              {searchResults.map(card => {
-                const stage = STAGES.find(s => s.id === card.status);
-                return (
-                  <button key={card.id} onClick={() => handleSelectResult(card)}
-                    className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 transition-colors flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-800 text-sm truncate">{card.clienteNome}</span>
-                        {card.arquivado && (
-                          <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0 flex items-center gap-0.5">
-                            <Archive size={9} /> Arquivado
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-400 mt-0.5 truncate">
-                        {card.tipoSeguro} · {card.seguradora}
-                        {card.autoPlaca && ` · ${card.autoPlaca}`}
-                        {card.cpfCnpj && ` · ${card.cpfCnpj}`}
-                      </div>
-                    </div>
-                    {!card.arquivado && stage && (
-                      <span className={`text-xs text-white px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${stage.badge}`}>
-                        {stage.short}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <button onClick={() => setMostrarArquivados(prev => !prev)}
-          title={mostrarArquivados ? "Voltar ao pipeline" : "Ver apólices arquivadas"}
-          className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border transition-colors ${mostrarArquivados ? "bg-amber-100 border-amber-300 text-amber-700 font-semibold" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
-          <Archive size={12} /> {mostrarArquivados ? "Arquivados" : "Arquivados"}
-        </button>
-        <Filter size={13} className="text-slate-400" />
-        <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-600"
-          value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
-          <option value="">Todos os meses</option>
-          {months.map(m => <option key={m.val} value={m.val}>{m.label}</option>)}
-        </select>
-        {onlyUrgentes && (
-          <button onClick={() => setOnlyUrgentes(false)}
-            className="flex items-center gap-1.5 bg-red-100 border border-red-300 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-red-200 transition-colors">
-            <Bell size={11} /> Só urgentes (≤5 dias) <X size={12} className="ml-0.5" />
+  const limparFiltrosDashboard = () => {
+    setFilterStatus(null);
+    setFilterPeriodo(null);
+    setOnlyComSinistro(false);
+  };
+
+  const topBarContent = (
+    <div className="px-5 py-2 flex items-center gap-2.5">
+      <div className="relative" ref={searchRef}>
+        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+        <input
+          className="pl-8 pr-8 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 w-72"
+          placeholder="Buscar cliente, CPF, placa..."
+          value={searchQuery}
+          onChange={e => { setSearchQuery(e.target.value); setSearch(e.target.value); }}
+          onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
+          onKeyDown={e => e.key === "Escape" && (setSearchOpen(false), setSearchQuery(""), setSearch(""))}
+        />
+        {searchQuery && (
+          <button onClick={() => { setSearchQuery(""); setSearch(""); setSearchOpen(false); }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
+            <X size={13} />
           </button>
         )}
-
-        <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => setImportModal(true)}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-            <Upload size={15} /> Importar PDF
-          </button>
-          <button onClick={() => setAddStage("cotacoes")}
-            className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-            <Plus size={15} /> Novo card
-          </button>
-        </div>
+        {searchOpen && (
+          <div className="absolute top-full left-0 mt-1 w-96 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden">
+            <div className="px-3 py-2 border-b bg-slate-50">
+              <span className="text-xs text-slate-400 font-medium">{searchResults.length} resultado{searchResults.length !== 1 ? "s" : ""}</span>
+            </div>
+            {searchResults.map(card => {
+              const stage = STAGES.find(s => s.id === card.status);
+              return (
+                <button key={card.id} onClick={() => handleSelectResult(card)}
+                  className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 transition-colors flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-800 text-sm truncate">{card.clienteNome}</span>
+                      {card.arquivado && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full flex-shrink-0 flex items-center gap-0.5">
+                          <Archive size={9} /> Arquivado
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5 truncate">
+                      {card.tipoSeguro} · {card.seguradora}
+                      {card.autoPlaca && ` · ${card.autoPlaca}`}
+                      {card.cpfCnpj && ` · ${card.cpfCnpj}`}
+                    </div>
+                  </div>
+                  {!card.arquivado && stage && (
+                    <span className={`text-xs text-white px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${stage.badge}`}>
+                      {stage.short}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
+      {urgentes > 0 && (
+        <button onClick={() => { setView("pipeline"); setOnlyUrgentes(true); }}
+          className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-colors cursor-pointer">
+          <Bell size={11} /> {urgentes} urgente{urgentes !== 1 ? "s" : ""}
+        </button>
+      )}
+      {apolicesPendentes > 0 && (
+        <div className="flex items-center gap-1.5 bg-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+          <Paperclip size={11} /> {apolicesPendentes} apólice{apolicesPendentes !== 1 ? "s" : ""} pendente{apolicesPendentes !== 1 ? "s" : ""}
+        </div>
+      )}
+      {vistoriasPendentes > 0 && (
+        <div className="flex items-center gap-1.5 bg-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+          <AlertTriangle size={11} /> {vistoriasPendentes} vistoria{vistoriasPendentes !== 1 ? "s" : ""} pendente{vistoriasPendentes !== 1 ? "s" : ""}
+        </div>
+      )}
+      {boletosPendentes > 0 && (
+        <div className="flex items-center gap-1.5 bg-yellow-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+          <Bell size={11} /> {boletosPendentes} boleto{boletosPendentes !== 1 ? "s" : ""} vencendo
+        </div>
+      )}
+      <div className="text-slate-400 text-xs ml-auto">{cards.length} cards · {cards.filter(c => c.status === "emitida").length} emitidas</div>
+    </div>
+  );
 
+  return (
+    <Layout
+      active={view}
+      onNavigate={setView}
+      padded={view !== "pipeline"}
+      topBar={topBarContent}
+      userName={userName}
+      userRole="Corretor"
+      onLogout={() => supabase.auth.signOut()}
+      theme={theme}
+      onToggleTheme={() => setTheme(t => (t === "dark" ? "light" : "dark"))}
+    >
       {view === "home" ? (
         <Dashboard
           onNavigate={(v) => setView(v)}
           onFiltro={(f) => {
-            if (f.urgentes) { setOnlyUrgentes(true); setOnlySemComissao(false); }
-            if (f.renovar) { setOnlyUrgentes(false); setOnlySemComissao(false); }
-            if (f.semComissao) { setOnlySemComissao(true); setOnlyUrgentes(false); }            
+            if (f.urgentes) {
+              setOnlyUrgentes(true); setOnlySemComissao(false); setOnlyComSinistro(false);
+              setFilterStatus(null); setFilterPeriodo(null);
+            }
+            if (f.renovar) {
+              setOnlyUrgentes(false); setOnlySemComissao(false); setOnlyComSinistro(false);
+              setFilterStatus(null); setFilterPeriodo(null);
+            }
+            if (f.semComissao) {
+              setOnlySemComissao(true); setOnlyUrgentes(false); setOnlyComSinistro(false);
+              setFilterStatus(null); setFilterPeriodo(null);
+            }
+            if (f.status === "emitida") {
+              setFilterStatus("emitida");
+              setFilterPeriodo({ ini: f.dataIni, fim: f.dataFim });
+              setOnlyUrgentes(false); setOnlySemComissao(false); setOnlyComSinistro(false);
+            }
+            if (f.status === "sinistros") {
+              setOnlyComSinistro(true);
+              setOnlyUrgentes(false); setOnlySemComissao(false);
+              setFilterStatus(null); setFilterPeriodo(null);
+            }
+            // f.status === "nao_renovada": cards "Não Renovada" são arquivados
+            // e migram para a Captação (prospecções) — não existem mais no
+            // board ativo do Pipeline. Sem efeito aqui por ora — ver nota na
+            // entrega deste arquivo.
           }}
         />
       ) : view === "segurados" ? (
         <Segurados />
       ) : view === "aniversariantes" ? (
         <AniversariantesView onVerCliente={(id) => { setView("segurados"); }} />
-      ) : view === "pipeline" ? (
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 overflow-x-auto">
-            <div className="flex gap-2.5 p-4 h-full" style={{ minWidth: "fit-content" }}>
-              {STAGES.map(s => (
-                <Column key={s.id} stage={s}
-                  cards={visible.filter(c => c.status === s.id)}
-                  onCard={setSelected} onAdd={setAddStage} onDrop={handleDrop} />
-              ))}
-            </div>
+      ) : view === "prospeccoes" ? (
+        <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
+      ) : view === "documentos" ? (
+        <div className="max-w-2xl">
+          <h1 className="text-lg font-bold text-slate-800 mb-1">Documentos</h1>
+          <p className="text-sm text-slate-500 mb-5">
+            Importação automática de propostas, apólices e endossos via IA.
+          </p>
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-8 text-center">
+            <Upload size={32} className="text-blue-500 mx-auto mb-3" />
+            <p className="text-sm text-slate-600 mb-4 max-w-sm mx-auto">
+              Envie um PDF de proposta, apólice ou endosso. Os dados são extraídos
+              automaticamente e um novo card é criado no Pipeline.
+            </p>
+            <button onClick={() => setImportModal(true)}
+              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+              <Upload size={15} /> Importar PDF
+            </button>
           </div>
-          <PainelSinistros cards={cards} onCard={setSelected} />
         </div>
       ) : (
-        <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
+        <div className="flex flex-col h-full">
+          <div className="bg-white border-b border-slate-200 px-5 py-2 flex items-center gap-2.5 flex-shrink-0">
+            <button onClick={() => setMostrarArquivados(prev => !prev)}
+              title={mostrarArquivados ? "Voltar ao pipeline" : "Ver apólices arquivadas"}
+              className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg border transition-colors ${mostrarArquivados ? "bg-amber-100 border-amber-300 text-amber-700 font-semibold" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
+              <Archive size={12} /> {mostrarArquivados ? "Arquivados" : "Arquivados"}
+            </button>
+            <Filter size={13} className="text-slate-400" />
+            <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-600"
+              value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
+              <option value="">Todos os meses</option>
+              {months.map(m => <option key={m.val} value={m.val}>{m.label}</option>)}
+            </select>
+            {onlyUrgentes && (
+              <button onClick={() => setOnlyUrgentes(false)}
+                className="flex items-center gap-1.5 bg-red-100 border border-red-300 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-red-200 transition-colors">
+                <Bell size={11} /> Só urgentes (≤5 dias) <X size={12} className="ml-0.5" />
+              </button>
+            )}
+            {(filterStatus || onlyComSinistro) && (
+              <button onClick={limparFiltrosDashboard}
+                className="flex items-center gap-1.5 bg-indigo-100 border border-indigo-300 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-indigo-200 transition-colors">
+                <Filter size={11} /> Filtro do Dashboard <X size={12} className="ml-0.5" />
+              </button>
+            )}
+
+            <div className="ml-auto flex items-center gap-2">
+              <button onClick={() => setImportModal(true)}
+                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                <Upload size={15} /> Importar PDF
+              </button>
+              <button onClick={() => setAddStage("cotacoes")}
+                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                <Plus size={15} /> Novo card
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 overflow-x-auto">
+              <div className="flex gap-2.5 p-4 h-full" style={{ minWidth: "fit-content" }}>
+                {STAGES.map(s => (
+                  <Column key={s.id} stage={s}
+                    cards={visible.filter(c => c.status === s.id)}
+                    onCard={setSelected} onAdd={setAddStage} onDrop={handleDrop} />
+                ))}
+              </div>
+            </div>
+            <PainelSinistros cards={cards} onCard={setSelected} />
+          </div>
+        </div>
       )}
 
       {selected && <Modal card={selected} onClose={() => setSelected(null)} onSave={handleSave} onDelete={handleDelete} onArquivar={handleArquivar} onDesarquivar={handleDesarquivar} onNaoRenovada={handleNaoRenovada} onVerCliente={(id) => { setSelected(null); setClienteModal(id); }} onApoliceAnexada={() => handleApoliceAnexada(selected.id)} onPropostaAnexada={() => handlePropostaAnexada(selected.id)} onExtrairDados={(data, tipo) => { setCards(prev => prev.map(c => c.id === selected.id ? { ...c } : c)); }} />}
@@ -456,6 +511,6 @@ export default function App() {
           {toast}
         </div>
       )}
-    </div>
+    </Layout>
   );
 }
