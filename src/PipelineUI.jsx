@@ -154,13 +154,13 @@ export function Column({ stage, cards, onCard, onAdd, onDrop }) {
   const handleDrop = (e) => { e.preventDefault(); setIsDragOver(false); const cardId = e.dataTransfer.getData("cardId"); if (cardId) onDrop(cardId, stage.id); };
 
   return (
-    <div className="flex-shrink-0 flex flex-col rounded-xl overflow-hidden" style={{ width: 256, boxShadow: "0 1px 4px rgba(0,0,0,0.10)" }}>
-      <div className={`flex items-center justify-between px-3 py-2.5 ${stage.badge} text-white`}>
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-xs uppercase tracking-wide">{stage.label}</span>
-          {stage.optional && <span className="text-xs opacity-70 font-normal normal-case">específicos</span>}
+    <div className="flex-shrink-0 flex flex-col rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700" style={{ width: 256, boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+      <div className={`flex items-center justify-between px-3 py-2.5 bg-white dark:bg-slate-800 border-b-2 ${stage.accent}`}>
+        <div className="flex items-center gap-1.5">
+          <span className="font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300">{stage.label}</span>
+          <span className="text-xs font-normal normal-case text-slate-400 dark:text-slate-500">{cards.length}</span>
+          {stage.optional && <span className="text-xs opacity-70 font-normal normal-case text-slate-400 dark:text-slate-500">· específicos</span>}
         </div>
-        <span className="text-xs font-bold bg-white bg-opacity-25 rounded-full px-1.5 py-0.5 min-w-[20px] text-center">{cards.length}</span>
       </div>
       <div
         onDragOver={handleDragOver}
