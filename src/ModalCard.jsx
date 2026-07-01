@@ -31,22 +31,33 @@ export function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquiv
       "Em Regulação":          "bg-violet-100 text-violet-700",
     };
 
-    if (!d.dataRenovacao && data.apolice?.vigenciaFim) updates.dataRenovacao = data.apolice.vigenciaFim;
-    if (!d.valor && data.financeiro?.premioTotal) updates.valor = numeroParaMoeda(moedaParaNumero(data.financeiro.premioTotal));
-    if (!d.premioLiquido && data.financeiro?.premioLiquido) updates.premioLiquido = numeroParaMoeda(moedaParaNumero(data.financeiro.premioLiquido));
-    if (!d.seguradora && data.apolice?.seguradora) updates.seguradora = data.apolice.seguradora;
-    if (!d.proposta && data.apolice?.numeroProposta) updates.proposta = data.apolice.numeroProposta;
-    if (!d.apolice && data.apolice?.numeroApolice) updates.apolice = data.apolice.numeroApolice;
-if (!d.etiquetaPagamento && data.financeiro?.formaPagamento) updates.etiquetaPagamento = mapPagamento(data.financeiro.formaPagamento);
+    // Campos que mudam a cada ciclo de renovação — a proposta/apólice extraída
+    // é sempre a fonte mais atual, então sobrescrevem o valor anterior do card.
+    if (data.apolice?.vigenciaFim) updates.dataRenovacao = data.apolice.vigenciaFim;
+    if (data.apolice?.vigenciaInicio) updates.vigenciaInicio = data.apolice.vigenciaInicio;
+    if (data.financeiro?.premioTotal) updates.valor = numeroParaMoeda(moedaParaNumero(data.financeiro.premioTotal));
+    if (data.financeiro?.premioLiquido) updates.premioLiquido = numeroParaMoeda(moedaParaNumero(data.financeiro.premioLiquido));
+    if (data.apolice?.seguradora) updates.seguradora = data.apolice.seguradora;
+    if (data.apolice?.numeroProposta) updates.proposta = data.apolice.numeroProposta;
+    if (data.apolice?.numeroApolice) updates.apolice = data.apolice.numeroApolice;
+    if (data.financeiro?.formaPagamento) updates.etiquetaPagamento = mapPagamento(data.financeiro.formaPagamento);
+    if (data.segurado?.telefone) updates.telefone = maskPhone(data.segurado.telefone);
+    if (data.segurado?.email) updates.email = data.segurado.email;
+    if (data.segurado?.estadoCivil) updates.autoEstadoCivil = data.segurado.estadoCivil;
+    if (data.veiculo?.condutorNome) updates.autoCondutor = data.veiculo.condutorNome;
+    if (data.veiculo?.condutorCpf) updates.autoCpfCondutor = data.veiculo.condutorCpf;
+    if (data.veiculo?.condutorNascimento) updates.autoNascimentoCondutor = data.veiculo.condutorNascimento;
+    if (data.veiculo?.condutorEstadoCivil) updates.autoEstadoCivilCondutor = data.veiculo.condutorEstadoCivil;
+    if (typeof data.veiculo?.condutor1825anos === "boolean") updates.autoCondutor1825 = data.veiculo.condutor1825anos;
     if (data.endereco) {
       const e = data.endereco;
-      if (!d.enderecoCep && e.cep) updates.enderecoCep = maskCEP(e.cep);
-      if (!d.enderecoLogradouro && e.logradouro) updates.enderecoLogradouro = e.logradouro;
-      if (!d.enderecoNumero && e.numero) updates.enderecoNumero = e.numero;
-      if (!d.enderecoComplemento && e.complemento) updates.enderecoComplemento = e.complemento;
-      if (!d.enderecoBairro && e.bairro) updates.enderecoBairro = e.bairro;
-      if (!d.enderecoCidade && e.cidade) updates.enderecoCidade = e.cidade;
-      if (!d.enderecoUf && e.uf) updates.enderecoUf = e.uf;
+      if (e.cep) updates.enderecoCep = maskCEP(e.cep);
+      if (e.logradouro) updates.enderecoLogradouro = e.logradouro;
+      if (e.numero) updates.enderecoNumero = e.numero;
+      if (e.complemento) updates.enderecoComplemento = e.complemento;
+      if (e.bairro) updates.enderecoBairro = e.bairro;
+      if (e.cidade) updates.enderecoCidade = e.cidade;
+      if (e.uf) updates.enderecoUf = e.uf;
     }
     if (tipo === "apolice_endosso" && data.financeiro?.premioLiquido) {
       const delta = moedaParaNumero(data.financeiro.premioLiquido);
@@ -355,7 +366,11 @@ if (tipo === "proposta" && d.status === "cotacoes") {
               </div>
             )}
             <div>
-              <label className={lbl}>Data de renovação</label>
+              <label className={lbl}>Vigência início</label>
+              <input type="date" className={inp} value={d.vigenciaInicio || ""} onChange={e => set("vigenciaInicio", e.target.value)} />
+            </div>
+            <div>
+              <label className={lbl}>Vigência fim (data renovação)</label>
               <input type="date" className={inp} value={d.dataRenovacao || ""} onChange={e => set("dataRenovacao", e.target.value)} />
             </div>
             <div>
