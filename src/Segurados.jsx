@@ -107,10 +107,10 @@ function calcGatilhos(c, aps) {
 function Info({ icon: Icon, label, value }) {
   return (
     <div className="flex items-start gap-2">
-      <Icon size={14} className="text-slate-400 mt-0.5 flex-shrink-0" />
+      <Icon size={14} className="text-slate-400 dark:text-slate-500 mt-0.5 flex-shrink-0" />
       <div className="min-w-0">
-        <div className="text-xs text-slate-400">{label}</div>
-        <div className="text-slate-700 break-words">{value || "—"}</div>
+        <div className="text-xs text-slate-400 dark:text-slate-500">{label}</div>
+        <div className="text-slate-700 dark:text-slate-200 break-words">{value || "—"}</div>
       </div>
     </div>
   );
@@ -118,9 +118,9 @@ function Info({ icon: Icon, label, value }) {
 
 function MiniStat({ label, value }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-3">
-      <div className="text-xs text-slate-400 uppercase tracking-wide">{label}</div>
-      <div className="text-lg font-bold text-slate-800 mt-0.5 truncate">{value}</div>
+    <div className="bg-painel dark:bg-painel-dark rounded-xl border border-borda dark:border-borda-dark shadow-sm p-3">
+      <div className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">{label}</div>
+      <div className="text-lg font-bold text-slate-800 dark:text-slate-100 mt-0.5 truncate">{value}</div>
     </div>
   );
 }
@@ -128,13 +128,13 @@ function MiniStat({ label, value }) {
 function Campo({ label, value, onChange, type = "text", placeholder, full }) {
   return (
     <label className={`block ${full ? "md:col-span-3" : ""}`}>
-      <span className="text-xs text-slate-400">{label}</span>
+      <span className="text-xs text-slate-400 dark:text-slate-500">{label}</span>
       <input
         type={type}
         value={value || ""}
         onChange={onChange}
         placeholder={placeholder}
-        className="w-full mt-0.5 px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 bg-white outline-none focus:border-slate-300"
+        className="w-full mt-0.5 px-2.5 py-1.5 text-sm rounded-lg border border-borda dark:border-borda-dark bg-painel dark:bg-painel-dark text-slate-800 dark:text-slate-100 outline-none focus:border-slate-300 dark:focus:border-slate-500"
       />
     </label>
   );
@@ -163,12 +163,12 @@ function AnexosApolice({ renovacaoId }) {
       .then(({ data }) => setDocs(data || []));
   }, [renovacaoId]);
 
-  if (docs === null) return <div className="text-xs text-slate-400 mt-2">Carregando anexos...</div>;
-  if (docs.length === 0) return <div className="text-xs text-slate-400 mt-2">Nenhum anexo vinculado.</div>;
+  if (docs === null) return <div className="text-xs text-slate-400 dark:text-slate-500 mt-2">Carregando anexos...</div>;
+  if (docs.length === 0) return <div className="text-xs text-slate-400 dark:text-slate-500 mt-2">Nenhum anexo vinculado.</div>;
 
   return (
-    <div className="mt-3 pt-3 border-t border-slate-100">
-      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Anexos</div>
+    <div className="mt-3 pt-3 border-t border-borda dark:border-borda-dark">
+      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Anexos</div>
       <div className="space-y-1.5">
         {docs.map((doc) => {
           const { data: { publicUrl } } = supabase.storage.from("documentos").getPublicUrl(doc.storage_path);
@@ -177,7 +177,7 @@ function AnexosApolice({ renovacaoId }) {
               className="flex items-center gap-2 text-xs text-blue-600 hover:text-blue-800 hover:underline">
               <FileText size={12} className="flex-shrink-0" />
               <span className="font-medium">{TIPO_LABEL[doc.tipo] || doc.tipo}</span>
-              <span className="text-slate-400 truncate">{doc.nome_arquivo}</span>
+              <span className="text-slate-400 dark:text-slate-500 truncate">{doc.nome_arquivo}</span>
             </a>
           );
         })}
@@ -215,23 +215,23 @@ function DetalheApolice({ a }) {
   ].filter(({ v }) => v);
 
   return (
-    <div className="mt-3 pt-3 border-t border-slate-100 space-y-3">
+    <div className="mt-3 pt-3 border-t border-borda dark:border-borda-dark space-y-3">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
         {campos.map(({ l, v }) => (
           <div key={l}>
-            <div className="text-xs text-slate-400">{l}</div>
-            <div className="text-xs font-medium text-slate-700">{v}</div>
+            <div className="text-xs text-slate-400 dark:text-slate-500">{l}</div>
+            <div className="text-xs font-medium text-slate-700 dark:text-slate-200">{v}</div>
           </div>
         ))}
       </div>
       {autoCampos.length > 0 && (
         <div>
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Veículo / Condutor</div>
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Veículo / Condutor</div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
             {autoCampos.map(({ l, v }) => (
               <div key={l}>
-                <div className="text-xs text-slate-400">{l}</div>
-                <div className="text-xs font-medium text-slate-700">{v}</div>
+                <div className="text-xs text-slate-400 dark:text-slate-500">{l}</div>
+                <div className="text-xs font-medium text-slate-700 dark:text-slate-200">{v}</div>
               </div>
             ))}
           </div>
@@ -260,54 +260,54 @@ function ApolicesExpandiveis({ aps, ativas }) {
   }, [aps]);
 
   return (
-    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-      <h2 className="text-sm font-semibold text-slate-700 mb-3">
+    <div className="bg-painel dark:bg-painel-dark rounded-xl border border-borda dark:border-borda-dark shadow-sm p-5">
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">
         Histórico de apólices{" "}
-        <span className="text-slate-400 font-normal">
+        <span className="text-slate-400 dark:text-slate-500 font-normal">
           ({aps.length} · {ativas} vigente{ativas !== 1 ? "s" : ""})
         </span>
       </h2>
       {aps.length === 0 ? (
-        <div className="text-sm text-slate-400 py-6 text-center">Nenhuma apólice registrada para este cliente.</div>
+        <div className="text-sm text-slate-400 dark:text-slate-500 py-6 text-center">Nenhuma apólice registrada para este cliente.</div>
       ) : (
         <div className="space-y-3">
           {grupos.map((g) => {
             const vigente = g.ciclos.find(ehVigente);
             const ultimo = g.ciclos[0];
             return (
-              <div key={`${g.ramo}_${g.seguradora}`} className="rounded-lg border border-slate-200 overflow-hidden">
+              <div key={`${g.ramo}_${g.seguradora}`} className="rounded-lg border border-borda dark:border-borda-dark overflow-hidden">
                 {/* Cabeçalho do grupo (ramo + seguradora) */}
-                <div className="flex items-center gap-3 px-3 py-2 bg-slate-50 border-b border-slate-200">
+                <div className="flex items-center gap-3 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-borda dark:border-borda-dark">
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-semibold text-slate-700 uppercase tracking-wide">{g.ramo}</span>
-                    <span className="text-xs text-slate-400 ml-2">{g.seguradora}</span>
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">{g.ramo}</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">{g.seguradora}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {vigente
                       ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">Vigente</span>
                       : <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">Encerrada</span>}
-                    <span className="text-xs text-slate-500 font-medium">{g.ciclos.length} ciclo{g.ciclos.length !== 1 ? "s" : ""}</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">{g.ciclos.length} ciclo{g.ciclos.length !== 1 ? "s" : ""}</span>
                   </div>
                 </div>
                 {/* Ciclos */}
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 dark:divide-slate-700">
                   {g.ciclos.map((a) => {
                     const exp = aberto === a.id;
                     return (
-                      <div key={a.id} className={exp ? "bg-slate-50" : "bg-white"}>
+                      <div key={a.id} className={exp ? "bg-slate-50 dark:bg-slate-800/60" : "bg-painel dark:bg-painel-dark"}>
                         <button
                           onClick={() => setAberto(exp ? null : a.id)}
                           className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
-                          <span className={`text-slate-300 text-xs transition-transform flex-shrink-0 ${exp ? "rotate-90" : ""}`}>▶</span>
+                          <span className={`text-slate-300 dark:text-slate-600 text-xs transition-transform flex-shrink-0 ${exp ? "rotate-90" : ""}`}>▶</span>
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
                               Venc. {fmtData(a.data_renovacao)}
                               {a.apolice_nova ? ` · Apólice ${a.apolice_nova}` : ""}
                               {a.proposta ? ` · Proposta ${a.proposta}` : ""}
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0 ml-2">
-                            <div className="text-sm font-medium text-slate-700">{fmtBRL(a.valor)}</div>
+                            <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{fmtBRL(a.valor)}</div>
                             <StatusPill a={a} />
                           </div>
                         </button>
@@ -349,11 +349,11 @@ function SinistrosCliente({ aps }) {
   if (todos.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 mb-4">
+    <div className="bg-painel dark:bg-painel-dark rounded-xl border border-borda dark:border-borda-dark shadow-sm p-5 mb-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <AlertTriangle size={15} className="text-red-500" />
-          <h2 className="text-sm font-semibold text-slate-700">Sinistros</h2>
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Sinistros</h2>
           {abertos.length > 0 && (
             <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">
               {abertos.length} aberto{abertos.length !== 1 ? "s" : ""}
@@ -362,28 +362,28 @@ function SinistrosCliente({ aps }) {
         </div>
         {encerrados.length > 0 && (
           <button onClick={() => setVerEncerrados((v) => !v)}
-            className="text-xs text-slate-400 hover:text-slate-600">
+            className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
             {verEncerrados ? "Ocultar encerrados" : `Ver encerrados (${encerrados.length})`}
           </button>
         )}
       </div>
       <div className="space-y-2">
         {lista.map((s) => (
-          <div key={s.id} className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50">
+          <div key={s.id} className="flex items-start gap-3 p-3 rounded-lg border border-borda dark:border-borda-dark bg-slate-50 dark:bg-slate-800/60">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium text-slate-700">{s.tipo}</span>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{s.tipo}</span>
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${SN_STATUS_COR[s.status] || "bg-slate-100 text-slate-500"}`}>{s.status}</span>
-                <span className="text-xs text-slate-400">{s.tipo_seguro} · {s.seguradora}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">{s.tipo_seguro} · {s.seguradora}</span>
               </div>
-              <div className="text-xs text-slate-400 mt-0.5 space-y-0.5">
+              <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 space-y-0.5">
                 {s.protocolo && <span className="mr-3">Protocolo: {s.protocolo}</span>}
                 {s.dataOcorrencia && <span className="mr-3">Ocorrência: {fmtData(s.dataOcorrencia)}</span>}
                 {s.dataPrevistaResolucao && <span className="mr-3">Previsão: {fmtData(s.dataPrevistaResolucao)}</span>}
               </div>
-              {s.descricao && <div className="text-xs text-slate-500 mt-1">{s.descricao}</div>}
+              {s.descricao && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{s.descricao}</div>}
               {(s.contatos || []).length > 0 && (
-                <div className="mt-1.5 text-xs text-slate-400">
+                <div className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
                   Último contato: {fmtData((s.contatos[s.contatos.length - 1]).data)} — {(s.contatos[s.contatos.length - 1]).descricao}
                 </div>
               )}
@@ -444,27 +444,27 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
 
   return (
     <div>
-      <button onClick={onBack} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+      <button onClick={onBack} className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mb-4">
         <ChevronLeft size={16} /> Voltar para a lista
       </button>
 
       {/* Dados do cliente */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 mb-4">
+      <div className="bg-painel dark:bg-painel-dark rounded-xl border border-borda dark:border-borda-dark shadow-sm p-5 mb-4">
         <div className="flex items-start gap-3">
-          <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+          <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
             {c.tipo_pessoa === "PJ" ? <Building2 size={20} className="text-slate-500" /> : <User size={20} className="text-slate-500" />}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-slate-800 break-words">{c.nome}</h1>
-            <div className="text-xs text-slate-400">{c.cpf_cnpj} · {c.tipo_pessoa || "PF"}{c.status ? ` · ${c.status}` : ""}</div>
+            <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100 break-words">{c.nome}</h1>
+            <div className="text-xs text-slate-400 dark:text-slate-500">{c.cpf_cnpj} · {c.tipo_pessoa || "PF"}{c.status ? ` · ${c.status}` : ""}</div>
           </div>
           {!editando ? (
-            <button onClick={() => setEditando(true)} className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white flex-shrink-0">
+            <button onClick={() => setEditando(true)} className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 px-2.5 py-1.5 rounded-lg border border-borda dark:border-borda-dark bg-painel dark:bg-painel-dark flex-shrink-0">
               <Pencil size={13} /> Editar
             </button>
           ) : (
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={cancelar} disabled={salvando} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white">
+              <button onClick={cancelar} disabled={salvando} className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 px-2.5 py-1.5 rounded-lg border border-borda dark:border-borda-dark bg-painel dark:bg-painel-dark">
                 <X size={13} /> Cancelar
               </button>
               <button onClick={salvar} disabled={salvando} className="flex items-center gap-1 text-xs text-white px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-60">
@@ -490,10 +490,10 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
             </div>
             {c.observacoes && (
               <div className="mt-4 flex items-start gap-2 text-sm">
-                <FileText size={14} className="text-slate-400 mt-0.5 flex-shrink-0" />
+                <FileText size={14} className="text-slate-400 dark:text-slate-500 mt-0.5 flex-shrink-0" />
                 <div>
-                  <div className="text-xs text-slate-400">Observações</div>
-                  <div className="text-slate-700 whitespace-pre-wrap">{c.observacoes}</div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500">Observações</div>
+                  <div className="text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{c.observacoes}</div>
                 </div>
               </div>
             )}
@@ -503,8 +503,8 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
             <Campo label="Nome / Razão social" value={form.nome} onChange={set("nome")} full />
             <Campo label="CPF / CNPJ" value={form.cpf_cnpj} onChange={set("cpf_cnpj")} />
             <label className="block">
-              <span className="text-xs text-slate-400">Pessoa</span>
-              <select value={form.tipo_pessoa || ""} onChange={set("tipo_pessoa")} className="w-full mt-0.5 px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 bg-white outline-none focus:border-slate-300">
+              <span className="text-xs text-slate-400 dark:text-slate-500">Pessoa</span>
+              <select value={form.tipo_pessoa || ""} onChange={set("tipo_pessoa")} className="w-full mt-0.5 px-2.5 py-1.5 text-sm rounded-lg border border-borda dark:border-borda-dark bg-painel dark:bg-painel-dark text-slate-800 dark:text-slate-100 outline-none focus:border-slate-300 dark:focus:border-slate-500">
                 <option value="">—</option>
                 <option value="PF">Física</option>
                 <option value="PJ">Jurídica</option>
@@ -525,8 +525,8 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
             <Campo label="Cidade" value={form.cidade} onChange={set("cidade")} />
             <Campo label="Estado (UF)" value={form.estado} onChange={set("estado")} />
             <label className="block md:col-span-3">
-              <span className="text-xs text-slate-400">Observações</span>
-              <textarea value={form.observacoes || ""} onChange={set("observacoes")} rows={3} className="w-full mt-0.5 px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 bg-white outline-none focus:border-slate-300" />
+              <span className="text-xs text-slate-400 dark:text-slate-500">Observações</span>
+              <textarea value={form.observacoes || ""} onChange={set("observacoes")} rows={3} className="w-full mt-0.5 px-2.5 py-1.5 text-sm rounded-lg border border-borda dark:border-borda-dark bg-painel dark:bg-painel-dark text-slate-800 dark:text-slate-100 outline-none focus:border-slate-300 dark:focus:border-slate-500" />
             </label>
           </div>
         )}
@@ -534,10 +534,10 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
 
       {/* Gatilhos de ação */}
       {gatilhos.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-4">
+        <div className="bg-painel dark:bg-painel-dark rounded-xl border border-borda dark:border-borda-dark shadow-sm p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Zap size={15} className="text-amber-500" />
-            <h2 className="text-sm font-semibold text-slate-700">Ações sugeridas</h2>
+            <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ações sugeridas</h2>
           </div>
           <div className="flex flex-wrap gap-2">
             {gatilhos.map((g, i) => (
@@ -557,13 +557,13 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
       </div>
 
       {/* Cross-sell */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 mb-4">
+      <div className="bg-painel dark:bg-painel-dark rounded-xl border border-borda dark:border-borda-dark shadow-sm p-5 mb-4">
         <div className="flex items-center gap-2 mb-3">
           <Target size={15} className="text-amber-500" />
-          <h2 className="text-sm font-semibold text-slate-700">Oportunidades de cross-sell</h2>
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Oportunidades de cross-sell</h2>
         </div>
         {oportunidades.length === 0 ? (
-          <div className="text-sm text-slate-400">Este cliente já tem todos os ramos que você trabalha hoje.</div>
+          <div className="text-sm text-slate-400 dark:text-slate-500">Este cliente já tem todos os ramos que você trabalha hoje.</div>
         ) : (
           <div className="flex flex-wrap gap-2">
             {oportunidades.map((r) => (
@@ -572,7 +572,7 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
           </div>
         )}
         {possui.length > 0 && (
-          <div className="mt-3 text-xs text-slate-400">Já possui: {possui.join(" · ")}</div>
+          <div className="mt-3 text-xs text-slate-400 dark:text-slate-500">Já possui: {possui.join(" · ")}</div>
         )}
       </div>
 
@@ -633,8 +633,8 @@ export default function Segurados() {
     );
   }, [clientes, busca]);
 
-  if (loading) return <div className="flex-1 p-8 text-center text-slate-400 text-sm">Carregando segurados...</div>;
-  if (erro) return <div className="flex-1 p-8 text-center text-red-500 text-sm">Erro: {erro}</div>;
+  if (loading) return <div className="flex-1 p-8 text-center text-slate-400 dark:text-slate-500 text-sm">Carregando segurados...</div>;
+  if (erro) return <div className="flex-1 p-8 text-center text-red-500 dark:text-red-400 text-sm">Erro: {erro}</div>;
 
   if (selId) {
     const c = clientes.find((x) => x.id === selId);
@@ -648,42 +648,42 @@ export default function Segurados() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-          Segurados <span className="text-slate-400 font-normal text-sm">({clientes.length})</span>
+          Segurados <span className="text-slate-400 dark:text-slate-500 font-normal text-sm">({clientes.length})</span>
         </h1>
       </div>
 
       <div className="relative mb-3 max-w-md">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
         <input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por nome ou CPF/CNPJ..."
-          className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 bg-white outline-none focus:border-slate-300"
+          className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-borda dark:border-borda-dark bg-painel dark:bg-painel-dark text-slate-800 dark:text-slate-100 outline-none focus:border-slate-300 dark:focus:border-slate-500"
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm divide-y divide-slate-100 overflow-hidden">
+      <div className="bg-painel dark:bg-painel-dark rounded-xl border border-borda dark:border-borda-dark shadow-sm divide-y divide-slate-100 dark:divide-slate-700 overflow-hidden">
         {listaFiltrada.map((c) => {
           const apsC = porCliente[c.id] || [];
           const ativas = apsC.filter(ehVigente).length;
           return (
-            <button key={c.id} onClick={() => setSelId(c.id)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
-              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+            <button key={c.id} onClick={() => setSelId(c.id)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-left">
+              <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                 {c.tipo_pessoa === "PJ" ? <Building2 size={16} className="text-slate-500" /> : <User size={16} className="text-slate-500" />}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-slate-800 truncate">{c.nome}</div>
-                <div className="text-xs text-slate-400 truncate">{c.cpf_cnpj || "—"} · {c.cidade || "—"}{c.estado ? `/${c.estado}` : ""}</div>
+                <div className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{c.nome}</div>
+                <div className="text-xs text-slate-400 dark:text-slate-500 truncate">{c.cpf_cnpj || "—"} · {c.cidade || "—"}{c.estado ? `/${c.estado}` : ""}</div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="text-xs text-slate-500">{apsC.length} apólice{apsC.length !== 1 ? "s" : ""}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">{apsC.length} apólice{apsC.length !== 1 ? "s" : ""}</div>
                 {ativas > 0 && <div className="text-xs text-emerald-600 font-medium">{ativas} vigente{ativas !== 1 ? "s" : ""}</div>}
               </div>
             </button>
           );
         })}
         {listaFiltrada.length === 0 && (
-          <div className="px-4 py-8 text-center text-sm text-slate-400">Nenhum segurado encontrado.</div>
+          <div className="px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Nenhum segurado encontrado.</div>
         )}
       </div>
     </div>
