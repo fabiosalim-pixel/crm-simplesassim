@@ -4,6 +4,7 @@ import { Shield, Plus, X, ChevronRight, ChevronLeft, Bell, Search, Save, Tag, Fi
 import { Layout } from "./Layout";
 import Dashboard from "./Dashboard";
 import Segurados from "./Segurados";
+import CrossSell from "./CrossSell";
 import {
   STAGES, PROSP_STAGES, DOC_TIPOS,
   RAMOS_IMOVEL, RAMOS_VIDA, RAMOS_EQUIP, RAMOS_VIAGEM,
@@ -426,6 +427,8 @@ export default function App() {
         />
       ) : view === "segurados" ? (
         <Segurados />
+      ) : view === "crosssell" ? (
+        <CrossSell onVerCliente={() => setView("segurados")} />
       ) : view === "aniversariantes" ? (
         <AniversariantesView onVerCliente={(id) => { setView("segurados"); }} />
       ) : view === "prospeccoes" ? (
