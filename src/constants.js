@@ -6,7 +6,6 @@ export const STAGES = [
   { id: "vistoria",    label: "Vistoria / Pend. Emissão", short: "Vistoria",    badge: "bg-amber-600",                      bg: "bg-amber-50",    border: "border-amber-300",  optional: true, accent: "border-amber-500" },
   { id: "boleto",      label: "Boleto / Débito",          short: "Pagamento",   badge: "bg-amber-700",                      bg: "bg-amber-50",    border: "border-amber-300",  optional: true, accent: "border-amber-600" },
   { id: "emitida",      label: "Apólice Emitida",          short: "Emitida",     badge: "bg-emerald-700 dark:bg-emerald-600", bg: "bg-emerald-50",   border: "border-emerald-300", accent: "border-emerald-500" },
-  { id: "crosselling",  label: "Crosselling",              short: "Crosselling", badge: "bg-slate-900 dark:bg-slate-800",    bg: "bg-slate-50",     border: "border-slate-300", accent: "border-slate-700" },
 ];
 
 export const PROSP_STAGES = [
