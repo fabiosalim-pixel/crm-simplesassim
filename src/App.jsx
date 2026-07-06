@@ -53,6 +53,7 @@ export default function App() {
   const [searchResults, setSearchResults] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [clienteModal, setClienteModal] = useState(null);
+  const [clienteParaAbrir, setClienteParaAbrir] = useState(null);
   const [importModal, setImportModal] = useState(false);
   const [toast, setToast] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem("crm-theme") || "light");
@@ -106,6 +107,15 @@ export default function App() {
     setSelected(card);
     setSearchQuery("");
     setSearchOpen(false);
+  };
+
+  // Navegação central: qualquer clique normal no menu limpa o cliente
+  // pré-selecionado (evita reabrir por acidente um cliente antigo vindo
+  // do Cross-sell). Só é preenchido explicitamente por quem chama com
+  // { clienteId }.
+  const navigateTo = (v, { clienteId = null } = {}) => {
+    setClienteParaAbrir(clienteId);
+    setView(v);
   };
 
   const handleAdd = async (card) => {
@@ -384,7 +394,7 @@ export default function App() {
   return (
     <Layout
       active={view}
-      onNavigate={setView}
+      onNavigate={navigateTo}
       padded={view !== "pipeline"}
       topBar={topBarContent}
       userName={userName}
@@ -426,11 +436,11 @@ export default function App() {
           }}
         />
       ) : view === "segurados" ? (
-        <Segurados />
+        <Segurados initialSelId={clienteParaAbrir} />
       ) : view === "crosssell" ? (
-        <CrossSell onVerCliente={() => setView("segurados")} />
+        <CrossSell onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} />
       ) : view === "aniversariantes" ? (
-        <AniversariantesView onVerCliente={(id) => { setView("segurados"); }} />
+        <AniversariantesView onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} />
       ) : view === "prospeccoes" ? (
         <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
       ) : view === "documentos" ? (
