@@ -5,6 +5,7 @@ import {
   MapPin, Shield, Calendar, Briefcase, FileText, Pencil, Check, X, Target,
   Cake, AlertTriangle, UserMinus, Zap
 } from "lucide-react";
+import { genId } from "./utils";
 
 const fmtBRL = (v) =>
   "R$ " + Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -337,9 +338,22 @@ const SN_STATUS_COR = {
   "Encerrado":            "bg-emerald-100 text-emerald-700",
 };
 
-function SinistrosCliente({ aps }) {
+const SN_STATUS = ["Aberto", "Documentação", "Aguardando Seguradora", "Em Regulação", "Encerrado"];
+const SN_DOCS   = ["BO", "Fotos", "NF", "CNH", "CRLV", "Laudo"];
+
+function SinistrosCliente({ aps, onSinistrosChange, onAbrirCard }) {
+  const [aberto, setAberto] = useState(null);
+  const [contatoForm, setContatoForm] = useState({});
+  const [salvandoId, setSalvandoId] = useState(null);
+
   const todos = aps.flatMap((a) =>
-    (a.sinistros || []).map((s) => ({ ...s, tipo_seguro: a.tipo_seguro, seguradora: a.seguradora, apolice_id: a.id }))
+    (a.sinistros || []).map((s) => ({
+      ...s,
+      tipo_seguro: a.tipo_seguro,
+      seguradora: a.seguradora,
+      apolice_id: a.id,
+      apolice_sinistros: a.sinistros || [],
+    }))
   );
   const abertos = todos.filter((s) => s.status !== "Encerrado");
   const encerrados = todos.filter((s) => s.status === "Encerrado");
@@ -347,6 +361,37 @@ function SinistrosCliente({ aps }) {
   const lista = verEncerrados ? todos : abertos;
 
   if (todos.length === 0) return null;
+
+  const gravar = (apoliceId, novosSinistros) => {
+    setSalvandoId(apoliceId);
+    onSinistrosChange(apoliceId, novosSinistros).finally(() => setSalvandoId(null));
+  };
+
+  const mudarStatus = (s, novoStatus) => {
+    const novo = s.apolice_sinistros.map((x) =>
+      x.id === s.id
+        ? { ...x, status: novoStatus, dataEncerramento: novoStatus === "Encerrado" ? (x.dataEncerramento || new Date().toISOString().slice(0, 10)) : x.dataEncerramento }
+        : x
+    );
+    gravar(s.apolice_id, novo);
+  };
+
+  const toggleDoc = (s, doc) => {
+    const novo = s.apolice_sinistros.map((x) =>
+      x.id === s.id ? { ...x, docs: (x.docs || []).includes(doc) ? x.docs.filter((d) => d !== doc) : [...(x.docs || []), doc] } : x
+    );
+    gravar(s.apolice_id, novo);
+  };
+
+  const registrarContato = (s) => {
+    const cf = contatoForm[s.id];
+    if (!cf?.data || !cf?.descricao) return;
+    const novo = s.apolice_sinistros.map((x) =>
+      x.id === s.id ? { ...x, contatos: [...(x.contatos || []), { id: genId(), data: cf.data, descricao: cf.descricao }] } : x
+    );
+    gravar(s.apolice_id, novo);
+    setContatoForm((p) => ({ ...p, [s.id]: {} }));
+  };
 
   return (
     <div className="bg-painel dark:bg-painel-dark rounded-xl border border-borda dark:border-borda-dark shadow-sm p-5 mb-4">
@@ -368,34 +413,128 @@ function SinistrosCliente({ aps }) {
         )}
       </div>
       <div className="space-y-2">
-        {lista.map((s) => (
-          <div key={s.id} className="flex items-start gap-3 p-3 rounded-lg border border-borda dark:border-borda-dark bg-slate-50 dark:bg-slate-800/60">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{s.tipo}</span>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${SN_STATUS_COR[s.status] || "bg-slate-100 text-slate-500"}`}>{s.status}</span>
-                <span className="text-xs text-slate-400 dark:text-slate-500">{s.tipo_seguro} · {s.seguradora}</span>
-              </div>
-              <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 space-y-0.5">
-                {s.protocolo && <span className="mr-3">Protocolo: {s.protocolo}</span>}
-                {s.dataOcorrencia && <span className="mr-3">Ocorrência: {fmtData(s.dataOcorrencia)}</span>}
-                {s.dataPrevistaResolucao && <span className="mr-3">Previsão: {fmtData(s.dataPrevistaResolucao)}</span>}
-              </div>
-              {s.descricao && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{s.descricao}</div>}
-              {(s.contatos || []).length > 0 && (
-                <div className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
-                  Último contato: {fmtData((s.contatos[s.contatos.length - 1]).data)} — {(s.contatos[s.contatos.length - 1]).descricao}
+        {lista.map((s) => {
+          const exp = aberto === s.id;
+          const cf = contatoForm[s.id] || {};
+          const salvando = salvandoId === s.apolice_id;
+          return (
+            <div key={s.id} className="rounded-lg border border-borda dark:border-borda-dark overflow-hidden">
+              <button
+                onClick={() => setAberto(exp ? null : s.id)}
+                className="w-full flex items-start gap-3 p-3 text-left bg-slate-50 dark:bg-slate-800/60"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{s.tipo}</span>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${SN_STATUS_COR[s.status] || "bg-slate-100 text-slate-500"}`}>{s.status}</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">{s.tipo_seguro} · {s.seguradora}</span>
+                  </div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 space-y-0.5">
+                    {s.protocolo && <span className="mr-3">Protocolo: {s.protocolo}</span>}
+                    {s.dataOcorrencia && <span className="mr-3">Ocorrência: {fmtData(s.dataOcorrencia)}</span>}
+                    {s.dataPrevistaResolucao && <span className="mr-3">Previsão: {fmtData(s.dataPrevistaResolucao)}</span>}
+                  </div>
+                  {s.descricao && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{s.descricao}</div>}
+                  {!exp && (s.contatos || []).length > 0 && (
+                    <div className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+                      Último contato: {fmtData((s.contatos[s.contatos.length - 1]).data)} — {(s.contatos[s.contatos.length - 1]).descricao}
+                    </div>
+                  )}
+                </div>
+                {onAbrirCard && (
+                  <span
+                    role="button"
+                    onClick={(e) => { e.stopPropagation(); onAbrirCard(s.apolice_id); }}
+                    className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 flex-shrink-0 mt-0.5 underline"
+                  >
+                    Abrir card
+                  </span>
+                )}
+              </button>
+
+              {exp && (
+                <div className="p-3 space-y-3 bg-painel dark:bg-painel-dark">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex flex-wrap gap-1.5">
+                      {SN_DOCS.map((doc) => {
+                        const marcado = (s.docs || []).includes(doc);
+                        return (
+                          <span
+                            key={doc}
+                            onClick={() => toggleDoc(s, doc)}
+                            className={`text-xs px-2 py-0.5 rounded-full cursor-pointer font-medium ${
+                              marcado
+                                ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400"
+                                : "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600"
+                            }`}
+                          >
+                            {doc}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <select
+                      value={s.status}
+                      disabled={salvando}
+                      onChange={(e) => mudarStatus(s, e.target.value)}
+                      className="text-xs border border-borda dark:border-borda-dark rounded-lg px-2 py-1 bg-painel dark:bg-painel-dark text-slate-700 dark:text-slate-200 outline-none focus:border-slate-300 dark:focus:border-slate-500 disabled:opacity-60"
+                    >
+                      {SN_STATUS.map((st) => <option key={st}>{st}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="border-t border-borda dark:border-borda-dark pt-3">
+                    <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Histórico de contatos com a seguradora</div>
+                    {(s.contatos || []).length > 0 && (
+                      <div className="space-y-1 mb-2">
+                        {s.contatos.map((c) => (
+                          <div key={c.id} className="text-xs text-slate-600 dark:text-slate-300 flex gap-2">
+                            <span className="text-slate-400 dark:text-slate-500 flex-shrink-0">{fmtData(c.data)}</span>
+                            <span>{c.descricao}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2 items-end flex-wrap">
+                      <input
+                        type="date"
+                        value={cf.data || ""}
+                        onChange={(e) => setContatoForm((p) => ({ ...p, [s.id]: { ...cf, data: e.target.value } }))}
+                        className="text-xs border border-borda dark:border-borda-dark rounded-lg px-2 py-1 bg-painel dark:bg-painel-dark text-slate-700 dark:text-slate-200 outline-none"
+                      />
+                      <input
+                        placeholder="Descrição do contato..."
+                        value={cf.descricao || ""}
+                        onChange={(e) => setContatoForm((p) => ({ ...p, [s.id]: { ...cf, descricao: e.target.value } }))}
+                        className="flex-1 min-w-[10rem] text-xs border border-borda dark:border-borda-dark rounded-lg px-2 py-1 bg-painel dark:bg-painel-dark text-slate-700 dark:text-slate-200 outline-none"
+                      />
+                      <button
+                        disabled={!cf.data || !cf.descricao || salvando}
+                        onClick={() => registrarContato(s)}
+                        className="text-xs bg-slate-700 hover:bg-slate-900 dark:bg-slate-600 dark:hover:bg-slate-500 text-white px-2 py-1 rounded-lg disabled:opacity-40"
+                      >
+                        + Registrar
+                      </button>
+                    </div>
+                  </div>
+
+                  {s.observacoes && (
+                    <div className="border-t border-borda dark:border-borda-dark pt-3">
+                      <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mb-0.5">Observações</div>
+                      <div className="text-xs text-slate-600 dark:text-slate-300">{s.observacoes}</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
+function Ficha({ cliente, apolices: aps, universo, onBack, onSaved, onSinistrosChange, onAbrirCard }) {
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState(cliente);
   const [salvando, setSalvando] = useState(false);
@@ -577,7 +716,7 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
       </div>
 
       {/* Sinistros do cliente */}
-      <SinistrosCliente aps={aps} />
+      <SinistrosCliente aps={aps} onSinistrosChange={onSinistrosChange} onAbrirCard={onAbrirCard} />
 
       {/* Histórico de apólices */}
       <ApolicesExpandiveis aps={aps} ativas={ativas} />
@@ -585,7 +724,7 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
   );
 }
 
-export default function Segurados({ initialSelId = null } = {}) {
+export default function Segurados({ initialSelId = null, onAbrirCard = null } = {}) {
   const [clientes, setClientes] = useState([]);
   const [apolices, setApolices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -611,6 +750,19 @@ export default function Segurados({ initialSelId = null } = {}) {
 
   const onSaved = (atualizado) =>
     setClientes((lista) => lista.map((c) => (c.id === atualizado.id ? atualizado : c)));
+
+  // Grava direto na coluna sinistros da apólice específica — nunca via
+  // upsert do card completo, para não arriscar sobrescrever outros campos
+  // da apólice sem ter todos eles carregados aqui.
+  const atualizarSinistrosApolice = async (apoliceId, novosSinistros) => {
+    const anterior = apolices;
+    setApolices((prev) => prev.map((a) => (a.id === apoliceId ? { ...a, sinistros: novosSinistros } : a)));
+    const { error } = await supabase.from("renovacoes").update({ sinistros: novosSinistros }).eq("id", apoliceId);
+    if (error) {
+      setApolices(anterior);
+      window.alert("Não foi possível salvar: " + error.message);
+    }
+  };
 
   const porCliente = useMemo(() => {
     const m = {};
@@ -640,7 +792,7 @@ export default function Segurados({ initialSelId = null } = {}) {
     const c = clientes.find((x) => x.id === selId);
     if (c) {
       const aps = (porCliente[selId] || []).slice().sort((a, b) => (b.data_renovacao || "").localeCompare(a.data_renovacao || ""));
-      return <Ficha cliente={c} apolices={aps} universo={universo} onBack={() => setSelId(null)} onSaved={onSaved} />;
+      return <Ficha cliente={c} apolices={aps} universo={universo} onBack={() => setSelId(null)} onSaved={onSaved} onSinistrosChange={atualizarSinistrosApolice} onAbrirCard={onAbrirCard} />;
     }
   }
 

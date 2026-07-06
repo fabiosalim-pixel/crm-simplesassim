@@ -373,7 +373,7 @@ export default function Dashboard({ onNavigate, onFiltro }) {
               <CardInfo icon={DollarSign}    label="Comissao da carteira" color="bg-amber-100 text-amber-600"
                 value={fmtBRL(m.carteira_comissao)} sub="recorrente" />
               <CardProd icon={AlertTriangle} label="Sinistros abertos"   color="bg-orange-100 text-orange-600"
-                value={m.sinistros_abertos} sub="em andamento" onClick={() => navProducao("sinistros")} />
+                value={m.sinistros_abertos} sub="em andamento" onClick={() => onNavigate && onNavigate("sinistros")} />
               <CardProd icon={Bell}          label="Urgentes (5 dias)"   color="bg-rose-100 text-rose-600"
                 value={m.urgentes_5d} sub="vencem em breve"
                 onClick={() => { onFiltro && onFiltro({ urgentes: true }); onNavigate && onNavigate("pipeline"); }} />
