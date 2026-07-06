@@ -155,11 +155,11 @@ export function Column({ stage, cards, onCard, onAdd, onDrop }) {
 
   return (
     <div className="flex-shrink-0 flex flex-col rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700" style={{ width: 256, boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
-      <div className={`flex items-center justify-between px-3 py-2.5 bg-white dark:bg-slate-800 border-b-2 ${stage.accent}`}>
-        <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300">{stage.label}</span>
-          <span className="text-xs font-normal normal-case text-slate-400 dark:text-slate-500">{cards.length}</span>
-          {stage.optional && <span className="text-xs opacity-70 font-normal normal-case text-slate-400 dark:text-slate-500">· específicos</span>}
+      <div className={`flex items-center justify-between px-3 py-2.5 bg-white dark:bg-slate-800 border-b-2 ${stage.accent}`} title={stage.label}>
+        <div className="flex items-center gap-1.5 flex-nowrap min-w-0">
+          <span className="font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 whitespace-nowrap truncate">{stage.short}</span>
+          <span className="text-xs font-normal normal-case text-slate-400 dark:text-slate-500 flex-shrink-0">{cards.length}</span>
+          {stage.optional && <span className="text-xs opacity-70 font-normal normal-case text-slate-400 dark:text-slate-500 flex-shrink-0 whitespace-nowrap">· específicos</span>}
         </div>
       </div>
       <div
