@@ -5,6 +5,7 @@ import { Layout } from "./Layout";
 import Dashboard from "./Dashboard";
 import Segurados from "./Segurados";
 import CrossSell from "./CrossSell";
+import Sinistros from "./Sinistros";
 import {
   STAGES, PROSP_STAGES, DOC_TIPOS,
   RAMOS_IMOVEL, RAMOS_VIDA, RAMOS_EQUIP, RAMOS_VIAGEM,
@@ -23,7 +24,7 @@ import {
   searchClientes, findOrCreateCliente,
 } from "./data";
 import { AniversariantesView, ProspeccoesView } from "./Prospeccoes";
-import { PainelSinistros, Column, ApoliceRow } from "./PipelineUI";
+import { Column, ApoliceRow } from "./PipelineUI";
 import { DocsSection, EndossoSection } from "./DocumentosEndossos";
 import { Modal } from "./ModalCard";
 import { AddModal, ClienteModal, LoginScreen } from "./ModaisCadastro";
@@ -45,7 +46,6 @@ export default function App() {
   const [view, setView] = useState("pipeline");
   const [onlyUrgentes, setOnlyUrgentes] = useState(false);
   const [onlySemComissao, setOnlySemComissao] = useState(false);
-  const [onlyComSinistro, setOnlyComSinistro] = useState(false);
   const [filterStatus, setFilterStatus] = useState(null);
   const [filterPeriodo, setFilterPeriodo] = useState(null);
   const [prospeccoes, setProspeccoes] = useState([]);
@@ -116,6 +116,20 @@ export default function App() {
   const navigateTo = (v, { clienteId = null } = {}) => {
     setClienteParaAbrir(clienteId);
     setView(v);
+  };
+
+  // Abre o modal do card sobre o Pipeline, a partir de qualquer tela
+  // (Sinistros consolidado ou ficha do cliente). Se o card não estiver
+  // na lista ativa (ex: apólice arquivada), avisa em vez de falhar
+  // silenciosamente.
+  const handleAbrirCard = (renovacaoId) => {
+    const card = cards.find((c) => c.id === renovacaoId);
+    if (!card) {
+      window.alert("Card não encontrado na lista ativa — pode estar arquivado. Abra pela opção \"Arquivados\" no Pipeline.");
+      return;
+    }
+    setSelected(card);
+    setView("pipeline");
   };
 
   const handleAdd = async (card) => {
@@ -230,10 +244,9 @@ export default function App() {
       const mm = !filterMonth || (c.dataRenovacao || "").startsWith(filterMonth);
       const mu = !onlyUrgentes || (() => { const dd = daysUntil(c.dataRenovacao); return dd !== null && dd <= 5 && c.status !== "emitida"; })();
       const mc = !onlySemComissao || (c.status === "emitida" && (!c.percentualComissao || !c.premioLiquido));
-      const msin = !onlyComSinistro || (c.sinistros || []).some(s => s.status !== "Encerrado");
       const mst = !filterStatus || c.status === filterStatus;
       const mp = !filterPeriodo || (c.dataEmissao && c.dataEmissao >= filterPeriodo.ini && c.dataEmissao <= filterPeriodo.fim);
-      return ms && mm && mu && mc && msin && mst && mp;
+      return ms && mm && mu && mc && mst && mp;
     })
     .sort((a, b) => {
       const da = a.dataRenovacao || "9999-99";
@@ -309,7 +322,6 @@ export default function App() {
   const limparFiltrosDashboard = () => {
     setFilterStatus(null);
     setFilterPeriodo(null);
-    setOnlyComSinistro(false);
   };
 
   const topBarContent = (
@@ -408,27 +420,25 @@ export default function App() {
           onNavigate={(v) => setView(v)}
           onFiltro={(f) => {
             if (f.urgentes) {
-              setOnlyUrgentes(true); setOnlySemComissao(false); setOnlyComSinistro(false);
+              setOnlyUrgentes(true); setOnlySemComissao(false);
               setFilterStatus(null); setFilterPeriodo(null);
             }
             if (f.renovar) {
-              setOnlyUrgentes(false); setOnlySemComissao(false); setOnlyComSinistro(false);
+              setOnlyUrgentes(false); setOnlySemComissao(false);
               setFilterStatus(null); setFilterPeriodo(null);
             }
             if (f.semComissao) {
-              setOnlySemComissao(true); setOnlyUrgentes(false); setOnlyComSinistro(false);
+              setOnlySemComissao(true); setOnlyUrgentes(false);
               setFilterStatus(null); setFilterPeriodo(null);
             }
             if (f.status === "emitida") {
               setFilterStatus("emitida");
               setFilterPeriodo({ ini: f.dataIni, fim: f.dataFim });
-              setOnlyUrgentes(false); setOnlySemComissao(false); setOnlyComSinistro(false);
-            }
-            if (f.status === "sinistros") {
-              setOnlyComSinistro(true);
               setOnlyUrgentes(false); setOnlySemComissao(false);
-              setFilterStatus(null); setFilterPeriodo(null);
             }
+            // f.status === "sinistros": removido — o card "Sinistros abertos"
+            // do Dashboard navega direto para a tela Sinistros (view dedicada),
+            // não filtra mais o Pipeline.
             // f.status === "nao_renovada": cards "Não Renovada" são arquivados
             // e migram para a Captação (prospecções) — não existem mais no
             // board ativo do Pipeline. Sem efeito aqui por ora — ver nota na
@@ -436,9 +446,11 @@ export default function App() {
           }}
         />
       ) : view === "segurados" ? (
-        <Segurados initialSelId={clienteParaAbrir} />
+        <Segurados initialSelId={clienteParaAbrir} onAbrirCard={handleAbrirCard} />
       ) : view === "crosssell" ? (
         <CrossSell onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} />
+      ) : view === "sinistros" ? (
+        <Sinistros onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} onAbrirCard={handleAbrirCard} />
       ) : view === "aniversariantes" ? (
         <AniversariantesView onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} />
       ) : view === "prospeccoes" ? (
@@ -481,7 +493,7 @@ export default function App() {
                 <Bell size={11} /> Só urgentes (≤5 dias) <X size={12} className="ml-0.5" />
               </button>
             )}
-            {(filterStatus || onlyComSinistro) && (
+            {filterStatus && (
               <button onClick={limparFiltrosDashboard}
                 className="flex items-center gap-1.5 bg-indigo-100 border border-indigo-300 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-indigo-200 transition-colors">
                 <Filter size={11} /> Filtro do Dashboard <X size={12} className="ml-0.5" />
@@ -510,7 +522,6 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <PainelSinistros cards={cards} onCard={setSelected} />
           </div>
         </div>
       )}

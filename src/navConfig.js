@@ -1,10 +1,10 @@
-import { LayoutDashboard, UserPlus, Target, Shield, Upload, Users } from "lucide-react";
+import { LayoutDashboard, UserPlus, Target, Shield, Upload, AlertTriangle, Users } from "lucide-react";
 
 /* ============================================================================
    NAV GROUPS — Fase 1 + Fase 2 (em entrega)
    Reflete só o que já existe e está funcional hoje. Itens de fases futuras
-   (Atendimento, Apólices, Renovações, Inativos, Metas, Comissões, Sinistros)
-   entram aqui conforme cada fase for entregue — de propósito, não criamos
+   (Atendimento, Apólices, Renovações, Inativos, Metas, Comissões) entram
+   aqui conforme cada fase for entregue — de propósito, não criamos
    placeholders/links mortos na sidebar.
 
    Este arquivo só exporta dados (nenhum componente React) de propósito: é o
@@ -27,6 +27,7 @@ export const navGroups = [
     title: "Operações",
     items: [
       { key: "pipeline", label: "Pipeline", icon: Shield },
+      { key: "sinistros", label: "Sinistros", icon: AlertTriangle },
       { key: "documentos", label: "Documentos", icon: Upload },
     ],
   },
