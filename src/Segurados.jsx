@@ -585,13 +585,13 @@ function Ficha({ cliente, apolices: aps, universo, onBack, onSaved }) {
   );
 }
 
-export default function Segurados() {
+export default function Segurados({ initialSelId = null } = {}) {
   const [clientes, setClientes] = useState([]);
   const [apolices, setApolices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState(null);
   const [busca, setBusca] = useState("");
-  const [selId, setSelId] = useState(null);
+  const [selId, setSelId] = useState(initialSelId);
 
   useEffect(() => {
     (async () => {

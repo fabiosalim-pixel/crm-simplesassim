@@ -1,11 +1,11 @@
-import { LayoutDashboard, UserPlus, Shield, Upload, Users } from "lucide-react";
+import { LayoutDashboard, UserPlus, Target, Shield, Upload, Users } from "lucide-react";
 
 /* ============================================================================
-   NAV GROUPS — Fase 1
+   NAV GROUPS — Fase 1 + Fase 2 (em entrega)
    Reflete só o que já existe e está funcional hoje. Itens de fases futuras
-   (Atendimento, Apólices, Renovações, Inativos, Cross-sell, Metas, Comissões,
-   Sinistros) entram aqui conforme cada fase for entregue — de propósito, não
-   criamos placeholders/links mortos na sidebar.
+   (Atendimento, Apólices, Renovações, Inativos, Metas, Comissões, Sinistros)
+   entram aqui conforme cada fase for entregue — de propósito, não criamos
+   placeholders/links mortos na sidebar.
 
    Este arquivo só exporta dados (nenhum componente React) de propósito: é o
    que a regra do ESLint react-refresh/only-export-components exige para não
@@ -18,7 +18,10 @@ export const navGroups = [
   },
   {
     title: "Vendas",
-    items: [{ key: "prospeccoes", label: "Captação", icon: UserPlus }],
+    items: [
+      { key: "prospeccoes", label: "Captação", icon: UserPlus },
+      { key: "crosssell", label: "Cross-sell", icon: Target },
+    ],
   },
   {
     title: "Operações",
