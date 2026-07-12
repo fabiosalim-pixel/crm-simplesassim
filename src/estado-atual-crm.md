@@ -1,6 +1,211 @@
 # Estado Atual — CRM Simples Assim
 
-> Atualizado em 26/06/2026. Não editar manualmente.
+> Atualizado em 12/07/2026. Não editar manualmente. Documento aditivo — não substituir seções antigas, apenas acrescentar.
+
+---
+
+## ACHADO E FUSÃO: DUAS LINHAGENS DIVERGENTES DESTE DOCUMENTO (12/07/2026)
+
+Auditoria de hoje encontrou que este documento vinha sendo mantido em **duas linhagens paralelas, sem saber uma da outra**:
+
+- **Linhagem A ("detalhe técnico")** — a que está preservada abaixo, a partir de "CONTEXTO GERAL". Foi commitada por último em 26/06/2026 e tem o conteúdo mais rico: refatoração do `App.jsx`, schema completo, funções SQL, correções N1–N6/M1–M3/B1–B5, e a Seção 12 inteira sobre o modelo de dados de Comissões (Fase 0). Nunca recebeu as Seções 0/0.1/0.2 abaixo.
+- **Linhagem B ("incidente/redesign")** — vinha registrando o incidente de produção de 29-30/06 e o redesign visual (Fase 1, Cross-sell, Sinistros, sidebar), mas partiu de uma versão **mais antiga e mais simples** das Seções 1–11 (sem o detalhe técnico da Linhagem A, sem a Seção 12).
+
+**A partir de hoje, as duas viram uma só.** Este arquivo tem a Linhagem A intacta a partir de "CONTEXTO GERAL", com a Linhagem B (Seções 0 a 0.10) inserida antes dela, e uma auditoria completa + correções de hoje logo a seguir. Nenhuma frase de nenhuma das duas foi apagada.
+
+**Causa provável da divergência:** pelo menos uma atualização anterior deste arquivo (a de 06/07/2026, sessão de redesign) nunca chegou a ser commitada de verdade — o texto foi gerado, mas o arquivo em disco não foi sobrescrito (confirmado via `git log` do arquivo: o commit real mais recente antes de hoje era de 26/06). Também existia uma **cópia solta na raiz do repositório** (`/estado-atual-crm.md`, sem ser em `/src/`, datada de 19/06) — removida hoje. **Lição:** depois de qualquer atualização de doc, confirmar com um comando simples (`Select-String -Path src\estado-atual-crm.md -Pattern "algo que só existe na versão nova"`) que o arquivo em disco realmente mudou, antes de assumir que o commit vai pegar o conteúdo certo.
+
+---
+
+## SEÇÃO 0 — INCIDENTE DE PRODUÇÃO (29-30/06/2026) E CORREÇÕES — LER ANTES DE QUALQUER MERGE/DEPLOY
+
+### O que aconteceu
+Durante a Fase 1 do redesign visual (branch `redesign-fase1-layout`), Claude incluiu o passo de merge na `main` dentro de uma lista de comandos sem pedir aprovação explícita. Salim executou o merge, disparando deploy automático de produção e **derrubando crm.simplesassim.com.br** (tela branca, `Uncaught Error: supabaseUrl is required`).
+
+### Causa raiz
+As variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no Vercel estavam configuradas **apenas para Preview** (banco de teste `ijlwdshwmsgkvsdjxfad`). O ambiente Production nunca teve essas variáveis. No Vite, variáveis são gravadas nos arquivos JS no momento do build — reaproveitar um deploy antigo não resolve; é necessário forçar build novo.
+
+### Correções aplicadas
+- **Variáveis separadas por escopo no Vercel:**
+  - `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` → **Production** = `mrxfgvotcmtdmuzcajin`
+  - `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` → **Preview** = `ijlwdshwmsgkvsdjxfad`
+  - Campo "Note" usado para anotar qual banco (valores ficam mascarados como Sensitive)
+- **Proteção de branch no GitHub** (Settings → Rules → Rulesets → "protege-main", Active):
+  - "Require a pull request before merging" (Required approvals: 0)
+  - "Restrict deletions" e "Block force pushes"
+  - Testado: `git push` direto para `main` é rejeitado (`GH013`) — **confirmado de novo hoje (12/07), inclusive para arquivo de documentação (ver Seção 0.13)**
+- **Fluxo correto daqui pra frente:** branch separada → PR → merge. Nunca push direto na `main` — **sem exceção para nenhum tipo de arquivo.**
+- **Claude nunca inclui merge/push para `main` em lista de passos** — sempre pergunta isolada com aprovação explícita.
+
+---
+
+## SEÇÃO 0.1 — REDESIGN FASE 1 (SeguraPro) — CONCLUÍDA E EM PRODUÇÃO (30/06/2026)
+
+Sistema de cor único com par claro/escuro no `tailwind.config.js`:
+- Tokens: `canvas`, `painel`, `sidebar` (navy, muda com o tema), `borda`, `marca` (gold/navy)
+- Sidebar: navy `#0F2044` no claro, navy profundo `#0B1730` no escuro
+- Cabeçalhos de coluna do Kanban: fundo neutro + borda fina colorida no topo (campo `accent`)
+- Arquivos novos: `Layout.jsx`, `navConfig.js`
+- Arquivos modificados: `tailwind.config.js`, `App.jsx`, `Dashboard.jsx`, `Segurados.jsx`, `PipelineUI.jsx`, `constants.js`
+- Títulos com `dark:text-slate-100` em Dashboard e Segurados (corrigidos durante Fase 1)
+
+**Débitos técnicos (Asana):**
+- gid 1216140717738568 — Polimento dark mode: cards internos de Dashboard.jsx e Segurados.jsx
+- gid 1216135141084286 — Limpeza de lint do App.jsx
+
+**Nota de 06/07 (auditoria de código):** essa seção registrava a migração de tokens como concluída, mas na prática só o `<h1>` de Dashboard.jsx e Segurados.jsx tinha `dark:` — o resto do corpo (cards, modal, inputs) continuava com cores hardcoded. Migração completa de verdade só em 06/07 — ver Seção 0.4. Sidebar também deixou de ser navy fixo — ver Seção 0.10.1.
+
+---
+
+## SEÇÃO 0.2 — FIX MODALCARD (01/07/2026) — EM PRODUÇÃO
+
+### Problema corrigido
+`handleExtrairDados` no `ModalCard.jsx` usava lógica "preenche só se vazio" para todos os campos. Em cards de renovação, `dataRenovacao` já tem valor do ciclo anterior, então a vigência nova extraída do PDF era descartada silenciosamente. Campos como telefone, e-mail, condutor e estado civil nunca foram mapeados nessa função.
+
+### Correção aplicada
+Campos que mudam a cada ciclo agora **sempre sobrescrevem** ao extrair PDF:
+`dataRenovacao`, `vigenciaInicio` (novo), `valor`, `premioLiquido`, `seguradora`, `proposta`, `apolice`, `etiquetaPagamento`, endereço completo (7 campos), `telefone`, `email`, `autoEstadoCivil`, `autoCondutor`, `autoCpfCondutor`, `autoNascimentoCondutor`, `autoEstadoCivilCondutor`, `autoCondutor1825`.
+
+Campo "Vigência início" adicionado ao formulário do card (visível e editável), ao lado de "Vigência fim (data renovação)".
+
+**Nota importante (12/07):** isso **substitui, para os campos de ciclo listados acima**, o que a Seção 7 (mais abaixo, 19/06, correção N2) registra sobre `dataRenovacao` ser fill-blank. A evolução real foi: 19/06 tornou `dataRenovacao` fill-blank (certo para reimportação simples) → 01/07 percebeu que isso quebrava o fluxo de renovação (a vigência nova *precisa* sobrescrever a antiga) e tornou os campos de ciclo sempre-sobrescreve. As duas correções fizeram sentido no momento em que foram feitas; a de 01/07 é a que vale hoje.
+
+**Débito pendente (Asana):**
+- gid 1216209458912908 — SQL: `reativar_renovacoes()` deve copiar `vigencia_inicio` do ciclo anterior
+
+---
+
+## SEÇÃO 0.3 — REDESIGN FASE 1: DASHBOARD E CLIENTES CONCLUÍDOS DE VERDADE (06/07/2026) — EM PRODUÇÃO
+
+- Migração completa de paleta para os tokens (`canvas`, `painel`, `borda`, `marca`) em `Dashboard.jsx` e `Segurados.jsx` — não só o título (ver nota na Seção 0.1), mas todo o corpo: cards de indicador, modal "Sem comissão", seletores de período/horizonte, inputs de edição (incluindo texto digitado), avatares circulares, histórico de apólices expansível.
+- **Propositalmente não tocado:** cores de identidade/status — badges (Vigente/Não renovada/Encerrada), `SN_STATUS_COR`, `CORES_GATILHO`, cores dos ícones dos cards de indicador (`color` prop). São identidade de dado, não estrutura de painel.
+- Item "Renovações" da Fase 1 = remoção da etapa Crosselling do Kanban (ver Seção 0.5).
+- **Fase 1 do redesign (Dashboard + Clientes + Renovações) está 100% concluída e em produção.**
+
+---
+
+## SEÇÃO 0.4 — REMOÇÃO DA ETAPA "CROSSELLING" DO KANBAN (06/07/2026) — EM PRODUÇÃO
+
+- `constants.js`: objeto `crosselling` removido do array `STAGES`. Kanban passa de 7 para 6 etapas — **isso substitui a contagem de 7 etapas registrada na Seção 7 mais abaixo.**
+- Confirmado via SQL antes da remoção: zero cards com `status_pipeline = 'crosselling'` em produção — remoção sem impacto em dados existentes.
+- `CANAL_COR["Crosselling"]` (tag de origem/canal, camada "Canal/Origem" das Regras de Negócio v2) foi **mantida** — é um conceito diferente (de onde o negócio veio), não afetado pela remoção da etapa do pipeline.
+- A funcionalidade comercial de cross-sell deixou de ser uma etapa sequencial do Kanban e passou a ser uma tela própria no menu (ver Seção 0.5).
+
+---
+
+## SEÇÃO 0.5 — FASE 2 DO REDESIGN: CROSS-SELL (06/07/2026) — EM PRODUÇÃO
+
+- Novo arquivo `CrossSell.jsx`: inverte a lógica que já existia por cliente na ficha (`Segurados.jsx`, item "Cross-sell" da ficha) — em vez de "olhando 1 cliente, o que falta", mostra "olhando toda a carteira, quem são os candidatos", ranqueados por engajamento (mais apólices vigentes primeiro; empate resolvido por maior prêmio ativo).
+- `navConfig.js`: item "Cross-sell" adicionado ao grupo Vendas.
+- `App.jsx`: nova função central `navigateTo(view, { clienteId })` — toda navegação normal pelo menu limpa o cliente pré-selecionado; só quem chama explicitamente com `clienteId` o preenche. Usada por Cross-sell, Sinistros e Aniversariantes para abrir a ficha do cliente certo direto.
+- `Segurados.jsx`: passou a aceitar prop `initialSelId` — se vier preenchida, abre direto na ficha desse cliente em vez da lista.
+
+---
+
+## SEÇÃO 0.6 — FASE 2 DO REDESIGN: SINISTROS (06/07/2026) — EM PRODUÇÃO
+
+Substitui e amplia o que a Seção 6 (mais abaixo) descreve. O objeto sinistro (jsonb dentro de `renovacoes.sinistros`) continua exatamente o mesmo formato — isso não mudou.
+
+**Novo arquivo `Sinistros.jsx`** — tela consolidada (grupo Operações no menu), com:
+- Cards de contagem por status (clicáveis, funcionam como filtro)
+- Toggle "ver encerrados"
+- Botão "+ Novo sinistro": cria sinistro sem precisar abrir o card. Campo de busca por nome ou CPF/CNPJ (typeahead com até 8 resultados); tipo usa a mesma lista fixa do `ModalCard.jsx` (Colisão, Roubo/Furto, Incêndio, Vida, Danos Elétricos, RC, Outros)
+- Cada sinistro é expansível: mudar status, marcar/desmarcar checklist de documentos, registrar contato com a seguradora
+- Botão "Abrir card": localiza e abre o modal do card certo no Kanban (função `handleAbrirCard` em `App.jsx`; se o card não estiver na lista ativa — ex: apólice arquivada — avisa em vez de falhar silenciosamente)
+
+**`Segurados.jsx`** — a seção "Sinistros" na ficha do cliente (`SinistrosCliente`) deixou de ser só leitura: ganhou as mesmas ações (status/checklist/contato) e o botão "Abrir card".
+
+**REGRA DE ESCRITA — vale para os três lugares que hoje editam sinistro** (modal do card, tela Sinistros, ficha do cliente):
+```js
+supabase.from("renovacoes").update({ sinistros: novoArray }).eq("id", renovacao_id)
+```
+Update **direto e isolado** só na coluna `sinistros` da apólice específica. **Nunca** usar `upsertCard` para isso.
+
+**Removido:** o painel fixo `PainelSinistros` à direita do Kanban, e todo o mecanismo `onlyComSinistro` em `App.jsx`. **Atualização de 12/07:** o componente `PainelSinistros` em si (que tinha ficado como código morto em `PipelineUI.jsx`) foi apagado por completo — ver Seção 0.12.
+
+**`Dashboard.jsx`:** card "Sinistros abertos" agora navega direto para a tela Sinistros (`onNavigate("sinistros")`) em vez de filtrar o Pipeline.
+
+**Menu lateral atual (navConfig.js), para referência:**
+| Grupo | Itens |
+|---|---|
+| Visão Geral | Dashboard |
+| Vendas | Captação, Cross-sell |
+| Operações | Pipeline, Sinistros, Documentos |
+| Carteira | Clientes |
+
+---
+
+## SEÇÃO 0.7 — INCIDENTE: DEPLOY DE SINISTROS FORA DO FLUXO DE PR (05–06/07/2026) E CORREÇÃO
+
+**O que aconteceu:** depois do merge do PR de Cross-sell, o checkout local não foi atualizado (`git checkout main` + `git pull`) antes de abrir a frente de Sinistros. Os commits de Sinistros foram empilhados na branch antiga já mergeada/fechada, sem nunca terem sido de fato mergeados de volta no `main` via Pull Request.
+
+**Sintoma:** produção rodando com a correção de cabeçalho do Kanban mas sem a tela Sinistros — mistura de duas branches diferentes, sem nenhum deploy "quebrado" visível.
+
+**Causa provável do deploy que pareceu funcionar antes:** `npx vercel --prod` publica o **checkout local** no momento em que é executado — não necessariamente o conteúdo do `main` no GitHub.
+
+**Correção:** aberto PR (`feat/cross-sell-visao-carteira` → `main`) com o commit de Sinistros pendente, testado em Preview, mergeado corretamente pelo GitHub.
+
+**LIÇÃO DE PROCESSO (permanente):**
+- Sempre `git checkout main` + `git pull` antes de `git checkout -b` de qualquer branch nova.
+- `npx vercel --prod` é último recurso, só depois de confirmar merge real no GitHub — nunca substitui o fluxo de PR.
+- **Esse mesmo padrão se repetiu de novo em 12/07** (branch do sidebar ainda ativa quando começamos a auditoria) — sem causar perda dessa vez, mas confirma que é um erro recorrente. Ver Seção 0.13 para o reforço da lição.
+
+---
+
+## SEÇÃO 0.8 — CORREÇÃO DE ALINHAMENTO DO CABEÇALHO DO KANBAN (06/07/2026) — EM PRODUÇÃO
+
+`PipelineUI.jsx` (componente `Column`): cabeçalho passou a usar `stage.short` (rótulo curto, ex: "Vistoria" em vez de "Vistoria / Pend. Emissão") em vez de `stage.label` (nome completo) — evita quebra em duas linhas dentro da largura fixa da coluna (256px). Nome completo mantido como tooltip (`title`).
+
+---
+
+## SEÇÃO 0.9 — SIDEBAR ACOMPANHA TEMA CLARO/ESCURO (12/07/2026) — EM PRODUÇÃO
+
+- `tailwind.config.js`: token `sidebar` deixou de ser navy fixo (`#0F2044`/`#0B1730`, registrado na Seção 0.1). Passou por três iterações até o resultado final:
+  1. Sempre escuro, só trocando a família de cor (navy → slate) — rejeitado, sem separação visual real entre os dois tons.
+  2. Cinza médio (`#94A3B8`) nos dois temas — rejeitado, o dourado da marca ficava ilegível sobre tom médio.
+  3. **Versão final:** branco (`#FFFFFF`) no claro / `#0B1220` no escuro. A separação vem do canvas cinza contrastando contra o menu branco no claro (mesma lógica dos cards do app), e do menu mais escuro que o canvas no escuro.
+- Novo token `marca.golddark` (`#8A6D2A`) — dourado escurecido para uso sobre fundo claro, onde o dourado original (`#C9A84C`) perde contraste. Item ativo do menu e logo usam `golddark` no claro, `gold` original no escuro.
+- `Layout.jsx`: todo texto do menu (nome, grupos, itens, rodapé) ganhou par claro/escuro — antes assumia fundo sempre escuro.
+
+---
+
+## SEÇÃO 0.10 — PENDÊNCIAS EM ABERTO (12/07/2026)
+
+- **Comissões (versão estimada)** — último item da Fase 2 do redesign visual, pausado. Registrado no Asana (gid 1216295454296978). Escopo: agregação de `premio_liquido × percentual_comissao` por mês/produto/seguradora — **tela/UI**, distinta do modelo de dados de Comissões Fase 0 já implementado (ver Seção 12, mais abaixo — schema já existe nas duas bases desde 19/06).
+- **RLS das tabelas de comissão** (`comissao_parcelas`/`comissao_movimentos`) precisa espelhar as políticas de `renovacoes` antes de qualquer exposição na UI — já registrado como pendência na própria Seção 12.
+- **Auditoria completa de divergência doc-vs-código via Cowork** — executada em 12/07 (ver Seção 0.11). Registrada no Asana (gid 1216295911789891), pode ser fechada/marcada como concluída.
+
+---
+
+## SEÇÃO 0.11 — AUDITORIA COMPLETA VIA COWORK (12/07/2026)
+
+Rodada a auditoria que ficava pendente desde 05/07 (gid 1216295911789891). Metodologia: repositório clonado (só leitura), lido integralmente contra este documento. Schema Supabase verificado por evidência indireta (código que lê/grava colunas + SQL versionado), já que não há credenciais nem pasta `supabase/migrations` no repo.
+
+**Achados principais** (relatório completo arquivado fora deste documento, disponível se precisar consultar de novo):
+1. As duas linhagens divergentes deste arquivo (ver topo do documento).
+2. Núcleo técnico de 26/06 (abaixo, "CONTEXTO GERAL" em diante) **confirmado como implementado e funcionando** — refatoração em módulos, Dashboard 4 regiões, save seguro, trava de comissão, unificação de moeda, importação completa, módulo de sinistros no modal/ficha.
+3. Três divergências reais de código (não só de doc), corrigidas no mesmo dia — ver Seção 0.12.
+4. Redesign visual inteiro (Fase 1, Cross-sell, Sinistros, sidebar, correção de cabeçalho) nunca tinha chegado à linhagem de 26/06 — resolvido pela fusão das duas linhagens neste documento.
+5. Detalhes menores de defasagem nas Seções 1–12 (contagem de linhas de arquivo, colunas de banco não listadas, arquivo SQL de Comissões não encontrado no repo) — apontados na Seção 13, ao final do documento, sem alterar o texto original dessas seções.
+
+---
+
+## SEÇÃO 0.12 — CORREÇÕES DE CÓDIGO ENCONTRADAS PELA AUDITORIA (12/07/2026)
+
+Três divergências que eram bug real, não só documentação desatualizada — corrigidas e enviadas a PR no mesmo dia:
+
+1. **Modelo de extração de PDF.** `api/extract-pdf.js` estava rodando `claude-haiku-4-5-20251001`. A Seção 7 (mais abaixo) sempre registrou a intenção como `claude-sonnet-4-6`. Corrigido para `sonnet-4-6`, alinhando código à intenção documentada.
+2. **`PainelSinistros` — remoção definitiva.** Desde a criação da tela Sinistros consolidada (Seção 0.6), o painel fixo do Kanban tinha só deixado de ser *importado*, mas o componente continuava existindo em `PipelineUI.jsx` como código morto. Removido de vez, junto com um `SN_STATUS_COR_PILL` que só ele usava.
+3. **Sincronização de cliente (nascimento/endereço) na importação de PDF — regressão da correção N3.** A Seção 7 (19/06, correção N3) registra que essa sincronização passou a ser fill-blank-only com `maskCEP`. A auditoria encontrou que, em algum momento não documentado, isso regrediu: o código voltava a sobrescrever campos já preenchidos e gravava o CEP sem máscara. Restaurado hoje: busca o cadastro atual do cliente antes de decidir o que gravar, só preenche campos vazios, aplica `maskCEP`.
+
+Bônus: um segundo `SN_STATUS_COR_PILL` morto, dentro do `handleExtrairDados` em `ModalCard.jsx` (já registrado como achado, não corrigido, na Seção 1 — linha "Achado durante a refatoração") — removido junto nesta mesma correção.
+
+---
+
+## SEÇÃO 0.13 — DUAS LIÇÕES DE PROCESSO REFORÇADAS HOJE (12/07/2026)
+
+1. **Documentação também precisa de Pull Request.** Uma crença que vinha sendo repassada (implícita na Seção 11, "commit por terminal PowerShell... separados") foi tratada, em algum momento, como "documentação pode ir direto pro `main`, é só texto". **Isso está errado** — a proteção de branch (`protege-main`, Seção 0) bloqueia push direto de qualquer arquivo, documentação incluída (confirmado hoje: `git push` direto recusado com `GH013`). A partir de agora, atualização de doc segue o mesmo fluxo de qualquer código: branch → commit → push → PR → merge.
+2. **Confirmar que o arquivo em disco realmente mudou antes de assumir que o commit vai pegar o conteúdo certo.** A atualização deste documento gerada em 06/07 nunca chegou a substituir o arquivo real no disco (provável download que foi para a pasta errada) — e isso só foi descoberto hoje, através de duas checagens simples: `git log --oneline -- src/estado-atual-crm.md` (mostrou o último commit real como sendo de 26/06) e `Select-String -Path src\estado-atual-crm.md -Pattern "<texto que só existiria na versão nova>"` (não encontrou nada). Vale rodar essas duas checagens **depois** de qualquer atualização de documentação, antes do commit — não só quando algo parece errado.
 
 ---
 
@@ -463,3 +668,25 @@ SELECT de validação: esperado 545,07 = cronograma 545,07; recebido 181,69; sal
 - Fase 2: relatório esperado × recebido × saldo por mês/seguradora.
 - Fase 3: extração de extrato (PDF/CSV) por seguradora — SPIKE em 1 formato real antes.
 - Fase 4: relatórios e automações.
+
+---
+
+## SEÇÃO 13 — CORREÇÕES PONTUAIS AO CONTEÚDO DAS SEÇÕES 1–12 (12/07/2026)
+
+Achados da auditoria de código que se referem a detalhes específicos das seções acima. Registrados aqui, sem alterar o texto original de nenhuma delas — cada item aponta pra seção que ele corrige.
+
+**Sobre a Seção 1 (Arquivos do projeto):**
+- O "Achado durante a refatoração" (`SN_STATUS_COR_PILL` morto dentro do `handleExtrairDados`) foi corrigido em 12/07 — ver Seção 0.12.
+- A tabela de arquivos lista os 9 que vieram da divisão do `App.jsx` original. Desde então, quatro arquivos novos passaram a existir e nunca entraram nessa tabela: `Layout.jsx` (134 linhas), `navConfig.js` (38 linhas), `CrossSell.jsx` (142 linhas), `Sinistros.jsx` (492 linhas) — ver Seções 0.5 e 0.6.
+- Contagem de linhas de `App.jsx` (461), `ModalCard.jsx` (1.019) e `utils.js` (116) na tabela está um pouco defasada (hoje 540, 1.034 e 127 respectivamente) — sem impacto prático, só uma nota pra quem for procurar por número de linha específico.
+
+**Sobre a Seção 2 (Schema Supabase):**
+- O código usa colunas em `renovacoes` que não aparecem na lista desta seção: `etiqueta_segfy`, `data_alerta`, `auto_sexo`, `auto_menor_residente`, `auto_estado_civil_condutor`, `veiculo`, `cotacoes` (follow-ups). Significado e tipo de cada uma a confirmar numa próxima sessão — não é urgente, só uma lacuna de documentação encontrada pela auditoria.
+
+**Sobre a Seção 7 (Pipeline Kanban / Import de PDF):**
+- `STAGES` tem **6 etapas** hoje, não 7 — a Crosselling foi removida em 05/07 (ver Seção 0.4).
+- O modelo de extração (`claude-sonnet-4-6`, linha "Extrai dados via API Anthropic") **estava rodando `claude-haiku-4-5-20251001` no código até 12/07** — divergência real entre intenção documentada e código, corrigida hoje (ver Seção 0.12). A partir de agora os dois batem.
+- A correção N3 (sync de `clientes` fill-blank + `maskCEP`) tinha regredido silenciosamente em algum momento não documentado — o código voltou a sobrescrever campos preenchidos e gravar CEP sem máscara. Restaurado em 12/07 (ver Seção 0.12).
+
+**Sobre a Seção 12 (Módulo de Comissões — Fase 0):**
+- O arquivo `comissoes_fase0_schema.sql` e qualquer referência a `comissao_parcelas`/`comissao_movimentos` **não foram encontrados no repositório** pela auditoria de 12/07 — nenhuma linha de código no app referencia essas tabelas ainda (esperado, já que a Fase 1+ de UI está pausada). Não dá pra confirmar por código se as tabelas realmente existem nas duas bases como esta seção descreve — só é possível verificar direto no SQL Editor de produção e teste. Vale fazer essa checagem antes de retomar qualquer trabalho de Comissões.
