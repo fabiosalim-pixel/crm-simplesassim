@@ -25,9 +25,11 @@ import {
   mapRow, loadCards, searchAllCards, upsertCard, faltaComissaoParaAvancar, deleteCard,
   loadDocs, uploadDoc, deleteDoc, docPublicUrl,
   criarProspeccao, loadProspeccoes, upsertProspeccao,
+  loadFunilVendas, atualizarEstagioLead, graduarLead, descartarLead,
   searchClientes, findOrCreateCliente,
 } from "./data";
 import { AniversariantesView, ProspeccoesView } from "./Prospeccoes";
+import FunilVendas from "./FunilVendas";
 import { Column, ApoliceRow } from "./PipelineUI";
 import { DocsSection, EndossoSection } from "./DocumentosEndossos";
 import { Modal } from "./ModalCard";
@@ -53,6 +55,7 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState(null);
   const [filterPeriodo, setFilterPeriodo] = useState(null);
   const [prospeccoes, setProspeccoes] = useState([]);
+  const [leadsFunil, setLeadsFunil] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -76,6 +79,9 @@ export default function App() {
   useEffect(() => {
     if (view === "prospeccoes") {
       loadProspeccoes().then(setProspeccoes);
+    }
+    if (view === "funilvendas") {
+      loadFunilVendas().then(setLeadsFunil);
     }
   }, [view]);
 
@@ -240,6 +246,32 @@ export default function App() {
     await upsertCard(novoCard);
     setCards(prev => [novoCard, ...prev]);
     setView("pipeline");
+  };
+
+  const handleAvancarLead = async (id, novoEstagio) => {
+    const anterior = leadsFunil;
+    setLeadsFunil(prev => prev.map(l => l.id === id ? { ...l, estagio: novoEstagio } : l));
+    const ok = await atualizarEstagioLead(id, novoEstagio);
+    if (!ok) { setLeadsFunil(anterior); window.alert("Não foi possível avançar o lead."); }
+  };
+
+  const handleGraduarLead = async (lead) => {
+    if (!window.confirm(`Enviar cotação para ${lead.clienteNome}?\n\nUm card será criado em Renovações, na etapa "Enviada ao Cliente".`)) return;
+    const ok = await graduarLead(lead);
+    if (ok) {
+      setLeadsFunil(prev => prev.map(l => l.id === lead.id ? { ...l, estagio: "convertido" } : l));
+      window.alert(`Card criado em Renovações para ${lead.clienteNome}.`);
+    } else {
+      window.alert("Não foi possível graduar o lead — confira o console para detalhes.");
+    }
+  };
+
+  const handleDescartarLead = async (id) => {
+    if (!window.confirm("Descartar este lead? Ele sai do funil ativo, mas o histórico é preservado.")) return;
+    const anterior = leadsFunil;
+    setLeadsFunil(prev => prev.map(l => l.id === id ? { ...l, estagio: "perdido" } : l));
+    const ok = await descartarLead(id);
+    if (!ok) { setLeadsFunil(anterior); window.alert("Não foi possível descartar o lead."); }
   };
 
   const visible = cards
@@ -465,6 +497,8 @@ export default function App() {
         <AniversariantesView onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} />
       ) : view === "prospeccoes" ? (
         <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
+      ) : view === "funilvendas" ? (
+        <FunilVendas leads={leadsFunil} onAvancar={handleAvancarLead} onGraduar={handleGraduarLead} onDescartar={handleDescartarLead} />
       ) : view === "documentos" ? (
         <Documentos onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} onAbrirCard={handleAbrirCard} />
       ) : view === "importarpdf" ? (
