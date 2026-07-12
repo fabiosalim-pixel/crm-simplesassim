@@ -8,6 +8,7 @@ import CrossSell from "./CrossSell";
 import Sinistros from "./Sinistros";
 import Comissoes from "./Comissoes";
 import Apolices from "./Apolices";
+import Documentos from "./Documentos";
 import {
   STAGES, PROSP_STAGES, DOC_TIPOS,
   RAMOS_IMOVEL, RAMOS_VIDA, RAMOS_EQUIP, RAMOS_VIAGEM,
@@ -462,8 +463,10 @@ export default function App() {
       ) : view === "prospeccoes" ? (
         <ProspeccoesView prospeccoes={prospeccoes} onUpdate={handleProspeccaoUpdate} onRecuperar={handleRecuperar} />
       ) : view === "documentos" ? (
+        <Documentos onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} onAbrirCard={handleAbrirCard} />
+      ) : view === "importarpdf" ? (
         <div className="max-w-2xl">
-          <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">Documentos</h1>
+          <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">Importar PDF</h1>
           <p className="text-sm text-slate-500 mb-5">
             Importação automática de propostas, apólices e endossos via IA.
           </p>
