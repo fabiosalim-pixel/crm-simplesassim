@@ -1,4 +1,4 @@
-import { LayoutDashboard, UserPlus, Target, Shield, Upload, AlertTriangle, DollarSign, Briefcase, Users } from "lucide-react";
+import { LayoutDashboard, UserPlus, Target, Shield, Upload, AlertTriangle, DollarSign, Briefcase, Paperclip, Users } from "lucide-react";
 
 /* ============================================================================
    NAV GROUPS — Fase 1 + Fase 2 + Fase 3 (em entrega)
@@ -29,7 +29,8 @@ export const navGroups = [
       { key: "pipeline", label: "Pipeline", icon: Shield },
       { key: "sinistros", label: "Sinistros", icon: AlertTriangle },
       { key: "comissoes", label: "Comissões", icon: DollarSign },
-      { key: "documentos", label: "Documentos", icon: Upload },
+      { key: "documentos", label: "Documentos", icon: Paperclip },
+      { key: "importarpdf", label: "Importar PDF", icon: Upload },
     ],
   },
   {
