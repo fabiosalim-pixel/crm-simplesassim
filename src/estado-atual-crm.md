@@ -225,6 +225,80 @@ Bônus: um segundo `SN_STATUS_COR_PILL` morto, dentro do `handleExtrairDados` em
 
 ---
 
+## SEÇÃO 0.15 — FASE 3: APÓLICES (12/07/2026) — EM PRODUÇÃO
+
+Novo arquivo `Apolices.jsx` — tela no grupo Carteira (ao lado de Clientes), listando a carteira **emitida** (`status_pipeline = 'emitida'`) — diferente de "Renovações" (o Kanban, que é o trabalho em andamento).
+
+- Busca por nome ou CPF/CNPJ, filtros: Vigentes/Encerradas/Todas, ramo, seguradora
+- Ordenada por vencimento (mais próxima primeiro), badge de urgência (mesma lógica visual do Kanban)
+- Clique leva pra ficha do cliente; botão de seta abre o card no Kanban (só aparece se a apólice não estiver arquivada)
+
+---
+
+## SEÇÃO 0.16 — FASE 3: DOCUMENTOS (REPOSITÓRIO TRANSVERSAL) (12/07/2026) — EM PRODUÇÃO
+
+**Achado de colisão de nome:** a chave/label "Documentos" já existia no menu, mas apontava pra tela de importação de PDF, não pra um repositório. Resolvido renomeando:
+- "Documentos" → passou a ser o repositório novo (busca/link, sem upload/exclusão — isso continua exclusivo do card, mesma lógica do Sinistros)
+- "Importar PDF" → a tela antiga, renomeada pra refletir o que sempre fez
+
+Novo arquivo `Documentos.jsx`: busca por cliente (nome/CPF/CNPJ) ou nome do arquivo, filtro por tipo (`DOC_TIPOS`), cada linha com botão de abrir o arquivo (reaproveita `docPublicUrl` de `data.js`, bucket público `documentos`) e atalhos pra "Cliente"/"Card".
+
+**Nota de comportamento esperado, não bug:** o mesmo cliente pode ter várias linhas (Proposta + Apólice de cada ciclo de renovação) — a tela lista cada anexo real, sem agrupar por cliente nem colapsar ciclos, de propósito.
+
+---
+
+## SEÇÃO 0.17 — MOTIVO DE CANCELAMENTO DE APÓLICE (12/07/2026) — SCHEMA + CÓDIGO — EM PRODUÇÃO
+
+Decisão de negócio: "inativo" (Seção 0.18) precisa diferenciar cancelamento a pedido do cliente de cancelamento por inadimplência — informação que não existia em nenhum lugar do schema até agora.
+
+- **Nova coluna:** `renovacoes.motivo_cancelamento` (text, nullable) — teste e produção
+- `constants.js`: `MOTIVOS_CANCELAMENTO = ["A pedido do cliente", "Inadimplência", "Outro"]`
+- `data.js`: `motivo_cancelamento` ↔ `motivoCancelamento` em `mapRow`/`upsertCard`, mesmo padrão dos outros campos
+- `DocumentosEndossos.jsx` (`EndossoSection`): o formulário de cancelamento de apólice passa a **exigir** o motivo antes de liberar o botão de confirmar — sem motivo escolhido, botão fica desabilitado
+- `ModalCard.jsx` (`handleCancelarApolice`): grava o motivo junto com a etiqueta "Cancelada"
+- Bônus: removido também um `SN_STATUS_COR_PILL` morto dentro do `handleExtrairDados`, já registrado como achado (não corrigido) na Seção 1
+
+---
+
+## SEÇÃO 0.18 — FASE 3: INATIVOS (12/07/2026) — EM PRODUÇÃO — FASE 3 CONCLUÍDA
+
+Novo arquivo `Inativos.jsx` — tela no grupo Carteira. **Definição de "inativo"** (decisão de negócio): cliente sem NENHUMA apólice vigente hoje, cuja apólice mais recente terminou em **Cancelada** (com motivo, ver Seção 0.17) ou **Não Renovada**. Cliente com outra apólice vigente em outro ramo continua ativo, mesmo que uma apólice específica tenha sido cancelada.
+
+**Bug real encontrado e corrigido durante o teste:** a definição de "vigente" usada aqui (`status_pipeline = 'emitida' AND data_renovacao >= hoje`) não considerava cancelamento no meio do prazo — uma apólice cancelada antes do vencimento natural continuava com `data_renovacao` no futuro, então contava como "vigente" e o cliente nunca aparecia como inativo. Corrigido: apólice com `etiqueta_situacao` em ('Cancelada', 'Não Renovada') nunca conta como vigente, independente da data.
+
+**⚠️ Pendência a revisar:** essa mesma definição de "vigente" (sem considerar cancelamento) é usada em outros lugares — Dashboard, Apólices (Seção 0.15) — que podem estar com a mesma falha de conceito, inflando a contagem de "vigentes" quando uma apólice é cancelada no meio do prazo. Não corrigido nesses outros lugares ainda, só no Inativos.
+
+**Achado de qualidade de dado, corrigido na origem:** 2 cards com `cliente_id` nulo encontrados (1 em produção — José Ribamar de Sousa Marques; 1 em teste — Fernando Carneiro Ferreira, o mesmo usado pra testar o cancelamento). Cadastro criado em `clientes` e vinculado manualmente nos dois casos. Motivo raiz não investigado a fundo (cards que nasceram fora do fluxo normal de `findOrCreateCliente`).
+
+---
+
+## SEÇÃO 0.19 — FUNIL DE VENDAS (12/07/2026) — EM PRODUÇÃO
+
+Implementa a decisão de arquitetura que estava pendente desde a sessão de redesign: leads do site/Google deixam de entrar direto no Kanban.
+
+### Schema
+- `prospeccoes.detalhes` (jsonb, nova coluna) — guarda o jsonb bruto do lead (placa, modelo, CEP de pernoite etc.) até o momento da graduação, já que `prospeccoes` não tem colunas próprias de veículo
+- **Discriminador na mesma tabela `prospeccoes`:** `renovacao_id IS NULL` = lead novo do site (Funil de Vendas, usa a coluna `status`) · `renovacao_id IS NOT NULL` = recuperação de Não Renovada (Captação, usa `status_prospeccao`, como já era) — a tabela tem as duas colunas de status desde antes, só uma delas (`status`) nunca tinha sido usada pelo código
+
+### Trigger `processar_lead_site()` — reescrito (teste → validado → produção)
+Antes: `insert into renovacoes` direto, `status_pipeline = 'cotacoes'` (lead nascia no Kanban). Agora: `insert into prospeccoes`, `status = 'lead_recebido'`, `renovacao_id = null`, mesma lógica de tradução de tipo_seguro e texto de observações (`v_obs`) preservada, `detalhes` repassado como jsonb bruto do lead. Testado com um INSERT simulado em `leads` na base de teste antes de tocar produção; produção confirmada com `pg_get_functiondef` batendo exatamente com a versão testada.
+
+### Bug real encontrado e corrigido: `loadProspeccoes()` misturava os dois fluxos
+Antes de qualquer tela existir, um teste revelou que leads novos simulados apareciam na coluna "Fria" da tela Captação — porque `loadProspeccoes()` (em `data.js`) carregava todas as linhas de `prospeccoes` sem filtrar por `renovacao_id`, e o campo JS `status` era montado a partir de `status_prospeccao` (que fica NULL pra leads novos, caindo no default `"FRIA"`). Corrigido: `loadProspeccoes()` agora só traz `renovacao_id IS NOT NULL`.
+
+### Novo arquivo `FunilVendas.jsx`
+Mini-Kanban de 2 estágios ativos (`FUNIL_ESTAGIOS` em `constants.js`): **Lead recebido** → **Contato realizado**. Não existe uma coluna "Proposta enviada" separada — a graduação ("Enviar cotação") é o próprio ato de avançar: cria o card em `renovacoes` já na etapa **"Enviada ao Cliente"** (pula "Cotações e Leads", já que a qualificação foi feita no funil), desempacotando `detalhes` pros campos `auto_*` quando o produto é Automóvel e o fluxo é "novo". Bônus (fora do plano original, adicionado durante a implementação): botão "Descartar" — sem ele, um lead que não vira negócio ficaria preso no funil pra sempre.
+
+Novas funções em `data.js`: `loadFunilVendas()`, `atualizarEstagioLead()`, `graduarLead()`, `descartarLead()`.
+
+### Decisão: Cross-sell não fica redundante
+Levantada a dúvida se Cross-sell perdeu sentido com o Funil de Vendas existindo. Resolvido: são públicos diferentes — Cross-sell é expansão de carteira em quem **já é cliente**; Funil de Vendas é qualificação de quem **nunca foi cliente**. Os dois continuam existindo, sem sobreposição de dado.
+
+### Teste ponta a ponta (validado antes de tocar produção)
+Lead simulado (INSERT manual em `leads`, cenário Automóvel/seguro novo) → apareceu em Lead recebido → avançado pra Contato realizado → "Enviar cotação" → card criado em Renovações/Enviada ao Cliente com placa, modelo, ano, chassi, CEP de pernoite, tipo de utilização e estado civil do condutor todos corretos, etiqueta de canal "Site" preservada.
+
+---
+
 ## CONTEXTO GERAL
 
 CRM proprietário do corretor Fabio Salim Guimarães Marques (Via Seguros / Simples Assim).
