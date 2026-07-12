@@ -6,6 +6,7 @@ import Dashboard from "./Dashboard";
 import Segurados from "./Segurados";
 import CrossSell from "./CrossSell";
 import Sinistros from "./Sinistros";
+import Comissoes from "./Comissoes";
 import {
   STAGES, PROSP_STAGES, DOC_TIPOS,
   RAMOS_IMOVEL, RAMOS_VIDA, RAMOS_EQUIP, RAMOS_VIAGEM,
@@ -451,6 +452,8 @@ export default function App() {
         <CrossSell onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} />
       ) : view === "sinistros" ? (
         <Sinistros onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} onAbrirCard={handleAbrirCard} />
+      ) : view === "comissoes" ? (
+        <Comissoes />
       ) : view === "aniversariantes" ? (
         <AniversariantesView onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} />
       ) : view === "prospeccoes" ? (
