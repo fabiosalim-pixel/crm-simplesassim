@@ -178,7 +178,7 @@ if (tipo === "proposta" && d.status === "cotacoes") {
   };
 
   const handleCancelarApolice = async (endosso) => {
-    const updated = { ...d, endossos: [...(d.endossos||[]), endosso], etiquetaSituacao: "Cancelada", arquivado: true, arquivadoEm: new Date().toISOString() };
+    const updated = { ...d, endossos: [...(d.endossos||[]), endosso], etiquetaSituacao: "Cancelada", motivoCancelamento: endosso.motivo || null, arquivado: true, arquivadoEm: new Date().toISOString() };
     await onArquivar(updated);
   };
 

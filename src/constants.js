@@ -34,6 +34,7 @@ export const RAMOS_EQUIP = ["BIKE","EQUIPAMENTOS PORTÁTEIS"];
 export const RAMOS_VIAGEM = ["SEGURO VIAGEM"];
 
 export const SITUACOES = ["Cancelada","Endosso","Não Renovada","Protocolado","Recusada","Renov. Congênere","Renovação","Seguro Novo","Sem Negócio"];
+export const MOTIVOS_CANCELAMENTO = ["A pedido do cliente","Inadimplência","Outro"];
 export const PAGAMENTOS = ["Boleto","Cartão de Crédito","Débito em Conta","Link de Pagamento","PIX"];
 export const CANAIS = ["Google","Indicação","Site","Cliente da Corretora","Outros/Não informado"];
 

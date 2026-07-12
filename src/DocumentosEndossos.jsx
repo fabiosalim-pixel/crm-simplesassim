@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Upload, Paperclip, Download, Trash2, RotateCcw, Plus, X } from "lucide-react";
-import { DOC_TIPOS } from "./constants";
+import { DOC_TIPOS, MOTIVOS_CANCELAMENTO } from "./constants";
 import { genId, fmt } from "./utils";
 import { loadDocs, uploadDoc, deleteDoc, docPublicUrl } from "./data";
 
@@ -130,8 +130,9 @@ export function EndossoSection({ endossos, onChange, onCancelar }) {
   const handleSalvar = () => {
     if (!form?.tipo) return;
     if (form.tipo === "cancelamento") {
+      if (!form.motivo) { alert("Selecione o motivo do cancelamento antes de confirmar."); return; }
       if (!window.confirm("Cancelar esta apólice?\n\nO card será arquivado como Cancelada. O histórico será preservado.")) return;
-      onCancelar({ id: genId(), tipo: "cancelamento", data: form.data || new Date().toISOString().slice(0, 10) });
+      onCancelar({ id: genId(), tipo: "cancelamento", motivo: form.motivo, data: form.data || new Date().toISOString().slice(0, 10) });
       setForm(null);
       return;
     }
@@ -161,9 +162,18 @@ export function EndossoSection({ endossos, onChange, onCancelar }) {
       </div>
     );
     if (form.tipo === "cancelamento") return (
-      <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
-        ⚠️ Esta ação encerrará a apólice e arquivará o card como <strong>Cancelada</strong>. O histórico é sempre preservado.
-      </p>
+      <div className="space-y-3">
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+          ⚠️ Esta ação encerrará a apólice e arquivará o card como <strong>Cancelada</strong>. O histórico é sempre preservado.
+        </p>
+        <div>
+          <label className={lbl}>Motivo do cancelamento *</label>
+          <select className={inp} value={form.motivo || ""} onChange={e => sf("motivo", e.target.value)}>
+            <option value="">Selecione...</option>
+            {MOTIVOS_CANCELAMENTO.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+      </div>
     );
     return null;
   };
@@ -201,7 +211,8 @@ export function EndossoSection({ endossos, onChange, onCancelar }) {
             <button onClick={()=>setForm(null)}
               className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">Cancelar</button>
             <button onClick={handleSalvar}
-              className={`px-3 py-1.5 text-xs text-white rounded-lg font-semibold ${form.tipo==="cancelamento" ? "bg-red-600 hover:bg-red-700" : "bg-indigo-600 hover:bg-indigo-700"}`}>
+              disabled={form.tipo === "cancelamento" && !form.motivo}
+              className={`px-3 py-1.5 text-xs text-white rounded-lg font-semibold disabled:opacity-40 disabled:cursor-not-allowed ${form.tipo==="cancelamento" ? "bg-red-600 hover:bg-red-700" : "bg-indigo-600 hover:bg-indigo-700"}`}>
               {form.tipo==="cancelamento" ? "⚠️ Confirmar cancelamento" : "Salvar endosso"}
             </button>
           </div>
