@@ -9,6 +9,7 @@ import Sinistros from "./Sinistros";
 import Comissoes from "./Comissoes";
 import Apolices from "./Apolices";
 import Documentos from "./Documentos";
+import Inativos from "./Inativos";
 import {
   STAGES, PROSP_STAGES, DOC_TIPOS,
   RAMOS_IMOVEL, RAMOS_VIDA, RAMOS_EQUIP, RAMOS_VIAGEM,
@@ -452,6 +453,8 @@ export default function App() {
         <Segurados initialSelId={clienteParaAbrir} onAbrirCard={handleAbrirCard} />
       ) : view === "apolices" ? (
         <Apolices onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} onAbrirCard={handleAbrirCard} />
+      ) : view === "inativos" ? (
+        <Inativos onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} />
       ) : view === "crosssell" ? (
         <CrossSell onVerCliente={(id) => navigateTo("segurados", { clienteId: id })} />
       ) : view === "sinistros" ? (
