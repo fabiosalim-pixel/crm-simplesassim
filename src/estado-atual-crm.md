@@ -171,7 +171,7 @@ Update **direto e isolado** só na coluna `sinistros` da apólice específica. *
 
 ## SEÇÃO 0.10 — PENDÊNCIAS EM ABERTO (12/07/2026)
 
-- **Comissões (versão estimada)** — último item da Fase 2 do redesign visual, pausado. Registrado no Asana (gid 1216295454296978). Escopo: agregação de `premio_liquido × percentual_comissao` por mês/produto/seguradora — **tela/UI**, distinta do modelo de dados de Comissões Fase 0 já implementado (ver Seção 12, mais abaixo — schema já existe nas duas bases desde 19/06).
+- **Comissões (versão estimada)** — último item da Fase 2 do redesign visual, pausado. Registrado no Asana (gid 1216295454296978). Escopo: agregação de `premio_liquido × percentual_comissao` por mês/produto/seguradora — **tela/UI**, distinta do modelo de dados de Comissões Fase 0 já implementado (ver Seção 12, mais abaixo — schema já existe nas duas bases desde 19/06). **CONCLUÍDO em 12/07 — ver Seção 0.14. Fase 2 do redesign está inteira em produção.**
 - **RLS das tabelas de comissão** (`comissao_parcelas`/`comissao_movimentos`) precisa espelhar as políticas de `renovacoes` antes de qualquer exposição na UI — já registrado como pendência na própria Seção 12.
 - **Auditoria completa de divergência doc-vs-código via Cowork** — executada em 12/07 (ver Seção 0.11). Registrada no Asana (gid 1216295911789891), pode ser fechada/marcada como concluída.
 
@@ -206,6 +206,22 @@ Bônus: um segundo `SN_STATUS_COR_PILL` morto, dentro do `handleExtrairDados` em
 
 1. **Documentação também precisa de Pull Request.** Uma crença que vinha sendo repassada (implícita na Seção 11, "commit por terminal PowerShell... separados") foi tratada, em algum momento, como "documentação pode ir direto pro `main`, é só texto". **Isso está errado** — a proteção de branch (`protege-main`, Seção 0) bloqueia push direto de qualquer arquivo, documentação incluída (confirmado hoje: `git push` direto recusado com `GH013`). A partir de agora, atualização de doc segue o mesmo fluxo de qualquer código: branch → commit → push → PR → merge.
 2. **Confirmar que o arquivo em disco realmente mudou antes de assumir que o commit vai pegar o conteúdo certo.** A atualização deste documento gerada em 06/07 nunca chegou a substituir o arquivo real no disco (provável download que foi para a pasta errada) — e isso só foi descoberto hoje, através de duas checagens simples: `git log --oneline -- src/estado-atual-crm.md` (mostrou o último commit real como sendo de 26/06) e `Select-String -Path src\estado-atual-crm.md -Pattern "<texto que só existiria na versão nova>"` (não encontrou nada). Vale rodar essas duas checagens **depois** de qualquer atualização de documentação, antes do commit — não só quando algo parece errado.
+
+---
+
+## SEÇÃO 0.14 — FASE 2 DO REDESIGN: COMISSÕES (VERSÃO ESTIMADA) (12/07/2026) — EM PRODUÇÃO — FASE 2 CONCLUÍDA
+
+Último item da Fase 2. Com essa entrega, **Cross-sell, Sinistros e Comissões estão os três em produção** — a Fase 2 do redesign visual está inteira concluída.
+
+**Novo arquivo `Comissoes.jsx`** — tela no grupo Operações do menu (entre Sinistros e Documentos), versão estimada (agregação de `premio_liquido × percentual_comissao`, dado que já alimenta o `dashboard_metrics()` — não é a versão financeira detalhada da Seção 12, que continua pausada):
+- Seletor de período (Mês atual/15/30/90/livre), mesmo padrão visual do seletor já usado no `Dashboard.jsx`
+- 4 cards de resumo: comissão do período, prêmio líquido, ticket médio, contagem "sem comissão"
+- Duas quebras com barra de proporção: por seguradora e por produto
+- Filtro: `status_pipeline = 'emitida'` e `data_emissao` dentro do período — mesma lógica que a "Produção" do Dashboard já usa (não filtra por `data_renovacao`)
+
+**Achado durante o teste — grafia inconsistente de seguradora.** Com dado real, "PORTO SEGURO" e "Porto Seguro" apareciam como duas linhas separadas na quebra por seguradora. Causa raiz: um card na base de **teste** (Fernando Carneiro Ferreira, Residencial, emitida 24/06) tinha `seguradora = 'Porto Seguro'` em vez do padrão `'PORTO SEGURO'` usado no resto da carteira. Produção já estava limpa (confirmado por SQL, zero linhas). Duas correções aplicadas:
+1. **Na tela:** agrupamento por seguradora/produto passou a ser case-insensitive (`chave = valor.trim().toUpperCase()`), exibindo sempre em maiúsculas — protege contra a mesma inconsistência aparecer de novo no futuro (ex: vinda da importação de PDF, onde o texto vem direto do documento).
+2. **Na origem:** `UPDATE renovacoes SET seguradora = 'PORTO SEGURO' WHERE seguradora = 'Porto Seguro'` rodado na base de teste, confirmado com SELECT antes e depois.
 
 ---
 
@@ -690,3 +706,4 @@ Achados da auditoria de código que se referem a detalhes específicos das seç�
 
 **Sobre a Seção 12 (Módulo de Comissões — Fase 0):**
 - O arquivo `comissoes_fase0_schema.sql` e qualquer referência a `comissao_parcelas`/`comissao_movimentos` **não foram encontrados no repositório** pela auditoria de 12/07 — nenhuma linha de código no app referencia essas tabelas ainda (esperado, já que a Fase 1+ de UI está pausada). Não dá pra confirmar por código se as tabelas realmente existem nas duas bases como esta seção descreve — só é possível verificar direto no SQL Editor de produção e teste. Vale fazer essa checagem antes de retomar qualquer trabalho de Comissões.
+- **Verificado em 12/07 (`information_schema.columns` nas duas bases):** as duas tabelas existem, com colunas idênticas em produção e teste, batendo exatamente com o que esta seção descreve — `comissao_parcelas` (id, renovacao_id, numero_parcela, valor_esperado, data_prevista, status, observacao, criado_em) e `comissao_movimentos` (id, renovacao_id, parcela_id, tipo, valor, data_movimento, seguradora, extrato_ref, extrato_data, observacao, criado_em). Zero divergência entre as duas bases. Esse era o único item da auditoria de 12/07 que ficava sem confirmação — agora fechado.
