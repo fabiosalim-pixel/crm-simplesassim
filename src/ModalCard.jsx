@@ -24,12 +24,6 @@ export function Modal({ card, onClose, onSave, onDelete, onArquivar, onDesarquiv
 
   const handleExtrairDados = (data, tipo) => {
     const updates = {};
-    const SN_STATUS_COR_PILL = {
-      "Aberto":                "bg-red-100 text-red-700",
-      "Documentação":          "bg-amber-100 text-amber-700",
-      "Aguardando Seguradora": "bg-blue-100 text-blue-700",
-      "Em Regulação":          "bg-violet-100 text-violet-700",
-    };
 
     // Campos que mudam a cada ciclo de renovação — a proposta/apólice extraída
     // é sempre a fonte mais atual, então sobrescrevem o valor anterior do card.
@@ -82,23 +76,31 @@ if (tipo === "proposta" && d.status === "cotacoes") {
 }
       setD(prev => ({ ...prev, ...updates }));
 
-      // Sincroniza dados permanentes do segurado na tabela clientes (data nascimento + endereço)
+      // Sincroniza dados permanentes do segurado na tabela clientes (data nascimento +
+      // endereço) — fill-blank-only: só grava campos que hoje estão vazios no cadastro,
+      // nunca sobrescreve o que já existe. CEP sempre mascarado antes de gravar.
       const clienteId = d.clienteId;
       if (clienteId) {
-        const clienteUpdates = {};
-        if (data.segurado?.dataNascimento) clienteUpdates.data_nascimento = data.segurado.dataNascimento;
-        if (data.endereco?.cep)         clienteUpdates.cep          = data.endereco.cep;
-        if (data.endereco?.logradouro)  clienteUpdates.logradouro   = data.endereco.logradouro;
-        if (data.endereco?.numero)      clienteUpdates.numero        = data.endereco.numero;
-        if (data.endereco?.complemento) clienteUpdates.complemento  = data.endereco.complemento;
-        if (data.endereco?.bairro)      clienteUpdates.bairro        = data.endereco.bairro;
-        if (data.endereco?.cidade)      clienteUpdates.cidade        = data.endereco.cidade;
-        if (data.endereco?.uf)          clienteUpdates.estado        = data.endereco.uf;
-        if (Object.keys(clienteUpdates).length > 0) {
-          supabase.from("clientes").update(clienteUpdates).eq("id", clienteId).then(({ error }) => {
-            if (error) console.error("Erro ao atualizar cliente:", error);
+        supabase.from("clientes")
+          .select("data_nascimento, cep, logradouro, numero, complemento, bairro, cidade, estado")
+          .eq("id", clienteId).single()
+          .then(({ data: atual, error: selError }) => {
+            if (selError) { console.error("Erro ao ler cliente para sincronizar:", selError); return; }
+            const clienteUpdates = {};
+            if (data.segurado?.dataNascimento && !atual?.data_nascimento) clienteUpdates.data_nascimento = data.segurado.dataNascimento;
+            if (data.endereco?.cep         && !atual?.cep)         clienteUpdates.cep          = maskCEP(data.endereco.cep);
+            if (data.endereco?.logradouro  && !atual?.logradouro)  clienteUpdates.logradouro   = data.endereco.logradouro;
+            if (data.endereco?.numero      && !atual?.numero)      clienteUpdates.numero       = data.endereco.numero;
+            if (data.endereco?.complemento && !atual?.complemento) clienteUpdates.complemento  = data.endereco.complemento;
+            if (data.endereco?.bairro      && !atual?.bairro)      clienteUpdates.bairro       = data.endereco.bairro;
+            if (data.endereco?.cidade      && !atual?.cidade)      clienteUpdates.cidade       = data.endereco.cidade;
+            if (data.endereco?.uf          && !atual?.estado)      clienteUpdates.estado       = data.endereco.uf;
+            if (Object.keys(clienteUpdates).length > 0) {
+              supabase.from("clientes").update(clienteUpdates).eq("id", clienteId).then(({ error }) => {
+                if (error) console.error("Erro ao atualizar cliente:", error);
+              });
+            }
           });
-        }
       }
 
       const msg = updates.status === "transmitida"

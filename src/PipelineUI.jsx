@@ -94,57 +94,6 @@ function CardTile({ card, onClick, onDragStart }) {
     </div>
   );
 }
-const SN_STATUS_COR_PILL = {
-  "Aberto":                "bg-red-100 text-red-700",
-  "Documentação":          "bg-amber-100 text-amber-700",
-  "Aguardando Seguradora": "bg-blue-100 text-blue-700",
-  "Em Regulação":          "bg-violet-100 text-violet-700",
-};
-
-export function PainelSinistros({ cards, onCard }) {
-  const itens = cards.flatMap(c =>
-    (c.sinistros || [])
-      .filter(s => s.status !== "Encerrado")
-      .map(s => ({ ...s, card: c }))
-  ).sort((a, b) => (a.dataOcorrencia || "").localeCompare(b.dataOcorrencia || ""));
-
-  return (
-    <div className="w-64 flex-shrink-0 border-l border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 overflow-y-auto flex flex-col">
-      <div className="px-3 py-2.5 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 bg-white dark:bg-slate-800 sticky top-0">
-        <AlertTriangle size={13} className="text-red-500 flex-shrink-0" />
-        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Sinistros abertos</span>
-        {itens.length > 0 && (
-          <span className="ml-auto text-xs bg-red-100 text-red-700 font-bold px-1.5 py-0.5 rounded-full">{itens.length}</span>
-        )}
-      </div>
-      {itens.length === 0 ? (
-        <div className="text-xs text-slate-400 dark:text-slate-500 text-center py-8 px-3">Nenhum sinistro aberto.</div>
-      ) : (
-        <div className="p-2 space-y-2">
-          {itens.map(s => (
-            <div key={s.id}
-              onClick={() => onCard(s.card)}
-              className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 cursor-pointer hover:border-red-300 hover:shadow-sm transition-all">
-              <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{s.tipo}</span>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${SN_STATUS_COR_PILL[s.status] || "bg-slate-100 text-slate-500"}`}>{s.status}</span>
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate">{s.card.clienteNome}</div>
-              <div className="text-xs text-slate-400 dark:text-slate-500 truncate">{s.card.tipoSeguro} · {s.card.seguradora}</div>
-              {s.protocolo && <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Prot: {s.protocolo}</div>}
-              {s.dataPrevistaResolucao && (
-                <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                  Previsão: {new Date(s.dataPrevistaResolucao + "T00:00:00").toLocaleDateString("pt-BR")}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 export function Column({ stage, cards, onCard, onAdd, onDrop }) {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -155,11 +104,11 @@ export function Column({ stage, cards, onCard, onAdd, onDrop }) {
 
   return (
     <div className="flex-shrink-0 flex flex-col rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700" style={{ width: 256, boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
-      <div className={`flex items-center justify-between px-3 py-2.5 bg-white dark:bg-slate-800 border-b-2 ${stage.accent}`} title={stage.label}>
-        <div className="flex items-center gap-1.5 flex-nowrap min-w-0">
-          <span className="font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 whitespace-nowrap truncate">{stage.short}</span>
-          <span className="text-xs font-normal normal-case text-slate-400 dark:text-slate-500 flex-shrink-0">{cards.length}</span>
-          {stage.optional && <span className="text-xs opacity-70 font-normal normal-case text-slate-400 dark:text-slate-500 flex-shrink-0 whitespace-nowrap">· específicos</span>}
+      <div className={`flex items-center justify-between px-3 py-2.5 bg-white dark:bg-slate-800 border-b-2 ${stage.accent}`}>
+        <div className="flex items-center gap-1.5">
+          <span className="font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300">{stage.label}</span>
+          <span className="text-xs font-normal normal-case text-slate-400 dark:text-slate-500">{cards.length}</span>
+          {stage.optional && <span className="text-xs opacity-70 font-normal normal-case text-slate-400 dark:text-slate-500">· específicos</span>}
         </div>
       </div>
       <div
