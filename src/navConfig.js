@@ -1,4 +1,4 @@
-import { LayoutDashboard, UserPlus, Target, Shield, Upload, AlertTriangle, DollarSign, Briefcase, Paperclip, UserMinus, Users } from "lucide-react";
+import { LayoutDashboard, UserPlus, Target, Shield, Upload, AlertTriangle, DollarSign, Briefcase, Paperclip, UserMinus, Send, Users } from "lucide-react";
 
 /* ============================================================================
    NAV GROUPS — Fase 1 + Fase 2 + Fase 3
@@ -19,6 +19,7 @@ export const navGroups = [
   {
     title: "Vendas",
     items: [
+      { key: "funilvendas", label: "Funil de Vendas", icon: Send },
       { key: "prospeccoes", label: "Captação", icon: UserPlus },
       { key: "crosssell", label: "Cross-sell", icon: Target },
     ],

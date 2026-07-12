@@ -309,6 +309,7 @@ export async function criarProspeccao(card) {
 export async function loadProspeccoes() {
   const { data, error } = await supabase
     .from("prospeccoes").select("*")
+    .not("renovacao_id", "is", null)
     .order("criado_em", { ascending: false });
   if (error) { console.error(error); return []; }
   return (data || []).map(r => ({
@@ -347,6 +348,88 @@ export async function upsertProspeccao(p) {
     atualizado_em:         new Date().toISOString(),
   });
   if (error) console.error("Erro ao salvar prospecção:", error);
+}
+
+// ── Funil de Vendas — leads novos do site/Google (renovacao_id IS NULL) ──
+// Discriminador de tabela: prospeccoes.renovacao_id NULL = lead novo (aqui);
+// NOT NULL = recuperação de Não Renovada (Captação, loadProspeccoes acima).
+// Usa a coluna `status` (distinta de `status_prospeccao`, que é só da Captação).
+export async function loadFunilVendas() {
+  const { data, error } = await supabase
+    .from("prospeccoes")
+    .select("*")
+    .is("renovacao_id", null)
+    .order("criado_em", { ascending: false });
+  if (error) { console.error(error); return []; }
+  return (data || []).map(r => ({
+    id:          r.id,
+    clienteNome: r.cliente_nome,
+    telefone:    r.telefone,
+    email:       r.email,
+    produto:     r.produto,
+    observacoes: r.observacoes,
+    detalhes:    r.detalhes || {},
+    estagio:     r.status || "lead_recebido",
+    criadoEm:    r.criado_em,
+  }));
+}
+
+export async function atualizarEstagioLead(id, estagio) {
+  const { error } = await supabase
+    .from("prospeccoes")
+    .update({ status: estagio, atualizado_em: new Date().toISOString() })
+    .eq("id", id);
+  if (error) console.error("Erro ao atualizar estágio do lead:", error);
+  return !error;
+}
+
+// Graduação: cria o card em renovacoes já na etapa "Enviada ao Cliente",
+// desempacotando os campos de veículo do jsonb `detalhes` quando aplicável.
+// Marca o lead como "convertido" — mantém renovacao_id NULL de propósito,
+// pra não virar um falso registro de recuperação em loadProspeccoes().
+export async function graduarLead(lead) {
+  const det = lead.detalhes || {};
+  const card = {
+    id:               genId(),
+    clienteNome:      lead.clienteNome,
+    telefone:         lead.telefone,
+    email:            lead.email,
+    tipoSeguro:       lead.produto,
+    status:           "enviada",
+    etiquetaSituacao: "Seguro Novo",
+    etiquetaCanal:    "Site",
+    mesReferencia:    new Date().toISOString().slice(0, 7),
+    observacoes:      lead.observacoes || null,
+  };
+  if (lead.produto === "AUTOMÓVEL" && det.fluxo === "novo") {
+    card.autoPlaca               = det.placa || null;
+    card.autoModelo              = det.modelo || null;
+    card.autoAnoFab               = det.ano || null;
+    card.autoAnoMod               = det.ano || null;
+    card.autoChassi              = det.chassi || null;
+    card.autoCpfCondutor         = det.cpf_condutor || null;
+    card.autoEstadoCivilCondutor = det.estado_civil || null;
+    card.autoCepPernoite         = det.cep_pernoite || null;
+    card.autoTipoUtilizacao      = det.tipo_utilizacao || null;
+    card.autoCondutor1825        = typeof det.condutor_18_25 === "boolean" ? det.condutor_18_25 : null;
+  }
+  const erroCard = await upsertCard(card);
+  if (erroCard) { console.error("Erro ao criar card na graduação:", erroCard); return false; }
+  const { error: erroLead } = await supabase
+    .from("prospeccoes")
+    .update({ status: "convertido", atualizado_em: new Date().toISOString() })
+    .eq("id", lead.id);
+  if (erroLead) console.error("Erro ao marcar lead como convertido:", erroLead);
+  return true;
+}
+
+export async function descartarLead(id) {
+  const { error } = await supabase
+    .from("prospeccoes")
+    .update({ status: "perdido", atualizado_em: new Date().toISOString() })
+    .eq("id", id);
+  if (error) console.error("Erro ao descartar lead:", error);
+  return !error;
 }
 
 // ── Helpers de cliente ───────────────────────────────────────

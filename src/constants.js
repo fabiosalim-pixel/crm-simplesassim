@@ -15,6 +15,16 @@ export const PROSP_STAGES = [
   { id: "PERDIDA DEFINITIVA", label: "Perdida Definitiva", short: "Perdida",   badge: "bg-slate-400",   bg: "bg-slate-50",   border: "border-slate-200" },
 ];
 
+// Funil de Vendas — leads novos do site/Google (renovacao_id NULL em
+// prospeccoes). Só 2 estágios ativos: a graduação ("Enviar cotação") já
+// cria o card em Renovações direto na etapa "Enviada ao Cliente" — não
+// existe uma coluna "Proposta enviada" separada aqui, ela é o próprio
+// ato de graduar.
+export const FUNIL_ESTAGIOS = [
+  { id: "lead_recebido",     label: "Lead recebido",      badge: "bg-sky-500" },
+  { id: "contato_realizado", label: "Contato realizado",  badge: "bg-amber-500" },
+];
+
 export const DOC_TIPOS = [
   { id: "proposta",          label: "Proposta",             required: true  },
   { id: "apolice",           label: "Apólice",              required: true  },
