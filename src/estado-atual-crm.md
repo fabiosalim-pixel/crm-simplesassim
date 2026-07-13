@@ -818,3 +818,39 @@ Achados da auditoria de código que se referem a detalhes específicos das seç�
 **Sobre a Seção 12 (Módulo de Comissões — Fase 0):**
 - O arquivo `comissoes_fase0_schema.sql` e qualquer referência a `comissao_parcelas`/`comissao_movimentos` **não foram encontrados no repositório** pela auditoria de 12/07 — nenhuma linha de código no app referencia essas tabelas ainda (esperado, já que a Fase 1+ de UI está pausada). Não dá pra confirmar por código se as tabelas realmente existem nas duas bases como esta seção descreve — só é possível verificar direto no SQL Editor de produção e teste. Vale fazer essa checagem antes de retomar qualquer trabalho de Comissões.
 - **Verificado em 12/07 (`information_schema.columns` nas duas bases):** as duas tabelas existem, com colunas idênticas em produção e teste, batendo exatamente com o que esta seção descreve — `comissao_parcelas` (id, renovacao_id, numero_parcela, valor_esperado, data_prevista, status, observacao, criado_em) e `comissao_movimentos` (id, renovacao_id, parcela_id, tipo, valor, data_movimento, seguradora, extrato_ref, extrato_data, observacao, criado_em). Zero divergência entre as duas bases. Esse era o único item da auditoria de 12/07 que ficava sem confirmação — agora fechado.
+
+---
+
+## SEÇÃO 14 — DICIONÁRIO DAS COLUNAS NÃO DOCUMENTADAS (12/07/2026)
+
+Fecha a lacuna apontada pela auditoria de 12/07 (Seção 13, item sobre a Seção 2): as sete colunas de `renovacoes` abaixo existem nas duas bases (tipos confirmados via `information_schema` em produção) e são usadas ativamente pelo código, mas nunca tinham sido explicadas.
+
+### `cotacoes` — jsonb, default `'[]'` ⚠️ nome enganoso
+**Guarda os FOLLOW-UPS do card, não cotações.** O `data.js` faz o mapeamento `followUps ↔ cotacoes` (leitura linha 66, escrita linha 192). É resquício de nomenclatura antiga — o array de follow-ups do card vive nesta coluna.
+**Não confundir** com o id de etapa do Kanban `"cotacoes"` ("Cotações e Leads", `constants.js`) — mesmo texto, conceito totalmente diferente. Qualquer busca por "cotacoes" no código retorna os dois usos misturados.
+
+### `etiqueta_segfy` — boolean, default `false`
+Controle manual da regra de negócio "proposta transmitida foi subida no Segfy" (etapa 3 do pipeline, ver Regras de Negócio v2). Marcado via checkbox no `ModalCard.jsx` (~linha 729). Quando `true`, o card exibe um ícone de Tag azul no Kanban (`PipelineUI.jsx` ~linha 37). Camelo no front: `etiquetaSegfy`.
+
+### `data_alerta` — date, nullable
+Data de alerta/lembrete manual do card, definida pelo corretor. Editável no `ModalCard.jsx` (~linha 354) e no `ModaisCadastro.jsx` (~linha 207). `utils.js` (~linhas 36-37) considera o alerta disparado quando `dataAlerta <= hoje` (comparação até 23:59:59 do próprio dia). Camelo no front: `dataAlerta`.
+
+### `veiculo` — text, nullable ⚠️ nome ambíguo
+Campo de **texto livre "descrição do bem ou risco segurado"**, genérico para qualquer ramo — placeholder "Placa / Modelo / Endereço" no cadastro (`ModaisCadastro.jsx` ~linha 189) e "Descrição do bem ou risco segurado" no `ModalCard.jsx` (~linha 367). Exibido como subtítulo do card no Kanban (`PipelineUI.jsx` ~linha 40, quando diferente de "—").
+**Não confundir** com o objeto `veiculo` do JSON extraído do PDF (`d.veiculo` / `data.veiculo` em `ImportPDF.jsx` e `ModalCard.jsx`), que é estrutura da resposta da API de extração e alimenta os campos `auto_*`. Mesmo nome, coisas diferentes: a coluna é um texto solto de exibição; o objeto é dado estruturado transitório.
+
+### `auto_sexo` — text, nullable
+Sexo do segurado no perfil de risco de Automóvel. Preenchimento **exclusivamente manual** via select no `ModalCard.jsx` (~linha 448) — a importação de PDF não alimenta este campo (o prompt de extração retorna `sexo`, mas o `ImportPDF.jsx` não o mapeia). Camelo: `autoSexo`.
+
+### `auto_menor_residente` — boolean, default `false`
+Pergunta de perfil de risco de Automóvel "há menor residente". Preenchimento exclusivamente manual via checkbox no `ModalCard.jsx` (~linha 523). Camelo: `autoMenorResidente`.
+
+### `auto_estado_civil_condutor` — text, nullable
+Estado civil do **condutor principal** — distinto de `auto_estado_civil` (do segurado). A mais alimentada das sete, por três caminhos:
+1. **Importação de PDF** (`ImportPDF.jsx` ~linha 112, de `d.veiculo.condutorEstadoCivil`);
+2. **Extração de PDF dentro do card** (`ModalCard.jsx` ~linha 44) — está na lista sempre-sobrescreve da correção de 01/07 (Seção 0.2);
+3. **Graduação do Funil de Vendas** (`data.js` ~linha 411, vindo de `prospeccoes.detalhes.estado_civil`).
+Editável via select no `ModalCard.jsx` (~linha 491) e no `ImportPDF.jsx` (~linha 559, com fallback pro estado civil do segurado quando condutor = segurado). Camelo: `autoEstadoCivilCondutor`.
+
+### Observação geral
+Nenhuma das sete exige mudança de código — são todas funcionais e coerentes com o uso. Os dois riscos reais são de leitura: o nome enganoso de `cotacoes` e a colisão de nome de `veiculo` (coluna text vs. objeto do PDF). Renomear a coluna `cotacoes` para `follow_ups` seria a correção "certa", mas exigiria migração coordenada (banco + `data.js` nas duas bases) — não vale o risco por um problema puramente cosmético; fica registrado aqui como está.
