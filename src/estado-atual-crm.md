@@ -299,6 +299,43 @@ Lead simulado (INSERT manual em `leads`, cenário Automóvel/seguro novo) → ap
 
 ---
 
+## SEÇÃO 0.20 — CORREÇÃO: "VIGENTE" NÃO CONSIDERAVA CANCELAMENTO (12/07/2026) — EM PRODUÇÃO
+
+Revisão do bug já identificado e corrigido no Inativos (Seção 0.18) — confirmado que o mesmo problema existia em mais dois lugares, agora também corrigidos.
+
+**`Apolices.jsx`:** filtro Vigentes/Encerradas usava só `data_renovacao >= hoje`, sem excluir `etiqueta_situacao` Cancelada/Não Renovada. Corrigido com o mesmo padrão do Inativos. Testado: cancelar uma apólice de teste no meio do prazo faz ela sair de "Vigentes" e ir pra "Encerradas" imediatamente.
+
+**`dashboard_metrics()` (SQL, teste → produção):** achado mais sério — a própria função tinha **inconsistência interna**. Os CTEs `renovar` (A renovar) e a subquery de `projecao_comissao_60d` já excluíam corretamente `('Não Renovada','Cancelada','Recusada','Sem Negócio')`; mas `carteira` (Carteira ativa), `mix` (Mix de carteira por ramo) e `sem_comissao` não excluíam nada. Adicionado `AND coalesce(r.etiqueta_situacao,'') NOT IN ('Não Renovada','Cancelada')` nesses três.
+
+- **Teste:** `carteira_qtd` caiu de 14 para 11 depois da correção (as apólices canceladas de teste saíram da conta); o ramo RESIDENCIAL sumiu do mix (era a apólice cancelada do Fernando)
+- **Produção:** `carteira_qtd` = 53 antes **e depois** — sem impacto retroativo, porque não existe hoje nenhuma apólice real cancelada com vigência ainda no futuro. A correção protege daqui pra frente, não corrigiu nenhum número visível agora.
+
+---
+
+## SEÇÃO 0.21 — BUG ESTRUTURAL: REATIVAÇÃO DE RENOVAÇÃO CALCULAVA A JANELA NO ANO ERRADO (12/07/2026) — EM PRODUÇÃO
+
+**O mais impactante achado da sessão.** `reativar_renovacoes()` (a função que roda via `pg_cron` todo dia às 11h, job `reativar-renovacoes-diario`) calculava a janela dos 30 dias antes do vencimento em cima de `data_renovacao + 1 ano`, em vez de `data_renovacao` diretamente:
+
+```sql
+-- Antes (bug):
+AND current_date >= (o.data_renovacao + interval '1 year' - interval '30 days')::date
+AND current_date <= (o.data_renovacao + interval '1 year')::date
+
+-- Depois (corrigido):
+AND current_date >= (o.data_renovacao - interval '30 days')::date
+AND current_date <= o.data_renovacao::date
+```
+
+**Por que isso é grave:** o fluxo padrão do sistema arquiva o card logo após a emissão (Seção 4.1 das Regras de Negócio) — nesse momento, `data_renovacao` já É a vigência atual, ainda não vencida, não uma vigência passada. A função original tratava essa data como se já fosse histórica e calculava a reativação para o ano **seguinte** (2027 em vez de 2026), pulando o ciclo de renovação real inteiro, silenciosamente — sem erro, sem log, o card simplesmente nunca nascia no Kanban.
+
+**Como foi descoberto:** revisão manual da tela Apólices mostrou 6 clientes com vencimento em 14–19 dias que não tinham card nenhum no Pipeline (nem ativo, nem arquivado além do original). Confirmado por SQL: `count(*)` com a lógica corrigida = 6, batendo exatamente com o número observado.
+
+**Correção aplicada:** teste → validado (0 casos afetados na base de teste, sem dado nessa janela) → produção → confirmado com o mesmo `count(*)` (6) → `SELECT reativar_renovacoes();` rodado manualmente (não esperou o cron do dia seguinte) → 6 cards criados na hora, confirmados visualmente na coluna "Cotações e Leads" do Pipeline em produção.
+
+**⚠️ Acompanhar:** é provável que existam outras apólices, com vencimento mais distante (fora da janela de 30 dias ainda), que também nunca reativaram e vão aparecer normalmente conforme entrarem na janela nos próximos dias/semanas — não é um problema novo surgindo, é o backlog represado por esse bug aparecendo aos poucos, conforme os vencimentos se aproximam.
+
+---
+
 ## CONTEXTO GERAL
 
 CRM proprietário do corretor Fabio Salim Guimarães Marques (Via Seguros / Simples Assim).
