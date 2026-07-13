@@ -854,3 +854,26 @@ Editável via select no `ModalCard.jsx` (~linha 491) e no `ImportPDF.jsx` (~linh
 
 ### Observação geral
 Nenhuma das sete exige mudança de código — são todas funcionais e coerentes com o uso. Os dois riscos reais são de leitura: o nome enganoso de `cotacoes` e a colisão de nome de `veiculo` (coluna text vs. objeto do PDF). Renomear a coluna `cotacoes` para `follow_ups` seria a correção "certa", mas exigiria migração coordenada (banco + `data.js` nas duas bases) — não vale o risco por um problema puramente cosmético; fica registrado aqui como está.
+
+
+---
+
+## SEÇÃO 15 — CORREÇÃO: reativar_renovacoes() PASSA A COPIAR vigencia_inicio (12/07/2026) — EM PRODUÇÃO
+
+Fecha o débito registrado na Seção 0.2 (tarefa Asana original gid 1216209458912908, refeita como gid 1216487997148075): a função `reativar_renovacoes()` não copiava o `vigencia_inicio` ao criar o card do novo ciclo — o card nascia com a coluna vazia.
+
+### O que mudou
+Duas linhas no `CREATE OR REPLACE` (aplicado primeiro na TESTE, validado, depois na PRODUÇÃO com aprovação isolada):
+- `vigencia_inicio` adicionado à lista de colunas do `INSERT`;
+- `o.data_renovacao::date` adicionado na posição correspondente do `SELECT` — o início da vigência nova é, por definição, o fim da vigência do ciclo anterior.
+
+É valor provisório, como a `data_renovacao` projetada (`antiga + 1 ano`): quando a proposta real do novo ciclo for extraída do PDF, os dois são sobrescritos (lista sempre-sobrescreve da correção de 01/07, Seção 0.2). Nenhum dado existente foi alterado — o efeito vale para os próximos cards criados pelo `pg_cron` (job diário `reativar-renovacoes-diario`, 08:00 Brasília).
+
+### Como foi validado
+1. Definição real lida via `pg_get_functiondef` na TESTE — de quebra, confirmado que a versão lá era a corrigida de 12/07 (janela de 30 dias sobre a `data_renovacao` real, sem o `+ 1 ano` do bug estrutural), ou seja, teste e produção não tinham divergido.
+2. Coluna `vigencia_inicio` (date) confirmada via `information_schema` nas duas bases antes de escrever a correção.
+3. Teste controlado na TESTE: card fictício arquivado/emitido vencendo em 10 dias → `SELECT reativar_renovacoes()` → card novo criado com `status_pipeline = cotacoes`, `data_renovacao = antiga + 1 ano` e `vigencia_inicio = data_renovacao do card antigo`. Dados de teste apagados em seguida (count final = 0).
+4. Aplicado em PRODUÇÃO e conferido: `pg_get_functiondef` retorna a linha com `vigencia_inicio`.
+
+### Estado das funções SQL após esta correção
+A definição de `reativar_renovacoes()` descrita na Seção 3 (26/06) está defasada em dois pontos acumulados: a reescrita da janela de 30 dias (12/07, correção do bug estrutural) e esta cópia do `vigencia_inicio` (12/07). A definição vigente nas duas bases é a desta seção + Seção 0.x da correção do bug — em caso de dúvida, ler sempre a definição real via `pg_get_functiondef`, nunca confiar na doc de memória.
