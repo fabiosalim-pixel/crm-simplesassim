@@ -4,7 +4,8 @@ import { Briefcase, Search, ChevronRight } from "lucide-react";
 import { fmt, fmtBRL, daysUntil } from "./utils";
 
 const hojeStr = () => new Date().toISOString().slice(0, 10);
-const ehVigente = (a) => a.data_renovacao >= hojeStr();
+const SITUACOES_INATIVAS = ["Cancelada", "Não Renovada"];
+const ehVigente = (a) => a.data_renovacao >= hojeStr() && !SITUACOES_INATIVAS.includes(a.etiqueta_situacao);
 const comissaoDe = (a) => ((Number(a.premio_liquido) || 0) * (Number(a.percentual_comissao) || 0)) / 100;
 
 function ChipVencimento({ dataRenovacao }) {
@@ -35,7 +36,7 @@ export default function Apolices({ onVerCliente, onAbrirCard }) {
       setErro(null);
       const { data, error } = await supabase
         .from("renovacoes")
-        .select("id, cliente_id, cliente_nome, cpf_cnpj, tipo_seguro, seguradora, apolice_nova, proposta, data_renovacao, valor, premio_liquido, percentual_comissao, etiqueta_pagamento, etiqueta_canal, arquivado")
+        .select("id, cliente_id, cliente_nome, cpf_cnpj, tipo_seguro, seguradora, apolice_nova, proposta, data_renovacao, valor, premio_liquido, percentual_comissao, etiqueta_pagamento, etiqueta_canal, etiqueta_situacao, arquivado")
         .eq("status_pipeline", "emitida")
         .not("cliente_id", "is", null);
       if (error) { setErro(error.message); setLoading(false); return; }
